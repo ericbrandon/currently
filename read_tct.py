@@ -30,6 +30,69 @@ class TOC:
 
 
 @dataclass
+class CurrentEvent:
+    time: str          # "HH:MM"
+    kind: str          # "slack" | "max"
+    knots: float = 0.0  # signed: + flood, - ebb; 0.0 for slack and weak/variable max
+    weak_variable: bool = False  # True if PDF showed '*' for the knots column
+
+
+@dataclass
+class CurrentDay:
+    month: int   # 1-12
+    day: int     # 1-31
+    weekday: str
+    events: list[CurrentEvent] = field(default_factory=list)
+
+
+@dataclass
+class CurrentStation:
+    name: str
+    timezone: str            # e.g. "PST-HNP"
+    utc_offset: int          # e.g. -8
+    year: int
+    flood_direction_true: int | None = None  # degrees, from page footer
+    ebb_direction_true: int | None = None    # degrees, from page footer
+    # From Table 4 (REFERENCE STATIONS top half)
+    index_no: int | None = None
+    latitude: float | None = None         # decimal degrees, N positive
+    longitude: float | None = None        # decimal degrees, W negative
+    max_flood_knots: float | None = None  # at large tides
+    max_ebb_knots: float | None = None    # at large tides
+    days: list[CurrentDay] = field(default_factory=list)
+
+
+@dataclass
+class SecondaryCurrent:
+    index_no: int
+    name: str
+    flood_direction_true: int | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    reference_primary: str | None = None  # from "on/sur X, pages Y-Z"
+    geographic_zone: str | None = None    # e.g. "PRINCESS LOUISA INLET"
+    name_annotation: str | None = None    # e.g. "(HAMLEY PT.)"
+    # Time differences applied to the reference station; "±HH:MM" or None
+    turn_to_flood_diff: str | None = None
+    flood_max_diff: str | None = None
+    turn_to_ebb_diff: str | None = None
+    ebb_max_diff: str | None = None
+    # Percentage of reference rate (when given)
+    pct_ref_flood: int | None = None
+    pct_ref_ebb: int | None = None
+    # Absolute max rates in knots (when given instead of percentages)
+    max_flood_knots: float | None = None
+    max_ebb_knots: float | None = None
+    # Annotation when columns are interpreted differently (e.g. "LW HW")
+    format_note: str | None = None
+    # True when the "time diff" columns are offsets from a tide station's
+    # low/high water times (LW/HW) rather than from a current station's
+    # slack/maximum times. Reference_primary will be a tide station in this case.
+    offsets_from_tides: bool = False
+    has_footnote: bool = False
+
+
+@dataclass
 class SecondaryPort:
     index_no: int
     name: str
@@ -162,6 +225,9 @@ def _printed_page_offset(pdf: pdfplumber.PDF, toc_pdf_index: int) -> int:
 ENGLISH_WEEKDAYS = {"MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"}
 FRENCH_WEEKDAYS = {"LUN", "MAR", "MER", "JEU", "VEN", "SAM", "DIM"}
 WEEKDAY_TOKENS = ENGLISH_WEEKDAYS | FRENCH_WEEKDAYS
+
+# Current tables use 2-letter weekday abbreviations.
+ENGLISH_CURRENT_WEEKDAYS = {"MO", "TU", "WE", "TH", "FR", "SA", "SU"}
 
 MONTH_NAMES = [
     "January", "February", "March", "April", "May", "June",
@@ -780,6 +846,535 @@ def build_secondary_ports(pdf_path: str, toc: TOC) -> list[SecondaryPort]:
         return parse_table3(pdf, toc, offset)
 
 
+# Sub-column boundaries within a current-table day-column (offsets relative to day_x).
+_CURR_SUB_DAY = (-5.0, 18.0)
+_CURR_SUB_TURN = (18.0, 36.0)
+_CURR_SUB_MAX = (36.0, 60.0)
+_CURR_SUB_KNOTS = (60.0, 92.0)
+_CURR_DAY_COL_WIDTH = 92.0
+_CURRENT_STATION_PAGES = 4
+
+FLOOD_EBB_PATTERN = re.compile(
+    r"Flood/flot\s+direction\s+(?P<flood>\d+)\s+True/vraie\s+"
+    r"-\s*Ebb/jusant\s+direction\s+(?P<ebb>\d+)\s+True/vraie",
+    re.IGNORECASE,
+)
+
+
+def _parse_current_header(page: pdfplumber.page.Page) -> tuple[str, int, int] | None:
+    """Returns (name, utc_offset, year) if this looks like a current-table page."""
+    text = page.extract_text() or ""
+    lines = text.split("\n")
+    if len(lines) < 3:
+        return None
+    year_line, name_line, tz_line = (lines[0].strip(), lines[1].strip(), lines[2].strip())
+    if not (year_line.isdigit() and len(year_line) == 4):
+        return None
+    if not name_line or not name_line[0].isupper():
+        return None
+    m = re.search(r"\(UTC([+-]\d+)h?\)", tz_line)
+    if not m:
+        return None
+    return name_line, int(m.group(1)), int(year_line)
+
+
+def _parse_flood_ebb(page: pdfplumber.page.Page) -> tuple[int | None, int | None]:
+    text = page.extract_text() or ""
+    m = FLOOD_EBB_PATTERN.search(text)
+    if not m:
+        return None, None
+    return int(m.group("flood")), int(m.group("ebb"))
+
+
+def _classify_current_sub(word: dict, day_x: float) -> str:
+    rel = word["x0"] - day_x
+    if _CURR_SUB_DAY[0] <= rel < _CURR_SUB_DAY[1]:
+        return "day"
+    if _CURR_SUB_TURN[0] <= rel < _CURR_SUB_TURN[1]:
+        return "turn"
+    if _CURR_SUB_MAX[0] <= rel < _CURR_SUB_MAX[1]:
+        return "max"
+    if _CURR_SUB_KNOTS[0] <= rel < _CURR_SUB_KNOTS[1]:
+        return "knots"
+    return "?"
+
+
+def _hhmm_to_colon(text: str) -> str | None:
+    if len(text) != 4 or not text.isdigit():
+        return None
+    return f"{text[:2]}:{text[2:]}"
+
+
+def parse_current_page(page: pdfplumber.page.Page) -> list[CurrentDay]:
+    words = page.extract_words()
+    day_headers = sorted([w for w in words if w["text"] == "Day"], key=lambda w: w["x0"])
+    jour_headers = sorted([w for w in words if w["text"] == "jour"], key=lambda w: w["x0"])
+    if len(day_headers) != 3 or len(jour_headers) != 3:
+        return []
+
+    months = _months_on_page(words, day_headers[0]["top"])
+    if len(months) != 3:
+        # Try lowercase French month suffix (this volume uses "January-janvier" — already handled)
+        return []
+
+    day_xs = sorted([w["x0"] for w in (*day_headers, *jour_headers)])
+    if len(day_xs) != 6:
+        return []
+
+    header_y = day_headers[0]["top"]
+    header_row_words = [w for w in words if abs(w["top"] - header_y) < ROW_TOLERANCE]
+    data_y_start = max(w["bottom"] for w in header_row_words) + 1.0
+    data_y_end = page.height - 30.0  # exclude footer band
+
+    days: list[CurrentDay] = []
+    for col_idx, day_x in enumerate(day_xs):
+        month = months[col_idx // 2]
+        x_lo = day_x + _CURR_SUB_DAY[0]
+        x_hi = day_x + _CURR_DAY_COL_WIDTH
+        col_words = [w for w in words
+                     if data_y_start <= w["top"] < data_y_end
+                     and x_lo <= w["x0"] < x_hi]
+        col_words.sort(key=lambda w: (w["top"], w["x0"]))
+
+        markers: list[tuple[float, int]] = []
+        for w in col_words:
+            if _classify_current_sub(w, day_x) == "day" and w["text"].isdigit():
+                n = int(w["text"])
+                if 1 <= n <= 31:
+                    markers.append((w["top"], n))
+        markers.sort()
+
+        for i, (y_top, day_num) in enumerate(markers):
+            y_end = (markers[i + 1][0] - 3.0) if i + 1 < len(markers) else float("inf")
+            block = [w for w in col_words if y_top - 3.0 <= w["top"] < y_end]
+            rows = _group_rows(block)
+
+            weekday = ""
+            events: list[CurrentEvent] = []
+            for row in rows:
+                buckets: dict[str, list[dict]] = {"day": [], "turn": [], "max": [], "knots": []}
+                for w in row:
+                    sub = _classify_current_sub(w, day_x)
+                    if sub in buckets:
+                        buckets[sub].append(w)
+
+                for w in buckets["day"]:
+                    txt = w["text"]
+                    if txt == str(day_num):
+                        continue
+                    if txt in ENGLISH_CURRENT_WEEKDAYS and not weekday:
+                        weekday = txt
+
+                # A turn-only row contributes a slack event.
+                for w in buckets["turn"]:
+                    t = _hhmm_to_colon(w["text"])
+                    if t:
+                        events.append(CurrentEvent(time=t, kind="slack"))
+
+                # A max time + knots row contributes a max event.
+                if buckets["max"]:
+                    time_text = next((w["text"] for w in buckets["max"]
+                                      if _hhmm_to_colon(w["text"])), None)
+                    knots_text = buckets["knots"][0]["text"] if buckets["knots"] else None
+                    if time_text and knots_text is not None:
+                        t = _hhmm_to_colon(time_text)
+                        if t:
+                            if knots_text == "*":
+                                events.append(CurrentEvent(
+                                    time=t, kind="max", knots=0.0, weak_variable=True))
+                            else:
+                                try:
+                                    events.append(CurrentEvent(
+                                        time=t, kind="max", knots=float(knots_text)))
+                                except ValueError:
+                                    pass
+
+            events.sort(key=lambda e: e.time)
+            days.append(CurrentDay(month=month, day=day_num, weekday=weekday, events=events))
+
+    days.sort(key=lambda d: (d.month, d.day))
+    return days
+
+
+def parse_current_station(
+    pdf: pdfplumber.PDF,
+    toc: TOC,
+    station_index: int,
+    page_offset: int,
+) -> CurrentStation:
+    entry = toc.current_stations[station_index]
+    start_idx = entry.page + page_offset
+    end_idx = start_idx + _CURRENT_STATION_PAGES
+
+    header = _parse_current_header(pdf.pages[start_idx])
+    if header is None:
+        raise ValueError(
+            f"Expected current-station header on PDF page {start_idx + 1} "
+            f"for TOC entry {entry.name!r} (printed page {entry.page})"
+        )
+    name, utc_offset, year = header
+    flood_dir, ebb_dir = _parse_flood_ebb(pdf.pages[start_idx])
+
+    station = CurrentStation(
+        name=name,
+        timezone="PST-HNP",
+        utc_offset=utc_offset,
+        year=year,
+        flood_direction_true=flood_dir,
+        ebb_direction_true=ebb_dir,
+    )
+
+    for pdf_idx in range(start_idx, end_idx):
+        page = pdf.pages[pdf_idx]
+        if _parse_current_header(page) is None:
+            continue
+        station.days.extend(parse_current_page(page))
+
+    station.days.sort(key=lambda d: (d.month, d.day))
+    return station
+
+
+TABLE4_COLUMNS: dict[str, tuple[float, float]] = {
+    "index":      (40.0,  70.0),
+    "name":       (70.0,  180.0),
+    "flood_dir":  (180.0, 210.0),
+    "lat_d":      (205.0, 220.0),
+    "lat_m":      (220.0, 235.0),
+    "lon_d":      (235.0, 252.0),
+    "lon_m":      (252.0, 270.0),
+    "turn_flood": (275.0, 318.0),
+    "flood_max":  (318.0, 358.0),
+    "turn_ebb":   (358.0, 405.0),
+    "ebb_max":    (405.0, 445.0),
+    "max_flood":  (445.0, 480.0),
+    "max_ebb":    (480.0, 510.0),
+    "pct_flood":  (510.0, 545.0),
+    "pct_ebb":    (545.0, 600.0),
+}
+
+
+def _bucket_by_column(words: list[dict]) -> dict[str, list[dict]]:
+    buckets: dict[str, list[dict]] = {col: [] for col in TABLE4_COLUMNS}
+    for w in words:
+        x = w["x0"]
+        for col, (lo, hi) in TABLE4_COLUMNS.items():
+            if lo <= x < hi:
+                buckets[col].append(w)
+                break
+    for col in buckets:
+        buckets[col].sort(key=lambda w: w["x0"])
+    return buckets
+
+
+def _parse_t4_time_diff(words: list[dict]) -> tuple[str | None, bool]:
+    """Returns ('±HH:MM', has_footnote) from words like ['+1', '30(a)']."""
+    if len(words) < 2:
+        return None, False
+    h_text = words[0]["text"]
+    m_text = words[1]["text"]
+    has_foot = "(a)" in m_text or "(a)" in h_text
+    m_clean = m_text.replace("(a)", "").strip()
+    sign = "+"
+    if h_text.startswith("-"):
+        sign = "-"
+        h_text = h_text[1:]
+    elif h_text.startswith("+"):
+        h_text = h_text[1:]
+    try:
+        return f"{sign}{int(h_text):02d}:{int(m_clean):02d}", has_foot
+    except ValueError:
+        return None, has_foot
+
+
+@dataclass
+class _ReferenceCurrentInfo:
+    index_no: int
+    name: str
+    latitude: float | None
+    longitude: float | None
+    flood_direction_true: int | None
+    max_flood_knots: float | None
+    max_ebb_knots: float | None
+
+
+def parse_table4(
+    pdf: pdfplumber.PDF, toc: TOC, page_offset: int
+) -> tuple[list[_ReferenceCurrentInfo], list[SecondaryCurrent]]:
+    if 4 not in toc.table_pages:
+        return [], []
+    pdf_idx = toc.table_pages[4] + page_offset
+    page = pdf.pages[pdf_idx]
+    words = page.extract_words()
+
+    rows: dict[int, list[dict]] = {}
+    for w in words:
+        rows.setdefault(round(w["top"]), []).append(w)
+    sorted_tops = sorted(rows.keys())
+
+    refs: list[_ReferenceCurrentInfo] = []
+    secs: list[SecondaryCurrent] = []
+    seen_on_sur = False
+    current_ref_primary: str | None = None
+    pending_zone: str | None = None
+    pending_format_note: str | None = None
+
+    for top in sorted_tops:
+        row = sorted(rows[top], key=lambda w: w["x0"])
+        text = " ".join(w["text"] for w in row).strip()
+
+        # Data row: starts with a 4-digit index in the leftmost column
+        if row and row[0]["text"].isdigit() and len(row[0]["text"]) == 4 and row[0]["x0"] < 70:
+            buckets = _bucket_by_column(row)
+            if not buckets["index"]:
+                continue
+            try:
+                index_no = int(buckets["index"][0]["text"])
+            except ValueError:
+                continue
+            name = " ".join(w["text"] for w in buckets["name"]).strip()
+
+            flood_dir = None
+            if buckets["flood_dir"] and buckets["flood_dir"][0]["text"].isdigit():
+                flood_dir = int(buckets["flood_dir"][0]["text"])
+
+            latitude = longitude = None
+            if buckets["lat_d"] and buckets["lat_m"]:
+                try:
+                    latitude = int(buckets["lat_d"][0]["text"]) + int(buckets["lat_m"][0]["text"]) / 60.0
+                except ValueError:
+                    pass
+            if buckets["lon_d"] and buckets["lon_m"]:
+                try:
+                    longitude = -(int(buckets["lon_d"][0]["text"]) + int(buckets["lon_m"][0]["text"]) / 60.0)
+                except ValueError:
+                    pass
+
+            max_flood = max_ebb = None
+            if buckets["max_flood"]:
+                try:
+                    max_flood = float(buckets["max_flood"][0]["text"])
+                except ValueError:
+                    pass
+            if buckets["max_ebb"]:
+                try:
+                    max_ebb = float(buckets["max_ebb"][0]["text"])
+                except ValueError:
+                    pass
+
+            if not seen_on_sur:
+                refs.append(_ReferenceCurrentInfo(
+                    index_no=index_no, name=name,
+                    latitude=latitude, longitude=longitude,
+                    flood_direction_true=flood_dir,
+                    max_flood_knots=max_flood, max_ebb_knots=max_ebb,
+                ))
+                continue
+
+            tf, fa = _parse_t4_time_diff(buckets["turn_flood"])
+            fm, fb = _parse_t4_time_diff(buckets["flood_max"])
+            te, fc = _parse_t4_time_diff(buckets["turn_ebb"])
+            em, fd = _parse_t4_time_diff(buckets["ebb_max"])
+            pct_f = pct_e = None
+            if buckets["pct_flood"]:
+                try:
+                    pct_f = int(buckets["pct_flood"][0]["text"])
+                except ValueError:
+                    pass
+            if buckets["pct_ebb"]:
+                try:
+                    pct_e = int(buckets["pct_ebb"][0]["text"])
+                except ValueError:
+                    pass
+
+            offsets_from_tides = pending_format_note == "LW HW"
+            if offsets_from_tides and pending_zone:
+                # The "zone" header is actually a name prefix wrapped to its own
+                # line because the full name didn't fit (e.g. "PRINCESS LOUISA INLET MALIBU RAPIDS").
+                name = f"{pending_zone} {name}".strip()
+                effective_zone: str | None = None
+            else:
+                effective_zone = pending_zone
+
+            secs.append(SecondaryCurrent(
+                index_no=index_no, name=name,
+                flood_direction_true=flood_dir,
+                latitude=latitude, longitude=longitude,
+                reference_primary=current_ref_primary,
+                geographic_zone=effective_zone,
+                turn_to_flood_diff=tf, flood_max_diff=fm,
+                turn_to_ebb_diff=te, ebb_max_diff=em,
+                pct_ref_flood=pct_f, pct_ref_ebb=pct_e,
+                max_flood_knots=max_flood, max_ebb_knots=max_ebb,
+                format_note=None if offsets_from_tides else pending_format_note,
+                offsets_from_tides=offsets_from_tides,
+                has_footnote=any([fa, fb, fc, fd]),
+            ))
+            pending_zone = None
+            pending_format_note = None
+            continue
+
+        # Non-data row: classify
+        m = ON_SUR_PATTERN.match(text)
+        if m:
+            seen_on_sur = True
+            current_ref_primary = m.group("port").strip()
+            pending_zone = None
+            pending_format_note = None
+            continue
+
+        if text == "LW HW":
+            pending_format_note = "LW HW"
+            continue
+
+        if text.startswith("(") and text.endswith(")") and not text.startswith("(a)"):
+            if secs and secs[-1].name_annotation is None:
+                secs[-1].name_annotation = text
+            continue
+
+        # Skip footnote rows and known table headers (presence-of-keyword test)
+        if any(kw in text for kw in (
+            "REFERENCE AND SECONDARY", "STATIONS DE RÉFERENCE", "STATIONS DE RÉFÉRENCE",
+            "INFORMATION RATES", "INFORMATION VITESSES",
+            "CURRENT STATIONS", "INDEX POSITION", "NO. CURRENT STATION",
+            "DIFFÉRENCES DE TEMPS", "D'INDEX STATION",
+            "REFERENCE STATION", "STATION DE RÉFÉRENCE",
+            "SECONDARY STATION", "STATION SECONDAIRE",
+            "TURN TO MAXIMUM", "TIME DIFFERENCES",
+            "MAXIMUM RATE", "% REF.", "% VITESSE",
+            "FLOOD FLOOD EBB EBB", "FLOT JUSANT",
+            "RENV. VERS", "° true", "° vraie",
+            "noeuds", "DIR. DU", "DIR. OF FLOOD",
+            "knots knots",
+        )):
+            continue
+
+        if text.startswith("(a)") or text.startswith("*"):
+            continue
+        if text.isdigit():
+            continue  # footer
+
+        # Anything else after seeing "on/sur" is a geographic zone heading.
+        if seen_on_sur and text:
+            pending_zone = text
+
+    return refs, secs
+
+
+def _merge_table4_into_current_station(
+    station: CurrentStation, info: _ReferenceCurrentInfo
+) -> None:
+    if station.name != info.name:
+        raise ValueError(
+            f"Table 4 name {info.name!r} does not match current station {station.name!r}"
+        )
+    station.index_no = info.index_no
+    station.latitude = info.latitude
+    station.longitude = info.longitude
+    station.max_flood_knots = info.max_flood_knots
+    station.max_ebb_knots = info.max_ebb_knots
+    if info.flood_direction_true is not None and station.flood_direction_true is None:
+        station.flood_direction_true = info.flood_direction_true
+
+
+def build_current_stations(pdf_path: str, toc: TOC) -> tuple[list[CurrentStation], list[SecondaryCurrent]]:
+    stations: list[CurrentStation] = []
+    with pdfplumber.open(pdf_path) as pdf:
+        offset = _printed_page_offset(pdf, _find_toc_page(pdf))
+        for i, entry in enumerate(toc.current_stations):
+            _log(f"      [{i + 1}/{len(toc.current_stations)}] parsing current station "
+                 f"'{entry.name}' (printed page {entry.page})")
+            stations.append(parse_current_station(pdf, toc, i, offset))
+        _log(f"      reading Table 4 (printed page {toc.table_pages.get(4, '?')})")
+        ref_infos, secondary_currents = parse_table4(pdf, toc, offset)
+    if ref_infos:
+        if len(ref_infos) != len(stations):
+            raise ValueError(
+                f"Table 4 reference row count ({len(ref_infos)}) does not match "
+                f"current station count ({len(stations)})"
+            )
+        for station, info in zip(stations, ref_infos):
+            _merge_table4_into_current_station(station, info)
+    return stations, secondary_currents
+
+
+def pretty_print_current_station(station: CurrentStation) -> None:
+    print("=" * 88)
+    print(f"{station.name}  ({station.timezone}, UTC{station.utc_offset:+d})  {station.year}")
+    if station.flood_direction_true is not None:
+        print(f"  Flood: {station.flood_direction_true:>3}° true   "
+              f"Ebb: {station.ebb_direction_true:>3}° true")
+    if station.index_no is not None:
+        lat = _format_coord(station.latitude, "N", "S") if station.latitude is not None else "?"
+        lon = _format_coord(station.longitude, "E", "W") if station.longitude is not None else "?"
+        print(f"  Index #{station.index_no}   {lat}   {lon}")
+        print(f"  Max rates (large tides):  flood {station.max_flood_knots} kts  "
+              f"ebb {station.max_ebb_knots} kts")
+    print("=" * 88)
+    by_month: dict[int, list[CurrentDay]] = {}
+    for d in station.days:
+        by_month.setdefault(d.month, []).append(d)
+    for month in sorted(by_month):
+        print()
+        print(f"--- {MONTH_NAMES[month - 1]} ---")
+        print(f"{'Date':>5}  {'Day':<3}  {'Time':<5}  {'Type':<5}  {'Knots':>6}")
+        for d in by_month[month]:
+            if not d.events:
+                print(f"{d.day:>5}  {d.weekday:<3}  (no events)")
+                continue
+            for i, e in enumerate(d.events):
+                date_col = f"{d.day}" if i == 0 else ""
+                wkday_col = d.weekday if i == 0 else ""
+                if e.kind == "slack":
+                    knots_col = "  --"
+                elif e.weak_variable:
+                    knots_col = "   * "
+                else:
+                    knots_col = f"{e.knots:+6.1f}"
+                print(f"{date_col:>5}  {wkday_col:<3}  {e.time:<5}  {e.kind:<5}  {knots_col}")
+
+
+def pretty_print_secondary_currents(ports: list[SecondaryCurrent]) -> None:
+    print("=" * 100)
+    print(f"SECONDARY CURRENT STATIONS  ({len(ports)} total)")
+    print("=" * 100)
+    last_ref: object | None = object()
+    last_zone: object | None = object()
+    for p in ports:
+        if p.reference_primary != last_ref:
+            print()
+            print(f"on/sur {p.reference_primary}")
+            last_ref = p.reference_primary
+            last_zone = object()
+        if p.geographic_zone != last_zone:
+            if p.geographic_zone:
+                print(f"  [{p.geographic_zone}]")
+            last_zone = p.geographic_zone
+        flag = " *" if p.has_footnote else ""
+        annot = f"  {p.name_annotation}" if p.name_annotation else ""
+        fmt = f"  ({p.format_note})" if p.format_note else ""
+        tide_ref = "  (offsets from TIDES of reference)" if p.offsets_from_tides else ""
+        print(f"    #{p.index_no} {p.name}{annot}{fmt}{tide_ref}{flag}")
+        lat = _format_coord(p.latitude, "N", "S") if p.latitude is not None else "?"
+        lon = _format_coord(p.longitude, "E", "W") if p.longitude is not None else "?"
+        flood_dir = f"flood dir {p.flood_direction_true}°" if p.flood_direction_true is not None else "flood dir ?"
+        print(f"      {lat}   {lon}   {flood_dir}")
+        diffs = []
+        if p.turn_to_flood_diff:
+            diffs.append(f"turn→flood {p.turn_to_flood_diff}")
+        if p.flood_max_diff:
+            diffs.append(f"flood-max {p.flood_max_diff}")
+        if p.turn_to_ebb_diff:
+            diffs.append(f"turn→ebb {p.turn_to_ebb_diff}")
+        if p.ebb_max_diff:
+            diffs.append(f"ebb-max {p.ebb_max_diff}")
+        if diffs:
+            print(f"      diffs: {'  '.join(diffs)}")
+        if p.pct_ref_flood is not None:
+            print(f"      % ref:  flood {p.pct_ref_flood}%   ebb {p.pct_ref_ebb}%")
+        if p.max_flood_knots is not None:
+            print(f"      abs:    flood {p.max_flood_knots} kts   ebb {p.max_ebb_knots} kts")
+
+
 def pretty_print_secondary_ports(ports: list[SecondaryPort]) -> None:
     print("=" * 100)
     print(f"SECONDARY PORTS  ({len(ports)} total)")
@@ -849,6 +1444,38 @@ def write_secondary_ports_json(
     return path
 
 
+def write_current_stations_json(
+    stations: list[CurrentStation],
+    year: int,
+    directory: str,
+) -> str:
+    path = os.path.join(directory, f"{year}_tct_current_primary_stations.json")
+    payload = {
+        "year": year,
+        "stations": [asdict(s) for s in stations],
+    }
+    with open(path, "w") as f:
+        json.dump(payload, f, indent=2)
+        f.write("\n")
+    return path
+
+
+def write_secondary_currents_json(
+    ports: list[SecondaryCurrent],
+    year: int,
+    directory: str,
+) -> str:
+    path = os.path.join(directory, f"{year}_tct_current_secondary_stations.json")
+    payload = {
+        "year": year,
+        "stations": [asdict(p) for p in ports],
+    }
+    with open(path, "w") as f:
+        json.dump(payload, f, indent=2)
+        f.write("\n")
+    return path
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Parse Canadian Tide & Current Tables PDFs into structured data."
@@ -871,6 +1498,8 @@ def main() -> int:
 
     all_stations: list[TideStation] = []
     all_secondary: list[SecondaryPort] = []
+    all_current: list[CurrentStation] = []
+    all_secondary_currents: list[SecondaryCurrent] = []
     for vol, fname in pdfs:
         path = os.path.join(args.directory, fname)
         _log(f"==> vol{vol}: {fname}")
@@ -891,18 +1520,36 @@ def main() -> int:
         _log(f"    vol{vol}: extracted {len(secondary)} secondary port(s)")
         all_secondary.extend(secondary)
 
+        _log(f"    extracting current-station data")
+        current, secondary_currents = build_current_stations(path, toc)
+        _log(f"    vol{vol}: extracted {len(current)} current station(s); "
+             f"days total = {sum(len(s.days) for s in current)}; "
+             f"events total = {sum(len(d.events) for s in current for d in s.days)}; "
+             f"secondary currents = {len(secondary_currents)}")
+        all_current.extend(current)
+        all_secondary_currents.extend(secondary_currents)
+
     _log(f"==> done: {len(all_stations)} primary tide station(s), "
-         f"{len(all_secondary)} secondary port(s) processed")
+         f"{len(all_secondary)} secondary port(s), "
+         f"{len(all_current)} current station(s), "
+         f"{len(all_secondary_currents)} secondary current(s) processed")
 
     output_path = write_primary_stations_json(all_stations, args.year, args.directory)
     _log(f"    wrote {output_path}")
     secondary_path = write_secondary_ports_json(all_secondary, args.year, args.directory)
     _log(f"    wrote {secondary_path}")
+    current_path = write_current_stations_json(all_current, args.year, args.directory)
+    _log(f"    wrote {current_path}")
+    secondary_current_path = write_secondary_currents_json(all_secondary_currents, args.year, args.directory)
+    _log(f"    wrote {secondary_current_path}")
 
     if args.verbose:
         for s in all_stations:
             pretty_print_tide_station(s)
         pretty_print_secondary_ports(all_secondary)
+        for s in all_current:
+            pretty_print_current_station(s)
+        pretty_print_secondary_currents(all_secondary_currents)
 
     return 0
 
