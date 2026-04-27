@@ -1,8 +1,9 @@
 import argparse
+import json
 import os
 import re
 import sys
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 
 import pdfplumber
 
@@ -26,6 +27,32 @@ class TOC:
     tide_stations: list[Station] = field(default_factory=list)
     current_stations: list[Station] = field(default_factory=list)
     table_pages: dict[int, int] = field(default_factory=dict)
+
+
+@dataclass
+class SecondaryPort:
+    index_no: int
+    name: str
+    utc_offset: int
+    latitude: float
+    longitude: float
+    # Geographic context (state captured from headings preceding this row)
+    area_number: int | None = None
+    area_name: str | None = None
+    geographic_zone: str | None = None  # immediate sub-region (e.g. "VANCOUVER ISLAND")
+    reference_port: str | None = None   # from "on/sur X, pages Y-Z"
+    # Tide differences (signed "±HH:MM" strings; None if absent)
+    higher_high_water_time_diff: str | None = None
+    higher_high_water_mean_tide_diff: float | None = None
+    higher_high_water_large_tide_diff: float | None = None
+    lower_low_water_time_diff: str | None = None
+    lower_low_water_mean_tide_diff: float | None = None
+    lower_low_water_large_tide_diff: float | None = None
+    # Range and mean water level (metres)
+    mean_tide_range: float | None = None
+    large_tide_range: float | None = None
+    mean_water_level: float | None = None
+    has_footnote: bool = False
 
 
 @dataclass
@@ -459,6 +486,195 @@ def _merge_table1_into_station(station: TideStation, info: _ReferencePortInfo) -
     station.large_tide_range = info.large_tide_range
 
 
+_TIME_DIFF = r"[+-]?\s*\d+\s+\d+\*?"
+_SF = r"[+-]?\d+\.\d+"   # signed float
+_UF = r"\d+\.\d+"        # unsigned float
+
+TABLE3_ROW_PATTERN = re.compile(
+    rf"^(?P<index>\d{{4}})\s+"
+    rf"(?P<name>.+?)\s+"
+    rf"-\s*(?P<tz>\d+)\s+"
+    rf"(?P<lat_d>\d+)\s+(?P<lat_m>\d+)\s+"
+    rf"(?P<lon_d>\d+)\s+(?P<lon_m>\d+)\s+"
+    rf"(?P<hhw_time>{_TIME_DIFF})\s+"
+    rf"(?P<hhw_mean>{_SF})\s+(?P<hhw_large>{_SF})\s+"
+    rf"(?P<llw_time>{_TIME_DIFF})\s+"
+    rf"(?P<llw_mean>{_SF})\s+(?P<llw_large>{_SF})\s+"
+    rf"(?P<range_mean>{_UF})\s+(?P<range_large>{_UF})\s+"
+    rf"(?P<mwl>{_UF})\s*$"
+)
+
+ON_SUR_PATTERN = re.compile(r"^on/sur\s+(?P<port>.+?),\s+pages\s+\d+", re.IGNORECASE)
+AREA_PATTERN = re.compile(r"^AREA\s+(?P<n>\d+)\s*$")
+
+# Lines that just repeat as table headers on each page; skip them.
+TABLE3_HEADER_NOISE = {
+    "RÉGION",
+}
+
+
+def _format_time_diff(raw: str) -> tuple[str, bool]:
+    """Returns ('±HH:MM', has_footnote) from a token like '-0 22', '+1 36*', '0 00'."""
+    has_footnote = raw.endswith("*")
+    raw = raw.rstrip("*").strip()
+    parts = raw.split()
+    if len(parts) == 2:
+        hours_part, minutes_part = parts
+    elif len(parts) == 3:
+        hours_part = parts[0] + parts[1]
+        minutes_part = parts[2]
+    else:
+        raise ValueError(f"Could not parse time diff {raw!r}")
+    sign = "+"
+    if hours_part.startswith("-"):
+        sign = "-"
+        hours_part = hours_part[1:]
+    elif hours_part.startswith("+"):
+        hours_part = hours_part[1:]
+    hours = int(hours_part)
+    minutes = int(minutes_part)
+    return f"{sign}{hours:02d}:{minutes:02d}", has_footnote
+
+
+AREA_NAME_MAX_LINES = 2
+
+
+def parse_table3(pdf: pdfplumber.PDF, toc: TOC, page_offset: int) -> list[SecondaryPort]:
+    if 3 not in toc.table_pages or 4 not in toc.table_pages:
+        return []
+    start_idx = toc.table_pages[3] + page_offset
+    end_idx = toc.table_pages[4] + page_offset
+
+    ports: list[SecondaryPort] = []
+    area_names_by_num: dict[int, str] = {}   # canonical name from first encounter
+    state_area_num: int | None = None
+    pending_area_lines: list[str] = []
+    collecting_area = False
+    state_ref_port: str | None = None
+    zone_lines: list[str] = []
+    zone_used_by_port = False
+    in_footnote = False
+
+    def current_area_name() -> str | None:
+        if state_area_num is None:
+            return None
+        return area_names_by_num.get(state_area_num) or (" ".join(pending_area_lines) or None)
+
+    for pdf_idx in range(start_idx, end_idx):
+        page = pdf.pages[pdf_idx]
+        text = page.extract_text() or ""
+        in_footnote = False
+        for raw_line in text.split("\n"):
+            line = raw_line.strip()
+            if not line or line in TABLE3_HEADER_NOISE:
+                continue
+            if line.isdigit():
+                continue
+            if line.startswith("*"):
+                in_footnote = True
+                continue
+            if in_footnote:
+                continue
+
+            m = TABLE3_ROW_PATTERN.match(line)
+            if m:
+                # finalize area name on first port encountered after AREA marker
+                if collecting_area and pending_area_lines and state_area_num is not None:
+                    area_names_by_num.setdefault(state_area_num, " ".join(pending_area_lines))
+                    pending_area_lines = []
+                    collecting_area = False
+                hhw_time, hhw_flag = _format_time_diff(m.group("hhw_time"))
+                llw_time, llw_flag = _format_time_diff(m.group("llw_time"))
+                ports.append(SecondaryPort(
+                    index_no=int(m.group("index")),
+                    name=m.group("name").strip(),
+                    utc_offset=-int(m.group("tz")),
+                    latitude=int(m.group("lat_d")) + int(m.group("lat_m")) / 60.0,
+                    longitude=-(int(m.group("lon_d")) + int(m.group("lon_m")) / 60.0),
+                    area_number=state_area_num,
+                    area_name=current_area_name(),
+                    geographic_zone=" ".join(zone_lines) or None,
+                    reference_port=state_ref_port,
+                    higher_high_water_time_diff=hhw_time,
+                    higher_high_water_mean_tide_diff=float(m.group("hhw_mean")),
+                    higher_high_water_large_tide_diff=float(m.group("hhw_large")),
+                    lower_low_water_time_diff=llw_time,
+                    lower_low_water_mean_tide_diff=float(m.group("llw_mean")),
+                    lower_low_water_large_tide_diff=float(m.group("llw_large")),
+                    mean_tide_range=float(m.group("range_mean")),
+                    large_tide_range=float(m.group("range_large")),
+                    mean_water_level=float(m.group("mwl")),
+                    has_footnote=hhw_flag or llw_flag,
+                ))
+                zone_used_by_port = True
+                continue
+
+            # Skip malformed port rows (start with 4-digit index but didn't match).
+            if re.match(r"^\d{4}\s", line):
+                _log(f"      WARN: could not parse port row: {line!r}")
+                continue
+
+            am = AREA_PATTERN.match(line)
+            if am:
+                state_area_num = int(am.group("n"))
+                pending_area_lines = []
+                collecting_area = state_area_num not in area_names_by_num
+                zone_lines = []
+                zone_used_by_port = False
+                continue
+
+            om = ON_SUR_PATTERN.match(line)
+            if om:
+                # finalize area name if we were still collecting
+                if collecting_area and pending_area_lines and state_area_num is not None:
+                    area_names_by_num.setdefault(state_area_num, " ".join(pending_area_lines))
+                pending_area_lines = []
+                collecting_area = False
+                state_ref_port = om.group("port").strip()
+                zone_lines = []
+                zone_used_by_port = False
+                continue
+
+            if line.startswith("see/voir"):
+                continue
+            if line.startswith("(") and line.endswith(")"):
+                continue
+            if any(noise in line for noise in ("SECONDARY PORTS TABLE 3",
+                                                "INFORMATION AND TIDAL",
+                                                "RENSEIGNEMENTS",
+                                                "DIFFERENCES DIFFÉRENCES",
+                                                "RANGE MEAN",
+                                                "PLEINE MER",
+                                                "NIVEAU",
+                                                "D'INDEX",
+                                                "HORAIRE",
+                                                "MOYENNE MARÉE",
+                                                "° '",
+                                                "LAT. N.",
+                                                "TIDE TIDE",
+                                                "IN N D O E")):
+                continue
+
+            if collecting_area and len(pending_area_lines) < AREA_NAME_MAX_LINES:
+                pending_area_lines.append(line)
+                if len(pending_area_lines) == AREA_NAME_MAX_LINES and state_area_num is not None:
+                    # Lock in canonical area name once we've collected the cap.
+                    area_names_by_num.setdefault(state_area_num, " ".join(pending_area_lines))
+                    collecting_area = False
+                    pending_area_lines = []
+            else:
+                # Treat as a sub-region (geographic zone). If the previous
+                # zone has already labelled at least one port row, this line
+                # starts a fresh zone; otherwise it's a continuation line.
+                if zone_used_by_port:
+                    zone_lines = [line]
+                    zone_used_by_port = False
+                else:
+                    zone_lines.append(line)
+
+    return ports
+
+
 def _merge_table2_into_station(station: TideStation, info: _ReferenceTidalHeights) -> None:
     expected_name = station.reference_name or station.name
     if not station.name.startswith(info.name):
@@ -558,6 +774,81 @@ def pretty_print_tide_station(station: TideStation) -> None:
                 print(f"{date_col:>5}  {wkday_col:<3}  {r.time:<5}  {r.metres:>6.1f}")
 
 
+def build_secondary_ports(pdf_path: str, toc: TOC) -> list[SecondaryPort]:
+    with pdfplumber.open(pdf_path) as pdf:
+        offset = _printed_page_offset(pdf, _find_toc_page(pdf))
+        return parse_table3(pdf, toc, offset)
+
+
+def pretty_print_secondary_ports(ports: list[SecondaryPort]) -> None:
+    print("=" * 100)
+    print(f"SECONDARY PORTS  ({len(ports)} total)")
+    print("=" * 100)
+    last_area: int | None = object()  # type: ignore[assignment]
+    last_ref: object | None = object()
+    last_zone: object | None = object()
+    for p in ports:
+        if p.area_number != last_area:
+            print()
+            print(f"AREA {p.area_number} — {p.area_name}")
+            last_area = p.area_number
+            last_ref = object()
+            last_zone = object()
+        if p.reference_port != last_ref:
+            print(f"  on/sur {p.reference_port}")
+            last_ref = p.reference_port
+            last_zone = object()
+        if p.geographic_zone != last_zone:
+            label = p.geographic_zone if p.geographic_zone else "(no zone)"
+            print(f"    [{label}]")
+            last_zone = p.geographic_zone
+        lat = _format_coord(p.latitude, "N", "S")
+        lon = _format_coord(p.longitude, "E", "W")
+        flag = " *" if p.has_footnote else ""
+        print(f"      #{p.index_no} {p.name}{flag}")
+        print(f"        {lat}   {lon}   UTC{p.utc_offset:+d}")
+        print(f"        HHW diff: time {p.higher_high_water_time_diff}  "
+              f"mean {p.higher_high_water_mean_tide_diff:+.1f} m  "
+              f"large {p.higher_high_water_large_tide_diff:+.1f} m")
+        print(f"        LLW diff: time {p.lower_low_water_time_diff}  "
+              f"mean {p.lower_low_water_mean_tide_diff:+.1f} m  "
+              f"large {p.lower_low_water_large_tide_diff:+.1f} m")
+        print(f"        Range:    mean {p.mean_tide_range} m  large {p.large_tide_range} m   "
+              f"MWL {p.mean_water_level} m")
+
+
+def write_primary_stations_json(
+    stations: list[TideStation],
+    year: int,
+    directory: str,
+) -> str:
+    path = os.path.join(directory, f"{year}_tct_tidal_primary_stations.json")
+    payload = {
+        "year": year,
+        "stations": [asdict(s) for s in stations],
+    }
+    with open(path, "w") as f:
+        json.dump(payload, f, indent=2)
+        f.write("\n")
+    return path
+
+
+def write_secondary_ports_json(
+    ports: list[SecondaryPort],
+    year: int,
+    directory: str,
+) -> str:
+    path = os.path.join(directory, f"{year}_tct_tidal_secondary_stations.json")
+    payload = {
+        "year": year,
+        "stations": [asdict(p) for p in ports],
+    }
+    with open(path, "w") as f:
+        json.dump(payload, f, indent=2)
+        f.write("\n")
+    return path
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Parse Canadian Tide & Current Tables PDFs into structured data."
@@ -579,6 +870,7 @@ def main() -> int:
          + ", ".join(f"vol{v}" for v, _ in pdfs))
 
     all_stations: list[TideStation] = []
+    all_secondary: list[SecondaryPort] = []
     for vol, fname in pdfs:
         path = os.path.join(args.directory, fname)
         _log(f"==> vol{vol}: {fname}")
@@ -593,11 +885,24 @@ def main() -> int:
              f"days total = {sum(len(s.days) for s in stations)}")
         all_stations.extend(stations)
 
-    _log(f"==> done: {len(all_stations)} primary tide station(s) processed")
+        _log(f"    extracting secondary-port data (Table 3, "
+             f"printed pages {toc.table_pages.get(3, '?')}-{toc.table_pages.get(4, '?')-1 if 4 in toc.table_pages else '?'})")
+        secondary = build_secondary_ports(path, toc)
+        _log(f"    vol{vol}: extracted {len(secondary)} secondary port(s)")
+        all_secondary.extend(secondary)
+
+    _log(f"==> done: {len(all_stations)} primary tide station(s), "
+         f"{len(all_secondary)} secondary port(s) processed")
+
+    output_path = write_primary_stations_json(all_stations, args.year, args.directory)
+    _log(f"    wrote {output_path}")
+    secondary_path = write_secondary_ports_json(all_secondary, args.year, args.directory)
+    _log(f"    wrote {secondary_path}")
 
     if args.verbose:
         for s in all_stations:
             pretty_print_tide_station(s)
+        pretty_print_secondary_ports(all_secondary)
 
     return 0
 
