@@ -14,6 +14,7 @@ import {
   scrubberMs,
   scrubberRange,
   selectedStationId,
+  loadedData,
   recenterAt,
   WINDOW_MS,
   STEP_MS,
@@ -166,12 +167,19 @@ export function Scrubber() {
     return <div class="scrubber scrubber-loading">Loading…</div>;
   }
 
-  const hasChart = selectedStationId.value !== null;
+  const sel = selectedStationId.value;
+  const hasChart = sel !== null;
+  const stationName = hasChart && loadedData.value
+    ? loadedData.value.stationsById.get(sel)?.name ?? null
+    : null;
 
   return (
     <div class={`scrubber${hasChart ? " scrubber-with-chart" : ""}`}>
       <div class="scrubber-label">
-        <span class="scrubber-time">{formatScrubber(ms)}</span>
+        <div class="scrubber-label-left">
+          {stationName && <span class="scrubber-station-name">{stationName}</span>}
+          <span class="scrubber-time">{formatScrubber(ms)}</span>
+        </div>
         {outOfRange && <span class="scrubber-warn">no data for this time</span>}
       </div>
       <div class="scrubber-row">

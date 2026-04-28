@@ -107,13 +107,16 @@ export class TideStationLayer {
     for (const marker of this.markers.values()) marker.addTo(this.map);
     this.applyZoomVisibility();
     this.map.on("zoom", this.applyZoomVisibility);
-    // Toggle a "selected" class on the active marker. Cheap to run for
-    // ~900 elements; only fires when selectedStationId changes.
+    // When a station is selected, hide every other marker (CSS rule keyed
+    // off `.has-selection` on the map container + `.selected` on the active
+    // marker). Hidden markers use display:none so clicks pass through to
+    // the map canvas, where the existing map-click handler deselects.
     effect(() => {
       const sel = selectedStationId.value;
       for (const [id, el] of this.elements) {
         el.classList.toggle("selected", id === sel);
       }
+      this.map.getContainer().classList.toggle("has-selection", sel !== null);
     });
   }
 

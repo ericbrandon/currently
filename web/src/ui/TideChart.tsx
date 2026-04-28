@@ -127,7 +127,6 @@ export function TideChart() {
   if (computed.empty) {
     return (
       <div class="tide-chart">
-        <div class="tide-chart-name">{meta.name}</div>
         <div class="tide-chart-empty">No tide data for this time window</div>
       </div>
     );
@@ -139,7 +138,6 @@ export function TideChart() {
 
   return (
     <div class="tide-chart">
-      <div class="tide-chart-name">{meta.name}</div>
       <svg
         class="tide-chart-svg"
         viewBox="0 0 100 100"
