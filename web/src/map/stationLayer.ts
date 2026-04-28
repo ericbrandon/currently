@@ -16,8 +16,10 @@
 // the state class + update the text content / y attribute.
 
 import maplibregl, { type Map as MlMap } from "maplibre-gl";
+import { effect } from "@preact/signals";
 import type { Extreme, LoadedData } from "../types";
 import { tideStateAt, type TideState } from "../interp/valueAt";
+import { selectedStationId } from "../state/store";
 
 // SVG viewBox is 40 wide × 55 tall. The 40×40 square sits centred
 // vertically; the triangle occupies the remaining 15 units (above for
@@ -88,10 +90,16 @@ export class TideStationLayer {
       if (meta.kind !== "tide-primary" && meta.kind !== "tide-secondary") continue;
       const kindClass = meta.kind === "tide-secondary" ? "secondary" : "primary";
       const el = createMarkerEl(meta.name, kindClass);
+      const id = meta.station_id;
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        selectedStationId.value =
+          selectedStationId.value === id ? null : id;
+      });
       const marker = new maplibregl.Marker({ element: el, anchor: "center" })
         .setLngLat([meta.longitude, meta.latitude]);
-      this.markers.set(meta.station_id, marker);
-      this.elements.set(meta.station_id, el);
+      this.markers.set(id, marker);
+      this.elements.set(id, el);
     }
   }
 
@@ -99,6 +107,14 @@ export class TideStationLayer {
     for (const marker of this.markers.values()) marker.addTo(this.map);
     this.applyZoomVisibility();
     this.map.on("zoom", this.applyZoomVisibility);
+    // Toggle a "selected" class on the active marker. Cheap to run for
+    // ~900 elements; only fires when selectedStationId changes.
+    effect(() => {
+      const sel = selectedStationId.value;
+      for (const [id, el] of this.elements) {
+        el.classList.toggle("selected", id === sel);
+      }
+    });
   }
 
   /** Toggle a body-level class so a single CSS rule can hide every secondary

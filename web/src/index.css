@@ -98,8 +98,20 @@ html, body, #app {
   gap: 0.4rem;
 }
 
-.scrubber-track {
+/* Column wrapper holding the chart (above) and the timeline track (below).
+   The wrapper establishes a stacking context so the thumb-vline (z:1) and
+   the thumb dot (z:2) order predictably without leaking out. */
+.scrubber-main {
   flex: 1 1 auto;
+  min-width: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  z-index: 0;
+}
+
+.scrubber-track {
+  flex: 0 0 auto;
   min-width: 0;
   position: relative;
   height: 72px;
@@ -283,6 +295,154 @@ html, body, #app {
   display: none;
 }
 
+.tide-marker {
+  cursor: pointer;
+}
+
+.tide-marker.selected svg {
+  filter:
+    drop-shadow(0 1px 2.5px rgba(0, 0, 0, 0.35))
+    drop-shadow(0 0 6px rgba(250, 204, 21, 0.95))
+    drop-shadow(0 0 3px rgba(250, 204, 21, 0.95));
+}
+
+.tide-marker.selected .tide-name {
+  background: #0c4a6e;
+  color: #ffffff;
+}
+
+/* ------------------------------------------------------------------
+   Tide chart (rendered above the timeline when a station is selected)
+   ------------------------------------------------------------------ */
+.tide-chart {
+  position: relative;
+  width: 100%;
+  height: 180px;
+  overflow: hidden;
+}
+
+.tide-chart-name {
+  position: absolute;
+  top: 4px;
+  left: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #0c4a6e;
+  background: rgba(255, 255, 255, 0.8);
+  padding: 2px 6px;
+  border-radius: 3px;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.tide-chart-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+.tide-chart-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.tide-chart-fill {
+  fill: #bae6fd;
+  opacity: 0.55;
+}
+
+.tide-chart-curve {
+  fill: none;
+  stroke: #0c4a6e;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+/* HW / LW labels at each visible peak / valley.
+   HW: anchored at the peak point and pushed UP via translate(-50%, -100%).
+   LW: anchored at the valley point and sits BELOW it via translate(-50%, 0). */
+.tide-chart-extreme {
+  position: absolute;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.92);
+  color: #0f172a;
+  padding: 1px 5px;
+  border-radius: 3px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.tide-chart-extreme.hw {
+  transform: translate(-50%, -100%);
+  margin-top: -3px;
+  color: #0c4a6e;
+}
+
+.tide-chart-extreme.lw {
+  transform: translate(-50%, 0);
+  margin-top: 3px;
+  color: #7c2d12;
+}
+
+.tide-chart-extreme-time {
+  font-weight: 700;
+}
+
+.tide-chart-extreme-val {
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+/* Thumb readout at the top of the chart, above where the vertical line
+   begins. Centred on the thumb's x position; clamps via translate so it
+   stays readable near the edges. */
+.tide-chart-thumb-label {
+  position: absolute;
+  top: 2px;
+  transform: translateX(-50%);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  background: #0c4a6e;
+  color: #ffffff;
+  padding: 2px 7px;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+  z-index: 4;
+}
+
+/* Vertical line through the thumb, rendered at the scrubber-main level so
+   it spans both the chart and the upper half of the track. Stops at the
+   thumb dot's centre (track 72px - axis 38px = 34px above scrubber-main
+   bottom), and starts just below the chart's thumb-readout zone (≈22px
+   from chart top). z-index 1 places it above the chart curve and above
+   the timeline tick marks, but below the thumb dot (z-index 2). */
+.scrubber-thumb-vline {
+  position: absolute;
+  top: 22px;
+  bottom: 34px;
+  width: 2px;
+  margin-left: -1px;
+  background: #0c4a6e;
+  pointer-events: none;
+  z-index: 1;
+}
+
 /* ------------------------------------------------------------------
    Mobile breakpoint
    ------------------------------------------------------------------ */
@@ -291,5 +451,8 @@ html, body, #app {
     min-width: 40px;
     padding: 0 0.4rem;
     font-size: 0.75rem;
+  }
+  .tide-chart {
+    height: 150px;
   }
 }

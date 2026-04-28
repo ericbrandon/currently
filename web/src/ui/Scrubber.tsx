@@ -13,11 +13,13 @@ import {
   thumbFraction,
   scrubberMs,
   scrubberRange,
+  selectedStationId,
   recenterAt,
   WINDOW_MS,
   STEP_MS,
 } from "../state/store";
 import { formatScrubber } from "../util/time";
+import { TideChart } from "./TideChart";
 
 const HOUR_MS = 60 * 60 * 1000;
 const HALF_MS = 30 * 60 * 1000;
@@ -164,61 +166,72 @@ export function Scrubber() {
     return <div class="scrubber scrubber-loading">Loading…</div>;
   }
 
+  const hasChart = selectedStationId.value !== null;
+
   return (
-    <div class="scrubber">
+    <div class={`scrubber${hasChart ? " scrubber-with-chart" : ""}`}>
       <div class="scrubber-label">
         <span class="scrubber-time">{formatScrubber(ms)}</span>
         {outOfRange && <span class="scrubber-warn">no data for this time</span>}
       </div>
       <div class="scrubber-row">
-        <div
-          class="scrubber-track"
-          ref={trackRef}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerEnd}
-          onPointerCancel={handlePointerEnd}
-        >
-          <div class="scrubber-axis" />
-          {ticks.map((t, i) => (
+        <div class="scrubber-main">
+          <TideChart />
+          <div
+            class="scrubber-track"
+            ref={trackRef}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerEnd}
+            onPointerCancel={handlePointerEnd}
+          >
+            <div class="scrubber-axis" />
+            {ticks.map((t, i) => (
+              <div
+                key={i}
+                class={`scrubber-tick scrubber-tick-${t.kind}`}
+                style={{ left: `${t.pos * 100}%` }}
+              />
+            ))}
+            {ticks
+              .filter((t) => t.kind === "hour")
+              .map((t, i) => (
+                <div
+                  key={`l${i}`}
+                  class="scrubber-tick-label"
+                  style={{ left: `${t.pos * 100}%` }}
+                >
+                  {t.label}
+                </div>
+              ))}
+            {ticks
+              .filter((t) => t.kind === "hour" && t.label === "00")
+              .map((t, i) => (
+                <div
+                  key={`d${i}`}
+                  class="scrubber-date-label"
+                  style={{ left: `${t.pos * 100}%` }}
+                >
+                  {DATE_LABEL_FORMATTER.format(new Date(t.t))}
+                </div>
+              ))}
+            {showNowDot && (
+              <div
+                class="scrubber-now-dot"
+                style={{ left: `${nowFraction * 100}%` }}
+              />
+            )}
             <div
-              key={i}
-              class={`scrubber-tick scrubber-tick-${t.kind}`}
-              style={{ left: `${t.pos * 100}%` }}
+              class="scrubber-thumb"
+              style={{ left: `${f * 100}%` }}
             />
-          ))}
-          {ticks
-            .filter((t) => t.kind === "hour")
-            .map((t, i) => (
-              <div
-                key={`l${i}`}
-                class="scrubber-tick-label"
-                style={{ left: `${t.pos * 100}%` }}
-              >
-                {t.label}
-              </div>
-            ))}
-          {ticks
-            .filter((t) => t.kind === "hour" && t.label === "00")
-            .map((t, i) => (
-              <div
-                key={`d${i}`}
-                class="scrubber-date-label"
-                style={{ left: `${t.pos * 100}%` }}
-              >
-                {DATE_LABEL_FORMATTER.format(new Date(t.t))}
-              </div>
-            ))}
-          {showNowDot && (
+          </div>
+          {hasChart && (
             <div
-              class="scrubber-now-dot"
-              style={{ left: `${nowFraction * 100}%` }}
+              class="scrubber-thumb-vline"
+              style={{ left: `${f * 100}%` }}
             />
           )}
-          <div
-            class="scrubber-thumb"
-            style={{ left: `${f * 100}%` }}
-          />
         </div>
         <button class="scrubber-btn scrubber-now" onClick={nowClick}>Now</button>
       </div>

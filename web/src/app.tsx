@@ -15,6 +15,7 @@ import {
   loadedData,
   scrubberMs,
   recenterAt,
+  selectedStationId,
 } from "./state/store";
 import { fetchManifest, loadAllYears } from "./data/loader";
 import { createMap, stationBounds } from "./map/map";
@@ -68,6 +69,11 @@ export function App() {
     map.on("load", () => {
       layer.attach();
       layer.updateAt(scrubberMs.value);
+    });
+    // Marker DOM clicks are handled by the marker's own listener (and call
+    // stopPropagation), so this fires only for clicks that hit the map canvas.
+    map.on("click", () => {
+      selectedStationId.value = null;
     });
   }, [loadedData.value]);
 

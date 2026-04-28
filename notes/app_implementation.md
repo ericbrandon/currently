@@ -83,6 +83,7 @@ The webapp lives inside this repo under `web/`. The Python pipeline at the repo 
       interp/
         extremes.ts               # tideExtremes, currentExtremes, stationTimeToUtcMs
         valueAt.ts                # the cosine interpolator
+        secondaryTides.ts         # secondary-station extreme builder (Table 3)
       map/
         map.ts                    # MapLibre instance + lifecycle
         sprites.ts                # icon sprite generation/loading
@@ -232,6 +233,8 @@ Tide circles encode height via fill colour (a diverging blue→white→red ramp 
 
 All visual encodings are MapLibre **paint-property expressions** reading `properties.*` — no per-frame layer re-creation. The only per-frame work is mutating the FeatureCollection's properties and calling `source.setData()`.
 
+**Zoom-based visibility for secondaries.** To keep the regional view uncluttered, secondary tide markers (and later, secondary current markers) are hidden when `map.getZoom() < SECONDARY_MIN_ZOOM` (currently 8 — defined in `src/map/stationLayer.ts`). The threshold is enforced via a single class on the map container, toggled by a `zoom`-event listener; one CSS rule (`.hide-secondary-tides .tide-marker.secondary { display: none; }`) does the hiding. This is cheaper than touching each marker on every event and keeps the per-frame work zero when the threshold isn't crossed.
+
 ### 6.4 Sprites
 
 - One sprite sheet (PNG + JSON) compiled at build time from a small set of SVGs:
@@ -256,13 +259,29 @@ Per-station extreme arrays are computed **once per station per app session**, th
 
 **Per-frame optimisation (deferred until profiling demands it):** add a per-station "last-segment cache" — store the index `i` such that `extremes[i].t <= t < extremes[i+1].t` from the previous frame. Most frames only advance by one 15-min step, so the cached index is still correct or one off; check that first, fall back to binary search otherwise. Turns the lookup into amortised O(1).
 
-### 7.1 Secondary stations
+### 7.1 Secondary tide stations
 
-Out of scope for this document — see the dedicated note that will be written when we implement them. Architectural hooks needed in v1:
+Implemented. Each secondary tide station's extremes are derived from its reference primary station's extremes by applying CHS Table 3 differences, then run through the unchanged sinusoidal `valueAt`. Once built, secondaries are stored alongside primaries in `tideExtremesById` (keyed by `index_no`) so the rest of the app treats them identically.
 
-- `data/loader.ts` already loads the secondary JSONs.
-- The merge step accepts a station-extremes-builder function, so when secondary support arrives, only the builder changes — no plumbing changes.
-- The map already has `tide-secondary-layer` and `current-secondary-layer`; until the secondary interpolator exists they render as muted "dot, no value yet" markers.
+Algorithm (per `chs-shc-tct-tmc-vol5-2026` §"Prediction of Tides at Secondary Ports", p. 85, with the Step 6a precise variant from §"Calculation of Intermediate Times or Heights", p. 87):
+
+1. Classify each entry in the reference port's sorted `Extreme[]` as a high water (HW, local max) or low water (LW, local min) by comparing to its neighbours. Cached per primary so multiple secondaries pointing at the same primary share the work.
+2. For each HW reading: shift `t` by the secondary's `higher_high_water_time_diff`. For each LW reading: shift `t` by `lower_low_water_time_diff`. Time diffs are flat per-event, not interpolated.
+3. For the height shift, **Step 6a** (the PDF's "more precise" method): linearly interpolate between the secondary's mean-tide and large-tide diffs by where the reference reading sits between the reference port's mean-tide and large-tide HHW (for HWs) or LLW (for LWs) heights. Extrapolation outside `[mean, large]` is permitted by the doc.
+4. Sort the resulting `Extreme[]` defensively — time shifts can rarely reorder consecutive extremes when HW and LW shifts diverge by more than the gap between them.
+
+Lives in `src/interp/secondaryTides.ts` (`classifyHiLow`, `secondaryTideExtremes`). The loader builds a per-year primary lookup keyed by name, with a `HARBOUR`-suffix-stripping alias to handle the one observed mismatch between Table 3's `"VICTORIA"` and Table 1/2's `"VICTORIA HARBOUR"`. Reference-port resolution happens **per year**, so multi-year support works automatically: each year's secondary uses that year's primary slice.
+
+Special cases:
+
+- 10 secondary stations across BC have `has_footnote: true` (e.g. `PORTAGE INLET` — anomalous tidal pattern: long high-water stand followed by a small drop to the next low water). The footnote text isn't preserved in the JSON; the standard formula is applied to all of them. Per the PDF itself, secondary predictions are inherently approximate ("never as accurate as the full predictions made for a reference port"); the footnoted subset is a slightly worse fit but still useful for visualisation.
+- Degenerate `H_large == H_mean`: the slope is hoisted to 0, so the mean-tide diff alone is used (no div-by-zero).
+
+Performance: one linear pass per secondary station, divides hoisted out of the inner loop. ~268 secondaries × ~1500 extremes/year ≈ 400k ops at load — well under 100 ms.
+
+### 7.2 Secondary current stations
+
+Not yet implemented. Same shape as tides will apply: load `current_secondary` JSON, look up each station's reference current station (or, for the LW/HW-referenced ones like Malibu Rapids, the *reference primary tide* station), apply Table 4 time diffs and rate factors / max-rate values, store alongside primaries in a parallel `currentExtremesById` map.
 
 ## 8. State management
 
