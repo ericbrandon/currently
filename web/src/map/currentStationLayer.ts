@@ -47,15 +47,19 @@ function escapeHtml(s: string): string {
   );
 }
 
-function createMarkerEl(name: string): HTMLElement {
+function createMarkerEl(name: string, kindClass: "primary" | "secondary"): HTMLElement {
   const el = document.createElement("div");
-  el.className = "current-marker primary no-data";
+  el.className = `current-marker ${kindClass} no-data`;
   el.innerHTML =
     `${SVG_TEMPLATE}` +
     `<div class="current-value">—</div>` +
     `<div class="current-name">${escapeHtml(name)}</div>`;
   return el;
 }
+
+/** Below this zoom level, secondary-current markers are hidden. Mirrors
+ *  the same threshold used for secondary-tide markers in stationLayer.ts. */
+const SECONDARY_MIN_ZOOM = 8;
 
 function updateMarkerEl(
   el: HTMLElement,
@@ -103,8 +107,9 @@ export class CurrentStationLayer {
     this.extremesById = data.currentExtremesById;
 
     for (const meta of data.stationsById.values()) {
-      if (meta.kind !== "current-primary") continue;
-      const el = createMarkerEl(meta.name);
+      if (meta.kind !== "current-primary" && meta.kind !== "current-secondary") continue;
+      const kindClass = meta.kind === "current-secondary" ? "secondary" : "primary";
+      const el = createMarkerEl(meta.name, kindClass);
       const id = meta.station_id;
       el.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -120,6 +125,8 @@ export class CurrentStationLayer {
 
   attach(): void {
     for (const marker of this.markers.values()) marker.addTo(this.map);
+    this.applyZoomVisibility();
+    this.map.on("zoom", this.applyZoomVisibility);
     // Selection state — mirrors TideStationLayer.attach. The same
     // `.has-selection` class on the map container drives both layers'
     // hide-others CSS rules, so selecting any station hides every other
@@ -131,6 +138,13 @@ export class CurrentStationLayer {
       }
     });
   }
+
+  /** Toggle a body-level class so a single CSS rule can hide every
+   *  secondary-current marker at low zooms. */
+  private applyZoomVisibility = (): void => {
+    const hide = this.map.getZoom() < SECONDARY_MIN_ZOOM;
+    this.map.getContainer().classList.toggle("hide-secondary-currents", hide);
+  };
 
   updateAt(t: number): void {
     for (const [id, el] of this.elements) {

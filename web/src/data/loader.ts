@@ -16,6 +16,8 @@
 
 import type {
   CurrentPrimaryFile,
+  CurrentPrimaryStation,
+  CurrentSecondaryFile,
   Extreme,
   LoadedData,
   Manifest,
@@ -29,6 +31,20 @@ import {
   classifyHiLow,
   secondaryTideExtremes,
 } from "../interp/secondaryTides";
+import {
+  type ClassifiedCurrentEvent,
+  classifyCurrentEvents,
+  classifyTideAsCurrent,
+  hasMagnitudeData,
+  secondaryCurrentExtremes,
+} from "../interp/secondaryCurrents";
+
+/** Alias map for current-station references that don't match exactly
+ *  between Table 4's reference column and the primary current header.
+ *  Vol 5: secondary "JOHNSTONE STRAIT-CENTRAL" ↔ primary "JOHNSTONE STR. CEN.". */
+const CURRENT_REF_ALIASES: Record<string, string> = {
+  "JOHNSTONE STRAIT-CENTRAL": "JOHNSTONE STR. CEN.",
+};
 
 const MANIFEST_URL = "data/manifest.json";
 
@@ -54,7 +70,12 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
     throw new Error("manifest contains no years");
   }
 
-  const [tidePrimaryFiles, tideSecondaryFiles, currentPrimaryFiles] = await Promise.all([
+  const [
+    tidePrimaryFiles,
+    tideSecondaryFiles,
+    currentPrimaryFiles,
+    currentSecondaryFiles,
+  ] = await Promise.all([
     Promise.all(
       yearEntries.map(async (y) => {
         if (!y.tidal_primary) return null;
@@ -83,6 +104,16 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
           throw new Error(`current primary fetch failed: ${y.current_primary} (${r.status})`);
         }
         return (await r.json()) as CurrentPrimaryFile;
+      }),
+    ),
+    Promise.all(
+      yearEntries.map(async (y) => {
+        if (!y.current_secondary) return null;
+        const r = await fetch(`data/${y.current_secondary}`);
+        if (!r.ok) {
+          throw new Error(`current secondary fetch failed: ${y.current_secondary} (${r.status})`);
+        }
+        return (await r.json()) as CurrentSecondaryFile;
       }),
     ),
   ]);
@@ -163,29 +194,111 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
       }
     }
 
-    const curFile = currentPrimaryFiles[i];
-    if (!curFile) return;
+    // Per-year primary current lookup, classified once per primary and
+    // shared across every secondary that references it. Tide-referenced
+    // secondaries (offsets_from_tides=true) reuse the tide refByName
+    // built above, adapted via classifyTideAsCurrent.
+    type CurRefEntry = {
+      station: CurrentPrimaryStation;
+      classified: ClassifiedCurrentEvent[];
+    };
+    const curRefByName = new Map<string, CurRefEntry>();
 
-    for (const c of curFile.stations) {
-      const ext = currentExtremes(c);
-      // Symmetric Y-axis bound for the current chart: the larger of the
-      // station's two reference max magnitudes. max_ebb_knots is signed
-      // negative in the JSON, so take its absolute value.
-      const maxMag = Math.max(
-        Math.abs(c.max_flood_knots),
-        Math.abs(c.max_ebb_knots),
-      );
-      stationsById.set(c.index_no, {
-        station_id: c.index_no,
-        name: c.name,
-        kind: "current-primary",
-        latitude: c.latitude,
-        longitude: c.longitude,
-        flood_dir: c.flood_direction_true,
-        ebb_dir: c.ebb_direction_true,
-        current_max_knots: maxMag,
-      });
-      pushTo(currentExtremesByStation, c.index_no, ext);
+    const curFile = currentPrimaryFiles[i];
+    if (curFile) {
+      for (const c of curFile.stations) {
+        const ext = currentExtremes(c);
+        // Symmetric Y-axis bound for the current chart: the larger of
+        // the station's two reference max magnitudes. max_ebb_knots is
+        // signed negative in the JSON, so take its absolute value.
+        const maxMag = Math.max(
+          Math.abs(c.max_flood_knots),
+          Math.abs(c.max_ebb_knots),
+        );
+        stationsById.set(c.index_no, {
+          station_id: c.index_no,
+          name: c.name,
+          kind: "current-primary",
+          latitude: c.latitude,
+          longitude: c.longitude,
+          flood_dir: c.flood_direction_true,
+          ebb_dir: c.ebb_direction_true,
+          current_max_knots: maxMag,
+        });
+        pushTo(currentExtremesByStation, c.index_no, ext);
+        curRefByName.set(c.name, { station: c, classified: classifyCurrentEvents(c) });
+      }
+    }
+
+    const curSecFile = currentSecondaryFiles[i];
+    if (curSecFile) {
+      for (const sec of curSecFile.stations) {
+        // Resolve the reference. Either a current primary (with optional
+        // alias) or — for offsets_from_tides — a tide primary, adapted.
+        let refClassified: ClassifiedCurrentEvent[] | null = null;
+        if (sec.offsets_from_tides) {
+          const tideRef = refByName.get(sec.reference_primary);
+          if (tideRef) {
+            refClassified = classifyTideAsCurrent(tideRef.extremes, tideRef.classified);
+          }
+        } else {
+          const aliased = CURRENT_REF_ALIASES[sec.reference_primary] ?? sec.reference_primary;
+          const curRef = curRefByName.get(aliased);
+          if (curRef) refClassified = curRef.classified;
+        }
+        if (!refClassified) {
+          console.warn(
+            `secondary current ${sec.index_no} ${sec.name} references unknown ${sec.offsets_from_tides ? "tide" : "current"} primary "${sec.reference_primary}"`,
+          );
+          continue;
+        }
+
+        // Skip stations with no magnitude data entirely (BARONET PASSAGE,
+        // DRANEY NARROWS). CHS publishes time differences for them but no
+        // percentage or absolute knots, so we can't calculate a flow value
+        // — better to omit them from the map than render a markerless dot.
+        if (!hasMagnitudeData(sec)) continue;
+
+        // Y-axis bound from whichever magnitude rule the station uses; for
+        // percentage rows we approximate with the ref's own bound (best
+        // signal of the station's full-scale range).
+        const ebbDir = (sec.flood_direction_true + 180) % 360;
+        let bound: number | undefined;
+        if (sec.max_flood_knots !== null || sec.max_ebb_knots !== null) {
+          bound = Math.max(
+            Math.abs(sec.max_flood_knots ?? 0),
+            Math.abs(sec.max_ebb_knots ?? 0),
+          );
+        } else if (
+          (sec.pct_ref_flood !== null || sec.pct_ref_ebb !== null) &&
+          !sec.offsets_from_tides
+        ) {
+          const aliased = CURRENT_REF_ALIASES[sec.reference_primary] ?? sec.reference_primary;
+          const curRef = curRefByName.get(aliased);
+          if (curRef) {
+            const pf = sec.pct_ref_flood ?? 0;
+            const pe = sec.pct_ref_ebb ?? 0;
+            bound = Math.max(
+              (pf / 100) * Math.abs(curRef.station.max_flood_knots),
+              (pe / 100) * Math.abs(curRef.station.max_ebb_knots),
+            );
+          }
+        }
+
+        stationsById.set(sec.index_no, {
+          station_id: sec.index_no,
+          name: sec.name,
+          kind: "current-secondary",
+          latitude: sec.latitude,
+          longitude: sec.longitude,
+          flood_dir: sec.flood_direction_true,
+          ebb_dir: ebbDir,
+          current_max_knots: bound,
+        });
+
+        const ext = secondaryCurrentExtremes(sec, refClassified);
+        if (ext.length > 0) pushTo(currentExtremesByStation, sec.index_no, ext);
+      }
     }
   });
 

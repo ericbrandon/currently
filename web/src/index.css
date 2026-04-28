@@ -319,6 +319,11 @@ html, body, #app {
   display: none;
 }
 
+/* Same idea for secondary-current markers. */
+.hide-secondary-currents .current-marker.secondary {
+  display: none;
+}
+
 /* Hide every tide marker when the user toggles the "Tides" control off. */
 .hide-tides .tide-marker {
   display: none;

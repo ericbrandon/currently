@@ -135,6 +135,51 @@ export type CurrentPrimaryFile = {
 };
 
 // ---------------------------------------------------------------
+// Secondary current stations (Table 4 secondary rows).
+// Each one references either a primary current station (whose slack/max
+// events get time-shifted and rate-adjusted) or, when offsets_from_tides
+// is true, a primary tide port (whose HW/LW times become turn-to-ebb /
+// turn-to-flood slacks). Magnitude is given either as a percentage of
+// the reference station's max (pct_ref_*) or as an absolute large-tide
+// max in knots (max_*_knots); see calculating_secondary_currents.md.
+// ---------------------------------------------------------------
+
+export type CurrentSecondaryStation = {
+  index_no: number;
+  name: string;
+  reference_primary: string;             // matches a CurrentPrimaryStation.name (with alias)
+                                         // or a TidePrimaryStation.name when offsets_from_tides
+  offsets_from_tides: boolean;
+  flood_direction_true: number;          // always populated; ebb is flood + 180°
+  latitude: number;
+  longitude: number;
+  // "+HH:MM" / "-HH:MM" — applied to the corresponding ref event time.
+  // Slack diffs are always present; max diffs may be null (synthesise
+  // the max at the midpoint between adjacent slacks instead).
+  turn_to_flood_diff: string;
+  turn_to_ebb_diff: string;
+  flood_max_diff: string | null;
+  ebb_max_diff: string | null;
+  // Magnitude rule. Mutually exclusive in vol 5; both null is allowed
+  // (BARONET PASSAGE, DRANEY NARROWS) and means "no magnitude data —
+  // skip from the interpolator". The chart and panel render an empty
+  // state for those.
+  pct_ref_flood: number | null;
+  pct_ref_ebb: number | null;
+  max_flood_knots: number | null;
+  max_ebb_knots: number | null;
+  has_footnote: boolean;
+  name_annotation?: string | null;
+  geographic_zone?: string | null;
+  format_note?: string | null;
+};
+
+export type CurrentSecondaryFile = {
+  year: number;
+  stations: CurrentSecondaryStation[];
+};
+
+// ---------------------------------------------------------------
 // Internal flat representation used by the interpolator
 // ---------------------------------------------------------------
 
