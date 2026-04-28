@@ -226,6 +226,57 @@ html, body, #app {
 }
 
 /* ------------------------------------------------------------------
+   Tide station markers
+   ------------------------------------------------------------------ */
+.tide-marker svg {
+  display: block;
+  filter: drop-shadow(0 1px 2.5px rgba(0, 0, 0, 0.35));
+}
+
+.tide-marker .shape {
+  display: none;
+  stroke: #ffffff;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+.tide-marker.flood .shape-flood { display: inline; fill: #0c2c5e; }
+.tide-marker.ebb   .shape-ebb   { display: inline; fill: #b91c1c; }
+.tide-marker.slack .shape-slack { display: inline; fill: #6b21a8; }
+.tide-marker.no-data .shape-slack { display: inline; fill: #94a3b8; }
+
+.tide-marker .value {
+  fill: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.15);
+  stroke-width: 0.5;
+}
+
+.tide-marker.no-data .value {
+  opacity: 0.7;
+}
+
+.tide-marker .tide-name {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 2px;
+  padding: 2px 5px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #0c4a6e;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-radius: 3px;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+/* ------------------------------------------------------------------
    Mobile breakpoint
    ------------------------------------------------------------------ */
 @media (max-width: 600px) {

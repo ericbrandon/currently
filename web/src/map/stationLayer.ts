@@ -1,120 +1,105 @@
-// Tide-station overlay layer.
+// Tide-station overlay: one maplibregl.Marker per station, each rendered
+// as an SVG icon whose shape and colour reflect the tide state at the
+// current scrubber time.
 //
-// Single GeoJSON source + a circle layer. The FeatureCollection object is
-// allocated once and reused; per-frame scrub updates mutate
-// `feature.properties.value` in place and call `source.setData(fc)`. This
-// avoids GC pressure in the hot path. (See app_implementation.md §11.)
+//   - flood (rising):  pentagon, square on top, triangle hanging below
+//                      with apex pointing down. Navy fill.
+//   - ebb (falling):   pentagon, triangle on top with apex pointing up,
+//                      square below. Red fill.
+//   - slack (±5 min):  plain square, purple fill.
+//
+// Each marker also displays the interpolated value (m) inside the square,
+// large and bold. A small station-name label sits below the icon.
+//
+// Per-frame scrub updates mutate marker DOM in place: each marker has all
+// three shapes pre-rendered in the SVG, hidden via CSS, and we just swap
+// the state class + update the text content / y attribute.
 
-import type { Map as MlMap, GeoJSONSource } from "maplibre-gl";
+import maplibregl, { type Map as MlMap } from "maplibre-gl";
 import type { Extreme, LoadedVolume } from "../types";
-import { valueAt } from "../interp/valueAt";
+import { tideStateAt, type TideState } from "../interp/valueAt";
 
-const SOURCE_ID = "tide-stations";
-const LAYER_ID = "tide-primary-layer";
-const LABEL_LAYER_ID = "tide-primary-labels";
+// SVG viewBox is 40 wide × 55 tall. The 40×40 square sits centred
+// vertically; the triangle occupies the remaining 15 units (above for ebb,
+// below for flood). For slack the square is centred (y=7.5..47.5).
+const SVG_TEMPLATE = `
+<svg viewBox="0 0 40 55" width="48" height="66" preserveAspectRatio="xMidYMid meet">
+  <polygon class="shape shape-flood" points="0,0 40,0 40,40 20,55 0,40" />
+  <polygon class="shape shape-ebb" points="20,0 40,15 40,55 0,55 0,15" />
+  <rect class="shape shape-slack" x="0" y="7.5" width="40" height="40" />
+  <text class="value" x="20" y="29" text-anchor="middle" dominant-baseline="middle">—</text>
+</svg>`;
 
-type TideFeature = GeoJSON.Feature<GeoJSON.Point, {
-  station_id: number;
-  name: string;
-  value: number | null;
-}>;
+/** y-coordinate of the value text for each state (centre of the square). */
+const VALUE_Y: Record<TideState, number> = {
+  flood: 22,   // square spans 0..40 → centre ~20; nudge for optical balance
+  ebb: 37,     // square spans 15..55 → centre ~35
+  slack: 29,   // square spans 7.5..47.5 → centre ~27.5
+};
+
+function escapeHtml(s: string): string {
+  return s.replace(/[<>&"']/g, (c) =>
+    ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" }[c]!),
+  );
+}
+
+function createMarkerEl(name: string): HTMLElement {
+  const el = document.createElement("div");
+  el.className = "tide-marker no-data";
+  el.innerHTML = `${SVG_TEMPLATE}<div class="tide-name">${escapeHtml(name)}</div>`;
+  return el;
+}
+
+function updateMarkerEl(
+  el: HTMLElement,
+  state: TideState | null,
+  value: number | null,
+): void {
+  el.classList.remove("flood", "ebb", "slack", "no-data");
+  const text = el.querySelector("text.value") as SVGTextElement;
+
+  if (state === null) {
+    el.classList.add("no-data");
+    text.textContent = "—";
+    text.setAttribute("y", "29");
+    return;
+  }
+
+  el.classList.add(state);
+  text.textContent = value === null ? "—" : value.toFixed(1);
+  text.setAttribute("y", String(VALUE_Y[state]));
+}
 
 export class TideStationLayer {
   private map: MlMap;
-  private fc: GeoJSON.FeatureCollection<GeoJSON.Point>;
-  private features: TideFeature[];
+  private markers: Map<number, maplibregl.Marker> = new Map();
+  private elements: Map<number, HTMLElement> = new Map();
   private extremesById: Map<number, Extreme[]>;
 
   constructor(map: MlMap, vol: LoadedVolume) {
     this.map = map;
     this.extremesById = vol.tideExtremesById;
 
-    this.features = [];
     for (const meta of vol.stationsById.values()) {
       if (meta.kind !== "tide-primary") continue;
-      this.features.push({
-        type: "Feature",
-        geometry: { type: "Point", coordinates: [meta.longitude, meta.latitude] },
-        properties: {
-          station_id: meta.station_id,
-          name: meta.name,
-          value: null,
-        },
-      });
+      const el = createMarkerEl(meta.name);
+      const marker = new maplibregl.Marker({ element: el, anchor: "center" })
+        .setLngLat([meta.longitude, meta.latitude]);
+      this.markers.set(meta.station_id, marker);
+      this.elements.set(meta.station_id, el);
     }
-    this.fc = { type: "FeatureCollection", features: this.features };
   }
 
-  /** Add the source and layer to the map. Call after `map.on('load')`. */
   attach(): void {
-    this.map.addSource(SOURCE_ID, {
-      type: "geojson",
-      data: this.fc,
-    });
-
-    this.map.addLayer({
-      id: LAYER_ID,
-      source: SOURCE_ID,
-      type: "circle",
-      paint: {
-        // Radius pulses with tide height. null/no-data → small grey dot.
-        "circle-radius": [
-          "interpolate",
-          ["linear"],
-          ["coalesce", ["get", "value"], 0],
-          0, 6,
-          5, 22,
-        ],
-        "circle-color": [
-          "case",
-          ["==", ["get", "value"], null], "#9ca3af",
-          [
-            "interpolate", ["linear"],
-            ["get", "value"],
-            0, "#bae6fd",
-            5, "#1d4ed8",
-          ],
-        ],
-        "circle-stroke-color": "#0c4a6e",
-        "circle-stroke-width": 1.2,
-        "circle-opacity": 0.9,
-      },
-    });
-
-    this.map.addLayer({
-      id: LABEL_LAYER_ID,
-      source: SOURCE_ID,
-      type: "symbol",
-      layout: {
-        "text-field": [
-          "case",
-          ["==", ["get", "value"], null], ["get", "name"],
-          ["concat", ["get", "name"], "  ",
-            ["number-format", ["get", "value"], { "min-fraction-digits": 2, "max-fraction-digits": 2 }],
-            " m"],
-        ],
-        "text-font": ["Noto Sans Regular"],
-        "text-size": 12,
-        "text-offset": [0, 1.6],
-        "text-anchor": "top",
-        "text-allow-overlap": false,
-      },
-      paint: {
-        "text-color": "#0f172a",
-        "text-halo-color": "#ffffff",
-        "text-halo-width": 1.4,
-      },
-    });
+    for (const marker of this.markers.values()) marker.addTo(this.map);
   }
 
-  /** Recompute every visible station's value at `t` and push to the GPU.
-   *  O(n log m) where n = stations and m = extremes per station. */
   updateAt(t: number): void {
-    for (const f of this.features) {
-      const ext = this.extremesById.get(f.properties.station_id);
-      f.properties.value = ext ? valueAt(ext, t) : null;
+    for (const [id, el] of this.elements) {
+      const ext = this.extremesById.get(id);
+      if (!ext) continue;
+      const { state, value } = tideStateAt(ext, t);
+      updateMarkerEl(el, state, value);
     }
-    const src = this.map.getSource(SOURCE_ID) as GeoJSONSource | undefined;
-    src?.setData(this.fc);
   }
 }
