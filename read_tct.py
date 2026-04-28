@@ -467,6 +467,15 @@ class _ReferencePortInfo:
     large_tide_range: float
 
 
+def _fix_decimal_gaps(line: str) -> str:
+    # PDF text extraction occasionally injects a stray space inside a number,
+    # e.g. "4 .8", "4. 8", or "- 0.1". Collapse those so numeric regexes match.
+    line = re.sub(r"(\d)\s+\.", r"\1.", line)
+    line = re.sub(r"\.\s+(\d)", r".\1", line)
+    line = re.sub(r"(^|\s)-\s+(\d)", r"\1-\2", line)
+    return line
+
+
 def parse_table1(pdf: pdfplumber.PDF, toc: TOC, page_offset: int) -> list[_ReferencePortInfo]:
     if 1 not in toc.table_pages:
         return []
@@ -474,7 +483,7 @@ def parse_table1(pdf: pdfplumber.PDF, toc: TOC, page_offset: int) -> list[_Refer
     text = pdf.pages[pdf_idx].extract_text() or ""
     entries: list[_ReferencePortInfo] = []
     for line in text.split("\n"):
-        m = TABLE1_ROW_PATTERN.match(line.strip())
+        m = TABLE1_ROW_PATTERN.match(_fix_decimal_gaps(line.strip()))
         if not m:
             continue
         entries.append(_ReferencePortInfo(
@@ -516,7 +525,7 @@ def parse_table2(pdf: pdfplumber.PDF, toc: TOC, page_offset: int) -> list[_Refer
     text = pdf.pages[pdf_idx].extract_text() or ""
     entries: list[_ReferenceTidalHeights] = []
     for line in text.split("\n"):
-        m = TABLE2_ROW_PATTERN.match(line.strip())
+        m = TABLE2_ROW_PATTERN.match(_fix_decimal_gaps(line.strip()))
         if not m:
             continue
         entries.append(_ReferenceTidalHeights(
@@ -553,13 +562,13 @@ def _merge_table1_into_station(station: TideStation, info: _ReferencePortInfo) -
 
 
 _TIME_DIFF = r"[+-]?\s*\d+\s+\d+\*?"
-_SF = r"[+-]?\d+\.\d+"   # signed float
-_UF = r"\d+\.\d+"        # unsigned float
+_SF = r"[+-]?\d+\.\d+\*?"   # signed float, optional footnote *
+_UF = r"\d+\.\d+\*?"        # unsigned float, optional footnote *
 
 TABLE3_ROW_PATTERN = re.compile(
     rf"^(?P<index>\d{{4}})\s+"
     rf"(?P<name>.+?)\s+"
-    rf"-\s*(?P<tz>\d+)\s+"
+    rf"-?\s*(?P<tz>\d+)\s+"
     rf"(?P<lat_d>\d+)\s+(?P<lat_m>\d+)\s+"
     rf"(?P<lon_d>\d+)\s+(?P<lon_m>\d+)\s+"
     rf"(?P<hhw_time>{_TIME_DIFF})\s+"
@@ -605,6 +614,18 @@ def _format_time_diff(raw: str) -> tuple[str, bool]:
 AREA_NAME_MAX_LINES = 2
 
 
+def _split_concat_time_diff(line: str) -> str:
+    # PDF text extraction sometimes drops the space between hours and minutes
+    # in a time-diff token, e.g. "+013" instead of "+0 13". Re-insert the space
+    # by splitting a 3-digit signed run into 1 hour-digit + 2 minute-digits.
+    return re.sub(r"(?<!\d)([+-])(\d)(\d{2})(?=\s|$)", r"\1\2 \3", line)
+
+
+def _parse_t3_float(s: str) -> tuple[float, bool]:
+    has_foot = s.endswith("*")
+    return float(s.rstrip("*")), has_foot
+
+
 def parse_table3(pdf: pdfplumber.PDF, toc: TOC, page_offset: int) -> list[SecondaryPort]:
     if 3 not in toc.table_pages or 4 not in toc.table_pages:
         return []
@@ -642,7 +663,15 @@ def parse_table3(pdf: pdfplumber.PDF, toc: TOC, page_offset: int) -> list[Second
             if in_footnote:
                 continue
 
-            m = TABLE3_ROW_PATTERN.match(line)
+            normalized = _split_concat_time_diff(line)
+            m = TABLE3_ROW_PATTERN.match(normalized)
+            if not m:
+                # Recovery: a dropped space inside a time-diff token sometimes
+                # surfaces as a stray decimal point, e.g. "+0.05" instead of
+                # "+0 05". Only apply when the normal match fails.
+                recovered = re.sub(r"(?<!\d)([+-])(\d)\.(\d{2})(?=\s|$)", r"\1\2 \3", normalized)
+                if recovered != normalized:
+                    m = TABLE3_ROW_PATTERN.match(recovered)
             if m:
                 # finalize area name on first port encountered after AREA marker
                 if collecting_area and pending_area_lines and state_area_num is not None:
@@ -651,6 +680,13 @@ def parse_table3(pdf: pdfplumber.PDF, toc: TOC, page_offset: int) -> list[Second
                     collecting_area = False
                 hhw_time, hhw_flag = _format_time_diff(m.group("hhw_time"))
                 llw_time, llw_flag = _format_time_diff(m.group("llw_time"))
+                hhw_mean, fa = _parse_t3_float(m.group("hhw_mean"))
+                hhw_large, fb = _parse_t3_float(m.group("hhw_large"))
+                llw_mean, fc = _parse_t3_float(m.group("llw_mean"))
+                llw_large, fd = _parse_t3_float(m.group("llw_large"))
+                range_mean, _ = _parse_t3_float(m.group("range_mean"))
+                range_large, _ = _parse_t3_float(m.group("range_large"))
+                mwl, _ = _parse_t3_float(m.group("mwl"))
                 ports.append(SecondaryPort(
                     index_no=int(m.group("index")),
                     name=m.group("name").strip(),
@@ -662,15 +698,15 @@ def parse_table3(pdf: pdfplumber.PDF, toc: TOC, page_offset: int) -> list[Second
                     geographic_zone=" ".join(zone_lines) or None,
                     reference_port=state_ref_port,
                     higher_high_water_time_diff=hhw_time,
-                    higher_high_water_mean_tide_diff=float(m.group("hhw_mean")),
-                    higher_high_water_large_tide_diff=float(m.group("hhw_large")),
+                    higher_high_water_mean_tide_diff=hhw_mean,
+                    higher_high_water_large_tide_diff=hhw_large,
                     lower_low_water_time_diff=llw_time,
-                    lower_low_water_mean_tide_diff=float(m.group("llw_mean")),
-                    lower_low_water_large_tide_diff=float(m.group("llw_large")),
-                    mean_tide_range=float(m.group("range_mean")),
-                    large_tide_range=float(m.group("range_large")),
-                    mean_water_level=float(m.group("mwl")),
-                    has_footnote=hhw_flag or llw_flag,
+                    lower_low_water_mean_tide_diff=llw_mean,
+                    lower_low_water_large_tide_diff=llw_large,
+                    mean_tide_range=range_mean,
+                    large_tide_range=range_large,
+                    mean_water_level=mwl,
+                    has_footnote=hhw_flag or llw_flag or fa or fb or fc or fd,
                 ))
                 zone_used_by_port = True
                 continue
@@ -1170,10 +1206,27 @@ def parse_table4(
                 ))
                 continue
 
-            tf, fa = _parse_t4_time_diff(buckets["turn_flood"])
-            fm, fb = _parse_t4_time_diff(buckets["flood_max"])
-            te, fc = _parse_t4_time_diff(buckets["turn_ebb"])
-            em, fd = _parse_t4_time_diff(buckets["ebb_max"])
+            # Some volumes inline the LW/HW markers per data row instead of in
+            # a header above the section (e.g. Vol7 Prince Rupert tide-referenced
+            # secondaries). The "LW" token can fall in the gap between bucket
+            # column ranges and get dropped, while "HW" lands inside turn_ebb
+            # and trips its time-diff parser. Detect and strip these inline.
+            row_texts = [w["text"] for w in row]
+            inline_lw_hw = "LW" in row_texts and "HW" in row_texts
+            if inline_lw_hw:
+                tf, fa = _parse_t4_time_diff(
+                    [w for w in buckets["turn_flood"] if w["text"] != "LW"]
+                )
+                te, fc = _parse_t4_time_diff(
+                    [w for w in buckets["turn_ebb"] if w["text"] != "HW"]
+                )
+                fm = em = None
+                fb = fd = False
+            else:
+                tf, fa = _parse_t4_time_diff(buckets["turn_flood"])
+                fm, fb = _parse_t4_time_diff(buckets["flood_max"])
+                te, fc = _parse_t4_time_diff(buckets["turn_ebb"])
+                em, fd = _parse_t4_time_diff(buckets["ebb_max"])
             pct_f = pct_e = None
             if buckets["pct_flood"]:
                 try:
@@ -1186,7 +1239,7 @@ def parse_table4(
                 except ValueError:
                     pass
 
-            offsets_from_tides = pending_format_note == "LW HW"
+            offsets_from_tides = inline_lw_hw or pending_format_note == "LW HW"
             if offsets_from_tides and pending_zone:
                 # The "zone" header is actually a name prefix wrapped to its own
                 # line because the full name didn't fit (e.g. "PRINCESS LOUISA INLET MALIBU RAPIDS").
@@ -1260,13 +1313,13 @@ def parse_table4(
     return refs, secs
 
 
+def _normalize_station_name(name: str) -> str:
+    return re.sub(r"[^A-Z0-9]+", " ", name.upper()).strip()
+
+
 def _merge_table4_into_current_station(
     station: CurrentStation, info: _ReferenceCurrentInfo
 ) -> None:
-    if station.name != info.name:
-        raise ValueError(
-            f"Table 4 name {info.name!r} does not match current station {station.name!r}"
-        )
     station.index_no = info.index_no
     station.latitude = info.latitude
     station.longitude = info.longitude
@@ -1292,7 +1345,17 @@ def build_current_stations(pdf_path: str, toc: TOC) -> tuple[list[CurrentStation
                 f"Table 4 reference row count ({len(ref_infos)}) does not match "
                 f"current station count ({len(stations)})"
             )
-        for station, info in zip(stations, ref_infos):
+        info_by_name = {_normalize_station_name(info.name): info for info in ref_infos}
+        if len(info_by_name) != len(ref_infos):
+            raise ValueError("Table 4 reference rows have duplicate station names")
+        for station in stations:
+            key = _normalize_station_name(station.name)
+            info = info_by_name.get(key)
+            if info is None:
+                raise ValueError(
+                    f"No Table 4 reference row matches current station {station.name!r}; "
+                    f"available: {sorted(info_by_name)}"
+                )
             _merge_table4_into_current_station(station, info)
     return stations, secondary_currents
 
