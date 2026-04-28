@@ -604,7 +604,8 @@ html, body, #app {
   position: absolute;
   left: 0;
   right: 0;
-  background: rgba(254, 240, 138, 0.32);
+  /* Previous: rgba(254, 240, 138, 0.32) — translucent yellow */
+  background: rgba(186, 230, 253, 0.26);
   pointer-events: none;
   z-index: 3;
 }
