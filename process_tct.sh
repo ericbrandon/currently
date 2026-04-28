@@ -23,6 +23,10 @@ echo "=== process_tct.sh: year=$YEAR ==="
 # Step 1: parse PDFs into structured station data
 "$PYTHON" read_tct.py --year "$YEAR" "$@"
 
-# Step 2: copy parser outputs into web/public/data/{year}/ with
+# Step 2: refine station lat/lons from the CHS open-data inventory CSV
+# and any manual coord_overrides.json — see notes/tables_processing.md.
+"$PYTHON" apply_coord_overrides.py --year "$YEAR"
+
+# Step 3: copy parser outputs into web/public/data/{year}/ with
 # content-hashed names, then regenerate the client-side manifest.
 "$PYTHON" build_manifest.py --year "$YEAR"

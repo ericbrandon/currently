@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-04-28T04:47:07Z",
+  "generated_at": "2026-04-28T20:04:52Z",
   "years": [
     {
       "year": 2026,
       "current_primary": "2026/current_primary.d1326206.json",
       "current_secondary": "2026/current_secondary.b9a220b6.json",
-      "tidal_primary": "2026/tidal_primary.ac409fa9.json",
-      "tidal_secondary": "2026/tidal_secondary.fbbcb829.json",
+      "tidal_primary": "2026/tidal_primary.839dc6bc.json",
+      "tidal_secondary": "2026/tidal_secondary.5092aee1.json",
       "first_extreme_utc": "2026-01-01T08:01:00Z",
       "last_extreme_utc": "2027-01-01T07:57:00Z"
     }

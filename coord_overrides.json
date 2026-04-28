@@ -1,0 +1,21 @@
+{
+  "_format": "Map of CHS index_no (string) to [longitude, latitude] in WGS84. A null value means 'I have verified the PDF coord is correct; stop flagging this station as a CSV-vs-PDF disagreement.' Keys starting with '_' are treated as comments.",
+  "_source_url_csv": "https://open.canada.ca/data/en/dataset/87b08750-4180-4d31-9414-a9470eba9b42/resource/f7f11a47-718c-4eff-a716-d68448914b40",
+  "_source_url_per_station": "https://tides.gc.ca/en/stations/<5-digit zero-padded index_no>",
+
+  "7120": [-123.370828, 48.424363],
+
+  "_block_pdf_wrong_replaced_with_chs_official": "Stations whose PDF coord was substantially wrong; values pulled from each station's tides.gc.ca page. See notes/tables_processing.md.",
+  "8145": [-125.361, 50.46],
+  "7579": [-122.883333, 49.033333],
+  "8025": [-124.95532, 50.2604833],
+  "9312": [-130.334, 54.105],
+  "9512": [-131.141, 52.095],
+  "8069": [-124.873, 50.873],
+  "9775": [-131.883, 52.832],
+  "9570": [-132.047, 52.766],
+  "7480": [-123.7982, 49.09],
+
+  "_block_pdf_correct_csv_wrong": "Stations where the CSV row is wrong but the PDF is right. Marked null so the script doesn't keep flagging them.",
+  "8870": null
+}
