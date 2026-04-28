@@ -16,6 +16,8 @@ import {
   scrubberMs,
   recenterAt,
   selectedStationId,
+  showTides,
+  useFeet,
 } from "./state/store";
 import { fetchManifest, loadAllYears } from "./data/loader";
 import { createMap, stationBounds } from "./map/map";
@@ -23,6 +25,7 @@ import { TideStationLayer } from "./map/stationLayer";
 import { rafCoalesce } from "./util/rafCoalesce";
 import { Scrubber } from "./ui/Scrubber";
 import { TidePanel } from "./ui/TidePanel";
+import { Controls } from "./ui/Controls";
 
 export function App() {
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -97,18 +100,35 @@ export function App() {
   }, [loadedData.value]);
 
   // Step 4: scrubber → station-layer updates, rAF-coalesced.
+  // Also re-runs when `useFeet` flips so markers re-render in the new
+  // unit, and short-circuits when `showTides` is off (markers are
+  // already hidden via CSS, so per-frame interpolation is wasted work).
   useEffect(() => {
     const coalesce = rafCoalesce<number>((t) => {
       layerRef.current?.updateAt(t);
     });
     const dispose = effect(() => {
       const t = scrubberMs.value;
+      useFeet.value;
+      if (!showTides.value) return;
       if (mapRef.current && mapRef.current.loaded()) {
         coalesce.schedule(t);
       }
     });
     return () => { dispose(); coalesce.cancel(); };
   }, []);
+
+  // Toggle the .hide-tides class on the map container whenever the
+  // Tides control flips. CSS hides every .tide-marker under that class.
+  useEffect(() => {
+    const dispose = effect(() => {
+      const hide = !showTides.value;
+      const map = mapRef.current;
+      if (!map) return;
+      map.getContainer().classList.toggle("hide-tides", hide);
+    });
+    return () => dispose();
+  }, [loadedData.value]);
 
   return (
     <div class="app">
@@ -117,6 +137,7 @@ export function App() {
       {!loadedData.value && !error && <div class="loading-overlay">Loading data…</div>}
       <TidePanel />
       <Scrubber />
+      <Controls />
     </div>
   );
 }

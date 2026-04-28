@@ -93,9 +93,11 @@ The webapp lives inside this repo under `web/`. The Python pipeline at the repo 
         Scrubber.tsx              # custom 15-h windowed track + ticks + draggable thumb
         TideChart.tsx             # tide chart that underlies the scrubber when a station is selected
         TidePanel.tsx             # 5-day HW/LW overview overlaid on the map when a station is selected
+        Controls.tsx              # always-visible top-right toggle strip
         Banner.tsx                # "2027 not yet available" etc. (not yet built)
       util/
         time.ts                   # Intl.DateTimeFormat helpers + DST-safe local-midnight resolver
+        units.ts                  # m → m/ft formatter that reads the useFeet signal
         rafCoalesce.ts            # rAF-based event coalescer
 ```
 
@@ -298,6 +300,13 @@ export const scrubberMs   = signal<number>(Date.now());
 export const selectedStationId = signal<number | null>(null);
 export const visibleBounds = signal<LngLatBounds | null>(null);
 
+// Top-right control toggles (see §10.6). Defaults: tides/currents/panels
+// on, useFeet true (the BC boating audience overwhelmingly thinks in feet).
+export const showTides     = signal<boolean>(true);
+export const showCurrents  = signal<boolean>(true);
+export const showPanels    = signal<boolean>(true);
+export const useFeet       = signal<boolean>(true);
+
 // Derived: which stations are currently visible on the map.
 export const visibleStationIds = computed(() => /* … */);
 ```
@@ -332,7 +341,7 @@ Steps:
 
 ### 10.1 Layout (responsive)
 
-- **All viewport sizes**: full-bleed map; scrubber pinned to bottom. With no station selected the scrubber holds the time label + 15-hour timeline track + Now button (~120 px tall). Selecting a tide station does two things at once: the scrubber expands upward to embed the `TideChart` (§10.3) aligned to the same time axis, and the `TidePanel` (§10.4) appears overlaid on the left side of the map (390 px wide — full-width on phones at iPhone 12 Pro or below).
+- **All viewport sizes**: full-bleed map; scrubber pinned to bottom; `Controls` (§10.5) pinned to the top-right corner. With no station selected the scrubber holds the time label + 15-hour timeline track + Now button (~120 px tall). Selecting a tide station does two things at once: the scrubber expands upward to embed the `TideChart` (§10.3) aligned to the same time axis, and the `TidePanel` (§10.4) appears overlaid on the left side of the map (390 px wide — full-width on phones at iPhone 12 Pro or below).
 - **Chart panel height**: 180 px on desktop, 150 px at ≤600 px viewport width. Total scrubber height with chart visible: ~310 px desktop, ~270 px mobile.
 - **One CSS file** with media queries; no separate mobile/desktop component trees.
 - All hit targets ≥ 44 × 44 px.
@@ -374,7 +383,18 @@ When the user taps a tide station, `TidePanel` (`src/ui/TidePanel.tsx`) overlays
 - **What moves the bar**: only window movements — dragging the thumb to the left or right edge of the timeline (which engages the auto-pan loop, see §10.2) or pressing "Now". Normal thumb dragging in the middle of the track does *not* shift the bar, because it doesn't shift the chart's content either.
 - **Dismiss**: tapping anywhere on the panel calls `selectedStationId.value = null`, which unmounts both the panel and the chart simultaneously. Important on iPhone 12 Pro where the panel covers the full map width and there's no map area to fall through to; harmless on desktop, where map clicks already deselect (§6.5).
 
-### 10.5 Banner
+### 10.5 Controls
+
+`Controls` (`src/ui/Controls.tsx`) is a four-box strip pinned to the top-right corner of the viewport, always visible above the map. `z-index: 3` — deliberately *below* both the `TidePanel` (z:4) and the scrubber (z:5), so on iPhone-width viewports where the panel covers the full map width, the panel overlays the controls cleanly instead of having them float on top of it. All four boxes are the same size — 96 × 36 px on desktop, 84 × 32 px at ≤600 px viewport width — stacked vertically.
+
+- **Tides** (`showTides`) — when off, every tide marker is hidden via a `.hide-tides` class toggled on the map container, and the per-frame interpolation effect in `app.tsx` short-circuits so no work happens while markers are invisible. Flipping back on re-triggers a marker update so values are correct immediately.
+- **Currents** (`showCurrents`) — signal exists but is intentionally unwired in v1. Reserved for the future current overlay (§7.2).
+- **5 Day Panels** (`showPanels`) — when off, `TidePanel` (§10.4) early-returns even when a station is selected. Selection still expands the scrubber's chart; only the side panel is gated.
+- **Feet / Meters** (`useFeet`) — binary unit toggle, not on/off. Reuses the same on/off styling: Feet renders filled (the on style), Meters renders white-on-grey (the off style). The default is **Feet**, since the BC boating audience overwhelmingly thinks in feet.
+
+The unit signal is read by `src/util/units.ts` — `formatTideHeight` (with unit suffix) is called from `TideChart` and `TidePanel`, `formatTideValue` (bare number) from the marker text in `stationLayer.ts`. Toggling the unit re-triggers the marker update effect in `app.tsx` so every marker re-renders in the new unit immediately.
+
+### 10.6 Banner
 
 A small dismissable strip across the top, shown only when:
 - Manifest fetch failed (offline or bad config).

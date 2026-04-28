@@ -13,9 +13,11 @@ import {
   loadedData,
   windowStartMs,
   WINDOW_MS,
+  showPanels,
 } from "../state/store";
 import { classifyHiLow } from "../interp/secondaryTides";
 import { localMidnightUtcMs } from "../util/time";
+import { formatTideHeight } from "../util/units";
 
 const TZ = "America/Vancouver";
 const DAY_MS = 24 * 3600 * 1000;
@@ -48,6 +50,7 @@ export function TidePanel() {
   const start = windowStartMs.value;
 
   if (id === null || !data) return null;
+  if (!showPanels.value) return null;
   const meta = data.stationsById.get(id);
   const extremes = data.tideExtremesById.get(id);
   if (!meta || !extremes) return null;
@@ -121,7 +124,7 @@ export function TidePanel() {
             >
               <span class="tide-panel-event-time">{fmtTime(e.t)}</span>
               <span class="tide-panel-event-kind">{e.isHW ? "HW" : "LW"}</span>
-              <span class="tide-panel-event-height">{e.v.toFixed(1)} m</span>
+              <span class="tide-panel-event-height">{formatTideHeight(e.v)}</span>
             </div>
           ))}
         </div>

@@ -319,6 +319,11 @@ html, body, #app {
   display: none;
 }
 
+/* Hide every tide marker when the user toggles the "Tides" control off. */
+.hide-tides .tide-marker {
+  display: none;
+}
+
 .tide-marker {
   cursor: pointer;
 }
@@ -605,6 +610,55 @@ html, body, #app {
 }
 
 /* ------------------------------------------------------------------
+   Controls (top-right toggles)
+   ------------------------------------------------------------------ */
+.controls {
+  position: absolute;
+  top: calc(0.5rem + env(safe-area-inset-top));
+  right: calc(0.5rem + env(safe-area-inset-right));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  /* Below the tide-panel (z:4) so on iPhone widths — where the panel
+     covers the full viewport — the panel overlays the controls instead
+     of vice-versa. Still above the map and its markers. */
+  z-index: 3;
+  pointer-events: auto;
+}
+
+.control-box {
+  width: 96px;
+  height: 36px;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: center;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  cursor: pointer;
+  font-family: inherit;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.control-box.on {
+  background: #0c4a6e;
+  color: #ffffff;
+  border-color: #0c4a6e;
+}
+.control-box.on:active {
+  background: #082f49;
+}
+
+.control-box.off {
+  background: rgba(255, 255, 255, 0.92);
+  color: #475569;
+}
+.control-box.off:active {
+  background: #e2e8f0;
+}
+
+/* ------------------------------------------------------------------
    Mobile breakpoint
    ------------------------------------------------------------------ */
 @media (max-width: 600px) {
@@ -615,5 +669,10 @@ html, body, #app {
   }
   .tide-chart {
     height: 150px;
+  }
+  .control-box {
+    width: 84px;
+    height: 32px;
+    font-size: 11px;
   }
 }

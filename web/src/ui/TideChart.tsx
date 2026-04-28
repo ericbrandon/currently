@@ -30,6 +30,7 @@ import {
 } from "../state/store";
 import { valueAt } from "../interp/valueAt";
 import { classifyHiLow } from "../interp/secondaryTides";
+import { formatTideHeight } from "../util/units";
 
 const SAMPLE_INTERVAL_MS = 3 * 60 * 1000;
 const MIN_RANGE_M = 0.6;
@@ -44,7 +45,6 @@ const HHMM = new Intl.DateTimeFormat("en-CA", {
 });
 
 function fmtTime(ms: number): string { return HHMM.format(new Date(ms)); }
-function fmtHeight(v: number): string { return `${v.toFixed(1)} m`; }
 
 type Computed =
   | { empty: true }
@@ -155,14 +155,14 @@ export function TideChart() {
         >
           <span class="tide-chart-extreme-time">{fmtTime(L.t)}</span>
           {" "}
-          <span class="tide-chart-extreme-val">{fmtHeight(L.v)}</span>
+          <span class="tide-chart-extreme-val">{formatTideHeight(L.v)}</span>
         </div>
       ))}
       {thumbValue !== null && (
         <div class="tide-chart-thumb-label" style={{ left: `${thumbX}%` }}>
           <span class="tide-chart-extreme-time">{fmtTime(ms)}</span>
           {" "}
-          <span class="tide-chart-extreme-val">{fmtHeight(thumbValue)}</span>
+          <span class="tide-chart-extreme-val">{formatTideHeight(thumbValue)}</span>
         </div>
       )}
     </div>

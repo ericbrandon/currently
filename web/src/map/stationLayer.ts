@@ -20,6 +20,7 @@ import { effect } from "@preact/signals";
 import type { Extreme, LoadedData } from "../types";
 import { tideStateAt, type TideState } from "../interp/valueAt";
 import { selectedStationId } from "../state/store";
+import { formatTideValue } from "../util/units";
 
 // SVG viewBox is 40 wide × 55 tall. The 40×40 square sits centred
 // vertically; the triangle occupies the remaining 15 units (above for
@@ -72,7 +73,7 @@ function updateMarkerEl(
   }
 
   el.classList.add(state);
-  text.textContent = value === null ? "—" : value.toFixed(1);
+  text.textContent = value === null ? "—" : formatTideValue(value);
   text.setAttribute("y", String(VALUE_Y[state]));
 }
 
