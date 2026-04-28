@@ -73,6 +73,55 @@ export type CurrentState = "flood" | "ebb" | "slack";
  *  well as the weak/variable max events that we serialise as v=0. */
 const SLACK_KNOTS = 0.1;
 
+/** Piecewise sinusoidal interpolation between two consecutive published
+ *  current events. Unlike tides — where every published event (HW or LW) is
+ *  an extremum with zero slope — current events alternate between
+ *  zero-crossings (slacks and weak/variable maxes, v=0) and true peaks
+ *  (signed maxes). The shape of each segment depends on which kind of
+ *  endpoint sits on each side:
+ *
+ *    slack → peak   → quarter-sine     v(τ) = v₂ · sin(πτ/2)
+ *    peak  → slack  → quarter-cosine   v(τ) = v₁ · cos(πτ/2)
+ *    peak  → peak   → half-cosine      (same as tides; both ends are extrema)
+ *    slack → slack  → 0                (rare; conservative)
+ *
+ *  This matches the marine-navigation "50-90 rule" (50% / 87%-≈90% / 100%
+ *  at thirds of the slack→max segment) and makes the chart curve C¹-
+ *  continuous at every max while letting it cross zero with full slope at
+ *  every slack — which is what a real tidal current does. */
+function currentSegment(
+  v1: number, v2: number, tau: number,
+): number {
+  const z1 = v1 === 0;
+  const z2 = v2 === 0;
+  if (z1 && z2) return 0;
+  if (z1) return v2 * Math.sin(Math.PI * tau / 2);
+  if (z2) return v1 * Math.cos(Math.PI * tau / 2);
+  return (v1 + v2) / 2 + ((v1 - v2) / 2) * Math.cos(Math.PI * tau);
+}
+
+/** Interpolated signed knots at absolute UTC ms `t`, using the piecewise
+ *  quarter-cycle shape described in `currentSegment`. Returns null outside
+ *  the published range. */
+export function currentValueAt(extremes: Extreme[], t: number): number | null {
+  const n = extremes.length;
+  if (n < 2) return null;
+  if (t < extremes[0].t || t > extremes[n - 1].t) return null;
+
+  let lo = 0, hi = n - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (extremes[mid].t <= t) lo = mid;
+    else hi = mid;
+  }
+  const e1 = extremes[lo];
+  const e2 = extremes[hi];
+  if (e2.t === e1.t) return e1.v;
+
+  const tau = (t - e1.t) / (e2.t - e1.t);
+  return currentSegment(e1.v, e2.v, tau);
+}
+
 /** Returns the interpolated signed knots at time `t` plus the phase
  *  (flood / ebb / slack) and a weak flag that tracks the surrounding
  *  weak/variable max events. */
@@ -98,7 +147,7 @@ export function currentStateAt(
   }
 
   const tau = (t - e1.t) / (e2.t - e1.t);
-  const value = (e1.v + e2.v) / 2 + ((e1.v - e2.v) / 2) * Math.cos(Math.PI * tau);
+  const value = currentSegment(e1.v, e2.v, tau);
   const weak = !!((e1.weak && tau < 0.5) || (e2.weak && tau >= 0.5));
 
   if (Math.abs(value) < SLACK_KNOTS) {

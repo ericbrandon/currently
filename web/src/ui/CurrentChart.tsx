@@ -23,7 +23,7 @@ import {
   loadedData,
   WINDOW_MS,
 } from "../state/store";
-import { valueAt } from "../interp/valueAt";
+import { currentValueAt } from "../interp/valueAt";
 import { formatCurrentSpeed } from "../util/units";
 
 const SAMPLE_INTERVAL_MS = 3 * 60 * 1000;
@@ -80,7 +80,7 @@ export function CurrentChart() {
     let anySample = false;
     const samples: { x: number; y: number; v: number | null }[] = [];
     for (let t = start; t <= end; t += SAMPLE_INTERVAL_MS) {
-      const v = valueAt(extremes, t);
+      const v = currentValueAt(extremes, t);
       const x = ((t - start) / WINDOW_MS) * 100;
       samples.push({ x, y: v === null ? 0 : yOf(v), v });
       if (v !== null) anySample = true;
@@ -159,7 +159,7 @@ export function CurrentChart() {
   }
 
   const { pathD, floodFill, ebbFill, labels } = computed;
-  const thumbValue = valueAt(extremes, ms);
+  const thumbValue = currentValueAt(extremes, ms);
   const thumbX = f * 100;
 
   return (

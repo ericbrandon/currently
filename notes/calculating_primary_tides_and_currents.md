@@ -20,18 +20,41 @@ The reasons in one paragraph: the source JSON we already emit is small (~3 MB fo
 
 ## The algorithm: sinusoidal between consecutive extremes
 
-For two consecutive published extremes — extreme #1 at time `t₁` with value `v₁` (a HW/LW height for tides, or 0 for a slack / signed knots for a max for currents) and the next extreme at `t₂, v₂`:
+Tides and currents both interpolate sinusoidally between published events, but the *shape* of each segment differs because of what each published event physically is.
+
+### Tides: half-cosine between two peaks
+
+Every published tide event (HW or LW) is an extremum — slope zero. For two consecutive events at `(t₁, v₁)` and `(t₂, v₂)`:
 
 ```
-τ    = (t − t₁) / (t₂ − t₁)                      # 0..1, position within this segment
+τ    = (t − t₁) / (t₂ − t₁)                      # 0..1 within this segment
 v(t) = (v₁ + v₂) / 2  +  (v₁ − v₂) / 2 · cos(π · τ)
 ```
 
-Each segment between extremes is independently fitted to half a cosine cycle (π radians) regardless of the segment's actual clock duration. This means:
+Half a cosine cycle, stretched horizontally per segment to match its actual clock duration. Each segment is independently fitted regardless of the segment's actual clock duration, so:
 
-- **Asymmetric durations are free.** If at Sechelt Rapids the ebb half-cycle takes 7.5 h while the next flood takes 4.5 h, each gets its own time-stretched half-cosine. The cosine is stretched horizontally per segment.
-- **Asymmetric magnitudes are free.** A 16.5-knot flood max followed by a 14.0-knot ebb max simply scales the cosine vertically per segment.
-- **dv/dt = 0 at every extreme.** That's correct — extremes by definition have zero slope. The curve is C¹-continuous through every published extreme.
+- **Asymmetric durations are free.** A long ebb followed by a short flood at the same primary just stretches each half-cosine to its own duration.
+- **Asymmetric magnitudes are free.** Vertical scaling per segment.
+- **dv/dt = 0 at every extreme.** Correct — HW and LW are mathematical extrema. The curve is C¹-continuous through every published event.
+
+### Currents: piecewise quarter-cycle (slacks vs maxes)
+
+Currents are *not* a sequence of peaks. Published events alternate between **zero-crossings** (slacks at v=0, and weak/variable maxes also stored at v=0) and **true extrema** (signed maxes at v=±M). At a zero-crossing the current's slope is at its steepest — it's *crossing* zero, not sitting at it.
+
+Half-cosine through both endpoints would force zero slope at slacks, which is physically wrong: it produces a "plateau-shoulder-plateau" curve that lingers near zero for too long and accelerates abruptly between slacks and maxes. The correct shape is a single sinusoid where slacks sit at zero crossings and maxes at peaks. Plugging the segment-pair classification into the standard `sin`/`cos`:
+
+| Endpoint pair | Formula | Notes |
+|---|---|---|
+| slack (v=0) → max (v=M) | `v(τ) = M · sin(π τ / 2)` | quarter-sine; slope max at τ=0, zero at τ=1 |
+| max (v=M) → slack (v=0) | `v(τ) = M · cos(π τ / 2)` | quarter-cosine; zero slope at τ=0, max slope at τ=1 |
+| max → max (no slack between) | half-cosine, same form as tides | both endpoints are real extrema (e.g. consecutive same-sign maxes at JOHNSTONE STR. CEN.) |
+| slack → slack (rare) | `0` | conservative; no information about where peak would have sat |
+
+This matches the marine-navigation **50-90 rule** widely cited in tidal-stream guides (Starpath, RYA, NOAA): from a slack, the current reaches 50% of peak after 1/3 of the slack-to-max segment and ~87% (the rule says "90%") after 2/3. Plug `τ = 1/3` into `sin(πτ/2)` → `sin(30°) = 0.5` and `τ = 2/3` → `sin(60°) = 0.866`. Match.
+
+The curve is **C¹-continuous at every max** (zero slope on both sides). At slacks it has a slope discontinuity in the general case — that's correct, because each side of a slack typically has a different segment duration; the magnitudes of `dv/dt` on each side scale with the inverse of those durations. Visually this is invisible (the discontinuity is at v=0, where the line crosses the axis cleanly).
+
+Implementation lives at `valueAt.ts → currentSegment` / `currentValueAt`. `valueAt` (the half-cosine form) remains the tide-only interpolator.
 
 ### Why sinusoidal, not the rule of twelfths
 
@@ -39,11 +62,13 @@ The rule of twelfths (1/12, 2/12, 3/12, 3/12, 2/12, 1/12 of the range per hour) 
 
 - it's continuous (no quarter-hour quantization stair-steps when the user scrubs);
 - it works for any segment duration, not just 6 h;
-- the cost is identical (one cosine vs. a six-bucket lookup).
+- the cost is identical (one trig call vs. a six-bucket lookup).
 
 ### Why not full harmonic analysis
 
-CHS does not publish per-station harmonic constants in the TCT PDFs, and fitting them from a year of HW/LW points alone is noisy. The marginal accuracy gain over sinusoidal-between-extremes (typically tens of centimetres) is not worth the implementation cost for a visualization app. If we ever ship a navigation/dive-planning feature that needs centimetre-level accuracy, revisit.
+CHS does not publish per-station harmonic constants in the TCT PDFs, and fitting them from a year of HW/LW points alone is noisy. The marginal accuracy gain over sinusoidal-between-extremes (typically tens of centimetres for tides, fractions of a knot for currents) is not worth the implementation cost for a visualization app. If we ever ship a navigation/dive-planning feature that needs sub-decimetre or sub-tenth-knot accuracy, revisit.
+
+There's also a CHS caveat to be aware of (PDF p. 7, *Reference Ports and Current Stations*): asymmetric ebb streams can have their max occur up to two hours away from the mid-point between turns, and *"the time given in the tables is chosen to represent the central time of the period of stronger flow rather than the time of the actual mathematical extreme."* Our sinusoidal model treats each published max time as a zero-slope extremum; in those asymmetric cases the published time is slightly off the true mathematical peak. This is a small visualization artefact that no two-event interpolator can avoid without harmonic constants.
 
 ## Behavioural decisions
 
@@ -209,12 +234,11 @@ function stationTimeToUtcMs(
 }
 
 // ============================================================
-// The interpolator
+// Interpolators
 // ============================================================
 
-/** Sinusoidal interpolation between consecutive extremes.
- *  Returns null if t falls outside the [first, last] extreme of the year —
- *  we do not extrapolate. */
+/** Tides: half-cosine between two peaks. Both endpoints (HW and LW) are
+ *  extrema with zero slope, so the curve is C¹-continuous everywhere. */
 export function valueAt(extremes: Extreme[], t: number): number | null {
   const n = extremes.length;
   if (n < 2) return null;
@@ -235,6 +259,37 @@ export function valueAt(extremes: Extreme[], t: number): number | null {
   const tau = (t - e1.t) / (e2.t - e1.t);    // 0..1 within this segment
   return (e1.v + e2.v) / 2 + (e1.v - e2.v) / 2 * Math.cos(Math.PI * tau);
 }
+
+/** Currents: piecewise quarter-cycle. Endpoints alternate between
+ *  zero-crossings (slacks and weak/variable maxes, v=0) and true peaks
+ *  (signed maxes), so the segment shape depends on which kind sits at
+ *  each end. See the table in this document under "Currents: piecewise
+ *  quarter-cycle". */
+function currentSegment(v1: number, v2: number, tau: number): number {
+  const z1 = v1 === 0;
+  const z2 = v2 === 0;
+  if (z1 && z2) return 0;
+  if (z1) return v2 * Math.sin(Math.PI * tau / 2);   // slack → peak
+  if (z2) return v1 * Math.cos(Math.PI * tau / 2);   // peak  → slack
+  return (v1 + v2) / 2 + (v1 - v2) / 2 * Math.cos(Math.PI * tau);  // peak → peak
+}
+
+export function currentValueAt(extremes: Extreme[], t: number): number | null {
+  const n = extremes.length;
+  if (n < 2) return null;
+  if (t < extremes[0].t || t > extremes[n - 1].t) return null;
+
+  let lo = 0, hi = n - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (extremes[mid].t <= t) lo = mid;
+    else hi = mid;
+  }
+  const e1 = extremes[lo];
+  const e2 = extremes[hi];
+  if (e2.t === e1.t) return e1.v;
+  return currentSegment(e1.v, e2.v, (t - e1.t) / (e2.t - e1.t));
+}
 ```
 
 ## Usage example
@@ -250,9 +305,9 @@ const portRenfrewExtremes = tideExtremes(portRenfrew);
 const juanDeFucaExtremes  = currentExtremes(juanDeFucaEast);
 
 // On every scrubber-render frame, for each visible station:
-const t = scrubberTimeUtcMs;                 // absolute UTC ms
-const heightM   = valueAt(portRenfrewExtremes, t);
-const flowKnots = valueAt(juanDeFucaExtremes,  t);
+const t = scrubberTimeUtcMs;                       // absolute UTC ms
+const heightM   = valueAt(portRenfrewExtremes, t);          // tides → half-cosine
+const flowKnots = currentValueAt(juanDeFucaExtremes, t);    // currents → piecewise quarter-cycle
 ```
 
 ## Performance
@@ -276,7 +331,9 @@ When implementing, verify against the published values rather than trusting the 
 
 1. **Exact-extreme check.** `valueAt(extremes, extremes[i].t)` should return `extremes[i].v` (within float epsilon) for every `i`. The cosine evaluates to ±1 at τ=0 and τ=1, so the formula reduces to `v₁` or `v₂` exactly.
 2. **Asymmetric segment check.** Pick a Sechelt Rapids day with a long ebb interval and a short flood interval. The midpoint of each segment should give `(v₁+v₂)/2` regardless of how long the segment is in real time.
-3. **Weak-variable check.** Pick a Juan de Fuca East day with a `*` event (e.g., 2026-01-01, 11:46). Confirm `valueAt(t = 11:46 PST → UTC ms)` returns ≈ 0.
+3. **Weak-variable check.** Pick a Juan de Fuca East day with a `*` event (e.g., 2026-01-01, 11:46). Confirm `currentValueAt(t = 11:46 PST → UTC ms)` returns ≈ 0.
+
+3b. **50-90 rule check.** Pick a slack→max segment at any current station (e.g., Race Passage 2026-04-28 slack 01:42 PST → max-ebb 06:17 PST −5.0 kt). Sample at τ = 1/3 and τ = 2/3 of the segment; expect 50% and ~87% of the peak magnitude (sin 30° / sin 60°). The half-cosine model would have produced 25% and 75% — visibly wrong.
 4. **Boundary check.** `valueAt(extremes, extremes[0].t - 1)` should return `null`. So should `valueAt(extremes, extremes[n-1].t + 1)`.
 5. **Day-cross check.** Pick a station and a `t` between its last event of one day and its first event of the next day. Confirm the returned value lies between those two extremes' values and varies smoothly as `t` moves across midnight.
 6. **DST check (manual).** Pick a known HW time in the PDF, e.g. `2026-06-15 06:00 PST` at Port Renfrew. Convert: should be `2026-06-15T14:00:00Z`. Format that UTC instant for `America/Vancouver`: should display `07:00` (because BC is on UTC-7 in summer 2026 and permanently UTC-7 from Nov 2026). If it shows `06:00`, the timezone wiring is wrong.
