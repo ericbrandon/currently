@@ -3,14 +3,13 @@
 
 Two modes:
 
-1. Ingest mode: when --year and --volume are given, copy the parser's output
-   JSONs from --source into web/public/data/{year}/vol{volume}/, renaming
-   them with a content hash, and remove any stale hashed siblings of the
-   same kind. Then rebuild the manifest.
+1. Ingest mode: when --year is given, copy the parser's output JSONs from
+   --source into web/public/data/{year}/, renaming them with a content
+   hash, and remove any stale hashed siblings of the same kind. Then
+   rebuild the manifest.
 
-2. Rescan mode: when --year and --volume are omitted, only rebuild the
-   manifest by scanning the existing data tree. Useful after manual file
-   moves.
+2. Rescan mode: when --year is omitted, only rebuild the manifest by
+   scanning the existing data tree. Useful after manual file moves.
 
 Both modes are idempotent: re-running with the same inputs yields no diff.
 """
@@ -31,11 +30,6 @@ from pathlib import Path
 # and also the destination stem and the manifest key.
 KINDS = ["tidal_primary", "tidal_secondary", "current_primary", "current_secondary"]
 
-# Volume → human name. Add entries here as new volumes are processed.
-VOLUME_NAMES = {
-    "5": "Juan de Fuca & Strait of Georgia",
-}
-
 HASHED_FILENAME_RE = re.compile(r"^(?P<stem>[a-z_]+)\.(?P<hash>[0-9a-f]{8})\.json$")
 
 
@@ -55,14 +49,11 @@ def content_hash(path: Path) -> str:
     return h.hexdigest()[:8]
 
 
-def ingest(source: Path, data_dir: Path, year: int, volume: str) -> None:
-    """Copy parser outputs into the data dir with content-hashed names.
-
-    Idempotent: a file whose content already matches the existing hashed
-    name on disk is left untouched. Stale siblings of the same kind are
-    removed.
-    """
-    dest_dir = data_dir / str(year) / f"vol{volume}"
+def ingest(source: Path, data_dir: Path, year: int) -> None:
+    """Copy parser outputs into data_dir/{year}/ with content-hashed names.
+    Idempotent: same content → same filename → no-op. Stale siblings of
+    the same kind are removed."""
+    dest_dir = data_dir / str(year)
     dest_dir.mkdir(parents=True, exist_ok=True)
 
     found_any = False
@@ -78,11 +69,7 @@ def ingest(source: Path, data_dir: Path, year: int, volume: str) -> None:
         if not target.exists():
             shutil.copyfile(src, target)
             print(f"  + {target.relative_to(data_dir)}")
-        else:
-            # Already present with this exact content — nothing to do.
-            pass
 
-        # Remove any other hashed siblings of this kind.
         for sibling in dest_dir.glob(f"{kind}.*.json"):
             if sibling.name != target_name:
                 sibling.unlink()
@@ -100,13 +87,10 @@ def station_time_to_utc_iso(year: int, month: int, day: int,
     """Convert a station-local clock time printed in the PDF to a UTC ISO 8601
     string. Mirrors stationTimeToUtcMs in the TS interpolator."""
     hh, mm = map(int, hhmm.split(":"))
-    # hours-after-midnight in UTC = local_hours - utc_offset
-    # e.g. utc_offset=-8 (PST), local 06:00 → UTC 14:00.
     total_minutes = (hh - utc_offset) * 60 + mm
     days_added, remainder = divmod(total_minutes, 24 * 60)
     new_hh, new_mm = divmod(remainder, 60)
 
-    # Add days_added to (year, month, day).
     abs_day = day + days_added
     while True:
         days_in_month = calendar.monthrange(year, month)[1]
@@ -118,7 +102,7 @@ def station_time_to_utc_iso(year: int, month: int, day: int,
                 month = 12
                 year -= 1
             abs_day += calendar.monthrange(year, month)[1]
-        else:  # abs_day > days_in_month
+        else:
             abs_day -= days_in_month
             month += 1
             if month > 12:
@@ -128,20 +112,16 @@ def station_time_to_utc_iso(year: int, month: int, day: int,
 
 
 def extreme_iso_range(json_path: Path) -> tuple[str | None, str | None]:
-    """Return (first_extreme_utc, last_extreme_utc) ISO strings for a JSON
-    file emitted by read_tct.py. Returns (None, None) if the file has no
-    extremes."""
+    """(first_extreme_utc, last_extreme_utc) ISO strings for a JSON file
+    emitted by read_tct.py. (None, None) if no extremes."""
     data = json.loads(json_path.read_text())
     first: str | None = None
     last: str | None = None
     for s in data.get("stations", []):
-        # Tide stations have day.readings[].time; current stations have
-        # day.events[].time. Treat both uniformly.
         year = s.get("year")
         utc_offset = s.get("utc_offset")
         if year is None or utc_offset is None:
-            # Secondary stations don't carry per-day readings; they're
-            # difference-based. Skip — they don't contribute to the range.
+            # Secondary stations carry differences, not extremes — skip.
             continue
         for d in s.get("days", []):
             month = d["month"]
@@ -157,63 +137,53 @@ def extreme_iso_range(json_path: Path) -> tuple[str | None, str | None]:
     return first, last
 
 
-def scan_year_dir(year_dir: Path) -> dict[str, YearEntry]:
-    """Scan {data}/{year}/vol{N}/ subdirs; return {volume → YearEntry}."""
-    out: dict[str, YearEntry] = {}
-    year = int(year_dir.name)
-    for vol_dir in sorted(year_dir.iterdir()):
-        if not vol_dir.is_dir() or not vol_dir.name.startswith("vol"):
-            continue
-        volume = vol_dir.name.removeprefix("vol")
+def scan_data_dir(data_dir: Path) -> list[YearEntry]:
+    """Walk data_dir/{year}/ subdirs and produce YearEntry list."""
+    out: list[YearEntry] = []
+    for year_dir in sorted(p for p in data_dir.iterdir()
+                           if p.is_dir() and p.name.isdigit()):
+        year = int(year_dir.name)
         files: dict[str, str] = {}
         first: str | None = None
         last: str | None = None
-        for entry in sorted(vol_dir.iterdir()):
+        for entry in sorted(year_dir.iterdir()):
+            if not entry.is_file():
+                continue
             m = HASHED_FILENAME_RE.match(entry.name)
             if not m:
                 continue
             stem = m.group("stem")
             if stem not in KINDS:
                 continue
-            files[stem] = str(entry.relative_to(year_dir.parent)).replace("\\", "/")
+            files[stem] = str(entry.relative_to(data_dir)).replace("\\", "/")
             ef, el = extreme_iso_range(entry)
             if ef and (first is None or ef < first):
                 first = ef
             if el and (last is None or el > last):
                 last = el
         if files:
-            out[volume] = YearEntry(year=year, files=files,
-                                    first_extreme_utc=first,
-                                    last_extreme_utc=last)
+            out.append(YearEntry(year=year, files=files,
+                                 first_extreme_utc=first,
+                                 last_extreme_utc=last))
     return out
 
 
 def build_manifest(data_dir: Path) -> dict:
-    """Walk data_dir; produce the manifest dict."""
     from datetime import datetime, timezone
 
-    volumes: dict[str, dict] = {}
-    for year_dir in sorted(p for p in data_dir.iterdir()
-                           if p.is_dir() and p.name.isdigit()):
-        for volume, entry in scan_year_dir(year_dir).items():
-            v = volumes.setdefault(volume, {
-                "name": VOLUME_NAMES.get(volume, f"Volume {volume}"),
-                "years": [],
-            })
-            v["years"].append({
-                "year": entry.year,
-                **entry.files,
-                "first_extreme_utc": entry.first_extreme_utc,
-                "last_extreme_utc": entry.last_extreme_utc,
-            })
-
-    # Sort years ascending within each volume.
-    for v in volumes.values():
-        v["years"].sort(key=lambda y: y["year"])
+    years = []
+    for entry in scan_data_dir(data_dir):
+        years.append({
+            "year": entry.year,
+            **entry.files,
+            "first_extreme_utc": entry.first_extreme_utc,
+            "last_extreme_utc": entry.last_extreme_utc,
+        })
+    years.sort(key=lambda y: y["year"])
 
     return {
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "volumes": volumes,
+        "years": years,
     }
 
 
@@ -224,26 +194,21 @@ def main() -> None:
     ap.add_argument("--data-dir", type=Path, default=Path("web/public/data"),
                     help="Destination data dir (default: web/public/data)")
     ap.add_argument("--year", type=int, help="Year being ingested")
-    ap.add_argument("--volume", type=str, help="Volume number being ingested (e.g. 5)")
     args = ap.parse_args()
 
     args.data_dir.mkdir(parents=True, exist_ok=True)
 
-    if (args.year is None) != (args.volume is None):
-        ap.error("--year and --volume must be given together")
-
     if args.year is not None:
-        print(f"Ingesting year={args.year} vol={args.volume} from {args.source}/")
-        ingest(args.source, args.data_dir, args.year, args.volume)
+        print(f"Ingesting year={args.year} from {args.source}/")
+        ingest(args.source, args.data_dir, args.year)
 
     print(f"Rebuilding manifest in {args.data_dir}/manifest.json")
     manifest = build_manifest(args.data_dir)
     manifest_path = args.data_dir / "manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
 
-    n_vols = len(manifest["volumes"])
-    n_years = sum(len(v["years"]) for v in manifest["volumes"].values())
-    print(f"  {n_vols} volume(s), {n_years} year-volume entry/entries")
+    n_years = len(manifest["years"])
+    print(f"  {n_years} year entry/entries")
 
 
 if __name__ == "__main__":

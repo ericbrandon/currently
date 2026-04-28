@@ -16,24 +16,24 @@
 // the state class + update the text content / y attribute.
 
 import maplibregl, { type Map as MlMap } from "maplibre-gl";
-import type { Extreme, LoadedVolume } from "../types";
+import type { Extreme, LoadedData } from "../types";
 import { tideStateAt, type TideState } from "../interp/valueAt";
 
 // SVG viewBox is 40 wide × 55 tall. The 40×40 square sits centred
-// vertically; the triangle occupies the remaining 15 units (above for ebb,
-// below for flood). For slack the square is centred (y=7.5..47.5).
+// vertically; the triangle occupies the remaining 15 units (above for
+// flood, below for ebb). For slack the square is centred (y=7.5..47.5).
 const SVG_TEMPLATE = `
 <svg viewBox="0 0 40 55" width="48" height="66" preserveAspectRatio="xMidYMid meet">
-  <polygon class="shape shape-flood" points="0,0 40,0 40,40 20,55 0,40" />
-  <polygon class="shape shape-ebb" points="20,0 40,15 40,55 0,55 0,15" />
+  <polygon class="shape shape-flood" points="20,0 40,15 40,55 0,55 0,15" />
+  <polygon class="shape shape-ebb" points="0,0 40,0 40,40 20,55 0,40" />
   <rect class="shape shape-slack" x="0" y="7.5" width="40" height="40" />
   <text class="value" x="20" y="29" text-anchor="middle" dominant-baseline="middle">—</text>
 </svg>`;
 
 /** y-coordinate of the value text for each state (centre of the square). */
 const VALUE_Y: Record<TideState, number> = {
-  flood: 22,   // square spans 0..40 → centre ~20; nudge for optical balance
-  ebb: 37,     // square spans 15..55 → centre ~35
+  flood: 37,   // square spans 15..55 → centre ~35
+  ebb: 22,     // square spans 0..40 → centre ~20
   slack: 29,   // square spans 7.5..47.5 → centre ~27.5
 };
 
@@ -76,11 +76,11 @@ export class TideStationLayer {
   private elements: Map<number, HTMLElement> = new Map();
   private extremesById: Map<number, Extreme[]>;
 
-  constructor(map: MlMap, vol: LoadedVolume) {
+  constructor(map: MlMap, data: LoadedData) {
     this.map = map;
-    this.extremesById = vol.tideExtremesById;
+    this.extremesById = data.tideExtremesById;
 
-    for (const meta of vol.stationsById.values()) {
+    for (const meta of data.stationsById.values()) {
       if (meta.kind !== "tide-primary") continue;
       const el = createMarkerEl(meta.name);
       const marker = new maplibregl.Marker({ element: el, anchor: "center" })

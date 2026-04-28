@@ -14,11 +14,10 @@
 //     hour transitions.
 
 import { signal, computed } from "@preact/signals";
-import type { LoadedVolume, Manifest } from "../types";
+import type { LoadedData, Manifest } from "../types";
 
 export const manifest = signal<Manifest | null>(null);
-export const activeVolume = signal<string>("5");
-export const loadedVolume = signal<LoadedVolume | null>(null);
+export const loadedData = signal<LoadedData | null>(null);
 
 // Scrubber constants.
 export const STEP_MS = 15 * 60 * 1000;                 // visual tick spacing
@@ -53,8 +52,8 @@ export function recenterAt(t: number): void {
 
 export const selectedStationId = signal<number | null>(null);
 
-/** Scrubber range derived from the loaded volume; null while loading. */
+/** Scrubber range derived from the loaded data; null while loading. */
 export const scrubberRange = computed(() => {
-  const v = loadedVolume.value;
+  const v = loadedData.value;
   return v ? v.scrubberRangeMs : null;
 });

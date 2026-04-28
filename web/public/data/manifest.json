@@ -1,19 +1,14 @@
 {
-  "generated_at": "2026-04-28T01:45:28Z",
-  "volumes": {
-    "5": {
-      "name": "Juan de Fuca & Strait of Georgia",
-      "years": [
-        {
-          "year": 2026,
-          "current_primary": "2026/vol5/current_primary.e673d010.json",
-          "current_secondary": "2026/vol5/current_secondary.1fc8d4c0.json",
-          "tidal_primary": "2026/vol5/tidal_primary.bfa235bd.json",
-          "tidal_secondary": "2026/vol5/tidal_secondary.37625cca.json",
-          "first_extreme_utc": "2026-01-01T08:01:00Z",
-          "last_extreme_utc": "2027-01-01T07:54:00Z"
-        }
-      ]
+  "generated_at": "2026-04-28T04:47:07Z",
+  "years": [
+    {
+      "year": 2026,
+      "current_primary": "2026/current_primary.d1326206.json",
+      "current_secondary": "2026/current_secondary.b9a220b6.json",
+      "tidal_primary": "2026/tidal_primary.ac409fa9.json",
+      "tidal_secondary": "2026/tidal_secondary.fbbcb829.json",
+      "first_extreme_utc": "2026-01-01T08:01:00Z",
+      "last_extreme_utc": "2027-01-01T07:57:00Z"
     }
-  }
+  ]
 }

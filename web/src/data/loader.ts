@@ -2,8 +2,8 @@
 //
 // Two responsibilities:
 //   1. Fetch the manifest (no-cache) at app startup.
-//   2. For a given (volume, year-set), fetch the per-year tide JSONs in
-//      parallel and merge them into a single LoadedVolume:
+//   2. Fetch every year's tidal_primary JSON in parallel and merge them
+//      into a single LoadedData:
 //        - per-station extremes concatenated across years and sorted by t
 //        - station metadata: latest year wins on conflict
 //        - scrubber range = union of all loaded years
@@ -13,11 +13,10 @@
 
 import type {
   Extreme,
-  LoadedVolume,
+  LoadedData,
   Manifest,
   StationMeta,
   TidePrimaryFile,
-  TidePrimaryStation,
 } from "../types";
 import { tideExtremes } from "../interp/extremes";
 
@@ -29,19 +28,14 @@ export async function fetchManifest(): Promise<Manifest> {
   return (await r.json()) as Manifest;
 }
 
-/** Fetch and merge all years of the given volume in the manifest.
- *  Years are loaded in parallel. */
-export async function loadVolume(
-  manifest: Manifest,
-  volume: string,
-): Promise<LoadedVolume> {
-  const v = manifest.volumes[volume];
-  if (!v) throw new Error(`volume ${volume} not in manifest`);
-
+/** Fetch and merge every year listed in the manifest. */
+export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
   // Years sorted ascending so the "latest year wins" loop reads naturally.
-  const yearEntries = [...v.years].sort((a, b) => a.year - b.year);
+  const yearEntries = [...manifest.years].sort((a, b) => a.year - b.year);
+  if (yearEntries.length === 0) {
+    throw new Error("manifest contains no years");
+  }
 
-  // Fetch each year's tidal_primary JSON in parallel.
   const tideFiles = await Promise.all(
     yearEntries.map(async (y) => {
       if (!y.tidal_primary) return null;
@@ -58,8 +52,8 @@ export async function loadVolume(
     const file = tideFiles[i];
     if (!file) return;
     for (const s of file.stations) {
-      // Latest-year-wins for metadata. Because we iterate in ascending year
-      // order, every assignment overwrites with a later year's data.
+      // Latest-year-wins for metadata. Iterating in ascending year order
+      // means each assignment overwrites with a later year's data.
       stationsById.set(s.index_no, {
         station_id: s.index_no,
         name: s.name,
@@ -68,14 +62,12 @@ export async function loadVolume(
         longitude: s.longitude,
       });
 
-      // Accumulate this year's extremes for this station.
       const list = extremesByStation.get(s.index_no) ?? [];
       list.push(tideExtremes(s));
       extremesByStation.set(s.index_no, list);
     }
   });
 
-  // Concatenate + sort each station's per-year arrays into one sorted Extreme[].
   const tideExtremesById = new Map<number, Extreme[]>();
   for (const [id, perYear] of extremesByStation) {
     const flat: Extreme[] = perYear.length === 1
@@ -84,8 +76,8 @@ export async function loadVolume(
     tideExtremesById.set(id, flat);
   }
 
-  // Scrubber range = union of all years' extremes (parsed from the manifest
-  // strings, which build_manifest.py already computed).
+  // Scrubber range = union of all years' extremes from the manifest
+  // (build_manifest.py already computed first/last per year).
   let rangeMin = Number.POSITIVE_INFINITY;
   let rangeMax = Number.NEGATIVE_INFINITY;
   for (const y of yearEntries) {
@@ -99,19 +91,13 @@ export async function loadVolume(
     }
   }
   if (!Number.isFinite(rangeMin) || !Number.isFinite(rangeMax)) {
-    throw new Error(`volume ${volume} has no extremes in manifest`);
+    throw new Error("manifest has no extremes range");
   }
 
   return {
-    volume,
-    name: v.name,
     years: yearEntries.map((y) => y.year),
     scrubberRangeMs: { min: rangeMin, max: rangeMax },
     stationsById,
     tideExtremesById,
   };
 }
-
-// Helper: re-export for callers that want to recompute a single station's
-// extremes (e.g. test harness).
-export type { TidePrimaryStation };

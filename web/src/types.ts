@@ -18,14 +18,9 @@ export type ManifestYearEntry = {
   last_extreme_utc: string | null;
 };
 
-export type ManifestVolume = {
-  name: string;
-  years: ManifestYearEntry[];
-};
-
 export type Manifest = {
   generated_at: string;
-  volumes: Record<string, ManifestVolume>;
+  years: ManifestYearEntry[];
 };
 
 // ---------------------------------------------------------------
@@ -86,9 +81,7 @@ export type StationMeta = {
   ebb_dir?: number | null;
 };
 
-export type LoadedVolume = {
-  volume: string;
-  name: string;
+export type LoadedData = {
   years: number[];
   scrubberRangeMs: { min: number; max: number };
   stationsById: Map<number, StationMeta>;

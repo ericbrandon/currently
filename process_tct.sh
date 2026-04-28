@@ -23,6 +23,6 @@ echo "=== process_tct.sh: year=$YEAR ==="
 # Step 1: parse PDFs into structured station data
 "$PYTHON" read_tct.py --year "$YEAR" "$@"
 
-# Step 2: copy parser outputs into web/public/data/{year}/vol{N}/ with
+# Step 2: copy parser outputs into web/public/data/{year}/ with
 # content-hashed names, then regenerate the client-side manifest.
-"$PYTHON" build_manifest.py --year "$YEAR" --volume 5
+"$PYTHON" build_manifest.py --year "$YEAR"
