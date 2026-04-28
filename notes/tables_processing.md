@@ -12,7 +12,9 @@ This document describes the build-time step that improves those positions. It ru
 
 Three sources, in precedence order (highest first):
 
-1. **`coord_overrides.json`** at the repo root — a small hand-curated map of `index_no → [longitude, latitude]`. Used when the inventory CSV is missing a station, or when both the CSV and the PDF clearly disagree with reality.
+1. **`coord_overrides.json`** at the repo root — the persistent override file. Holds two kinds of entries:
+   - **Manual** entries, hand-curated from `https://tides.gc.ca/en/stations/<id>` for stations that no automated source covers (e.g. VICTORIA HARBOUR is missing from the CSV) or where the automated source is wrong.
+   - **IWLS-seeded** entries, produced in bulk by `seed_iwls_overrides.py` (see below) from the CHS IWLS API. These are not edited by hand; the seeder rewrites them on demand.
 
 2. **CHS station inventory CSV** at the repo root, default filename `tide and water level station.csv`. Downloaded from the Government of Canada open-data portal:
 
@@ -21,7 +23,27 @@ Three sources, in precedence order (highest first):
 
    The CSV lists ~1,750 stations across Canada, keyed by the same `STATION_NUMBER` that the PDF tables use as `index_no`. Roughly two-thirds of Pacific-region stations are published with **3 or more decimal places** (≤110 m horizontal precision); some are publised at 4–6 decimals (≤10 m). It is **not** a strict superset of the PDF: about a tenth of the stations we get from the PDF are absent from the CSV (notably VICTORIA HARBOUR, index 7120). The CSV also covers tide/water-level stations only — current stations are not in it.
 
+   Now that IWLS-seeded overrides cover most of what the CSV covered (and at higher precision), the CSV is mostly a fallback for the handful of stations IWLS doesn't list.
+
 3. **The PDF coord** itself — used as a fallback whenever the higher-precedence sources don't apply.
+
+### One-shot IWLS seeder
+
+The CHS IWLS REST API at `https://api-iwls.dfo-mpo.gc.ca/api/v1/stations` returns ~1,570 stations across Canada in a single JSON call, keyed by the same 5-digit station code, with 6-decimal-place coordinates. Crucially, **it includes current stations** (about 23 of the ~61 BC current stations — predominantly the primaries; secondaries that don't have their own measurement programs are not present). The CSV does not.
+
+`seed_iwls_overrides.py` (one-shot helper, *not* part of `process_tct.sh`) fetches the API once, walks the parser-output JSONs, and appends entries to `coord_overrides.json` for every station whose IWLS coord differs from the PDF coord by more than 100 m. It never overwrites existing manual entries.
+
+When to run it:
+- **Now** (already done for 2026 — added 88 entries on first run).
+- **After processing a future year's PDF** when there might be new stations CHS has added to the catalog. Re-running is safe — entries that already exist are left alone, only genuinely new ones get appended.
+
+It is *not* run on every build. Coord_overrides.json is the persistent committed artifact; the IWLS API is just the upstream source for one of its blocks.
+
+```
+seed_iwls_overrides.py --year YEAR
+    [--source DIR]            # parser-output JSONs (default: cwd)
+    [--overrides PATH]        # default: ./coord_overrides.json
+```
 
 ## The script: `apply_coord_overrides.py`
 
@@ -56,19 +78,19 @@ The second condition catches PDF typos that the first would miss. SHOAL BAY (ind
 
 The script writes each JSON back in place using the same `json.dumps(..., indent=2)` style as the parser, so a re-run with no input changes produces a no-op diff. It prints a per-file summary and a single sorted list of flagged stations.
 
-Typical output (2026 data, with the curated overrides committed):
+Typical output (2026 data, with the IWLS seeder run and the manual overrides committed):
 
 ```
-Loaded 1750 CSV stations, 11 manual overrides
-  tidal_primary     :   23 stations |   2 via overrides |  11 via CSV |  10 kept from PDF
-  tidal_secondary   :  268 stations |   8 via overrides | 185 via CSV |  75 kept from PDF
-  current_primary   :   22 stations |   0 via overrides |   0 via CSV |  22 kept from PDF
-  current_secondary :   39 stations |   0 via overrides |   0 via CSV |  39 kept from PDF
+Loaded 1750 CSV stations, 99 manual overrides
+  tidal_primary     :   23 stations |  13 via overrides |  10 via CSV |   0 kept from PDF
+  tidal_secondary   :  268 stations |  63 via overrides | 183 via CSV |  22 kept from PDF
+  current_primary   :   22 stations |  21 via overrides |   0 via CSV |   1 kept from PDF
+  current_secondary :   39 stations |   1 via overrides |   0 via CSV |  38 kept from PDF
 
-Total: 352 stations | 10 overridden | 196 refined from CSV | 146 unchanged
+Total: 352 stations | 98 overridden | 193 refined from CSV | 61 unchanged
 ```
 
-`196 refined from CSV` is the headline — about two-thirds of tide stations got better coordinates. The 10 overrides cover the cases where the CSV was missing or wrong (see the next section). Current stations all came through unchanged because the CSV doesn't cover them; if/when CHS publishes a current-station inventory in similar form, this same script can be pointed at it.
+The headline shifts: **all 23 primary tide stations and 21 of 22 primary current stations are now refined**, and the only stations left on raw PDF coords are the ~38 secondary current stations (which lack their own measurement programs and so don't appear in any CHS database).
 
 ## The overrides file format
 
@@ -86,9 +108,9 @@ When you find a station that's still rendering in the wrong place after this ste
 3. If you've verified the PDF was right and the CSV is the wrong one, use `null` instead of a coord — that suppresses the warning without changing the data.
 4. Re-run `./process_tct.sh`. The build will pick up the new coord, write a fresh hashed JSON into `web/public/data/{year}/`, and the manifest will get a new ETag/content hash so the browser fetches the update on next page load.
 
-### Current overrides (2026)
+### Manual overrides (2026)
 
-Ten stations needed manual intervention after the initial CSV refinement pass; all looked up against tides.gc.ca:
+Ten stations were curated by hand from `tides.gc.ca/en/stations/<id>` after the initial CSV refinement pass flagged them; they live in the top blocks of `coord_overrides.json` and are independent of the IWLS seeder:
 
 | Index | Station | Reason |
 |---|---|---|
@@ -104,6 +126,8 @@ Ten stations needed manual intervention after the initial CSV refinement pass; a
 | 9570 | HUNGER HARBOUR | PDF off by ~2.0 km. CSV correct. |
 | 9775 | PACOFI BAY | PDF off by ~2.0 km. CSV correct. |
 
+The remaining ~88 entries in `coord_overrides.json` (under the `_block_iwls_seeded` comment) come from the IWLS seeder and are not hand-curated. They cover the bulk of primary tide and primary current stations.
+
 ## Resolving flagged stations (annual runbook)
 
 When a fresh year's PDF is processed, `apply_coord_overrides.py` will print a list of stations it couldn't resolve confidently — CSV and PDF disagree but the script can't tell which side is right. This section is the runbook for closing them out.
@@ -112,7 +136,38 @@ The 2026 pass produced 9 flagged stations on the first run plus 1 more once the 
 
 ### Step-by-step
 
-1. **Run the pipeline** (`./process_tct.sh`) and note the flagged list. Each row has `index`, `name`, `Δ km`, and `csv-dec` (CSV's decimal-place count). Larger Δ usually means PDF-side typo; subtler ones (~2–3 km) can be either side, so always verify.
+0. **Refresh the upstream data sources for the new year.**
+
+   a. **Re-download the inventory CSV** if it might have been updated since the last year was processed. Replace the file at the repo root (default name: `tide and water level station.csv`). Source:
+
+      > **"Tides and Water Levels — Canadian Tide and Water Level Station Inventory"**
+      > https://open.canada.ca/data/en/dataset/87b08750-4180-4d31-9414-a9470eba9b42/resource/f7f11a47-718c-4eff-a716-d68448914b40
+
+      The CHS does refresh this dataset periodically (the `Modified` field on the dataset page tells you when). A stale CSV won't cause errors — it'll just miss any newly-added stations.
+
+   b. **Re-run the IWLS seeder.** Run `read_tct.py` (or the full pipeline once with the new `--year`) so the parser-output JSONs exist for the seeder to scan, then:
+
+      ```
+      venv/bin/python seed_iwls_overrides.py --year YEAR
+      ```
+
+      This catches any new stations CHS has added to its catalog. Existing entries in `coord_overrides.json` are preserved; only genuinely new ones get appended. "Nothing to write" means no new entries — exits cleanly. To **force** the seeder to refresh an existing entry (e.g. CHS has corrected a station's coords), delete that entry from `coord_overrides.json` first, then re-run the seeder.
+
+1. **Run the pipeline for the new year:**
+
+   ```
+   ./process_tct.sh --year YEAR
+   ```
+
+   Note the flagged list at the end. Each row has `index`, `name`, `Δ km`, and `csv-dec` (CSV's decimal-place count). Sample format:
+
+   ```
+   1 station(s) flagged for review — CSV and PDF disagree enough that one of them is likely wrong. ...
+     kind               index  name                              Δ km  csv-dec
+     tidal_secondary     7480  BOAT HARBOUR                      10.0        2
+   ```
+
+   Larger Δ usually means PDF-side typo; subtler ones (~2–3 km) can be either side, so always verify.
 
 2. **Look up each flagged station in parallel** — fetch its detail page from CHS:
 
@@ -121,6 +176,14 @@ The 2026 pass produced 9 flagged stations on the first run plus 1 more once the 
    ```
 
    where `<id>` is the `index_no` zero-padded to 5 digits (e.g. `7480` → `07480`). The "Station Information" section on each page lists `Location: <lat>, <lon>` to 3+ decimals. Fan out all flagged stations in a single batch — these pages are independent and parallel WebFetches are an order of magnitude faster than serial.
+
+   **404 fallback for secondary current stations.** Most secondary current stations (and a few secondary tide stations) are prediction-only — they don't have their own measurement program — and so don't have a tides.gc.ca detail page or an IWLS API entry. If you get a 404 for a flagged station, fall back to:
+
+   - A marine chart of the area (CHS chart catalog, or just an OpenSeaMap / Navionics view).
+   - BC Geographic Names if the station's `name` matches a named feature.
+   - The reference primary's coords plus a manual eyeball — secondaries are usually ≤ 1 km from their reference station.
+
+   In the worst case, if visual inspection in the app shows the marker landing in roughly the right water, leaving it on the PDF coord (or marking it `null`) is acceptable.
 
 3. **Decide per station** by comparing PDF, CSV, and CHS-official:
 
@@ -131,6 +194,8 @@ The 2026 pass produced 9 flagged stations on the first run plus 1 more once the 
    | Neither matches CHS-official | `[lon, lat]` using the CHS-official value |
 
    Coordinates go in **`[longitude, latitude]`** order (GeoJSON convention) — easy to flip and break. Longitudes in BC are negative.
+
+   **Where to put the entry.** New manual entries belong in the top portion of `coord_overrides.json`, near the existing manual blocks (under `_block_pdf_wrong_replaced_with_chs_official` or `_block_pdf_correct_csv_wrong`, whichever fits). Don't interleave them with the IWLS-seeded block at the bottom — that block is regenerated by the seeder and human edits there are easy to lose track of. (Functionally, position doesn't matter; the script treats all entries equally.)
 
 4. **Re-run** `apply_coord_overrides.py --year YEAR` (or the full pipeline). Verify the flagged-stations section is empty. If a new station appears that wasn't in the original list — almost certainly a low-precision-but-grossly-wrong case the gross threshold caught — repeat steps 2–3 for it.
 
@@ -163,7 +228,7 @@ This placement is deliberate:
 
 ## Limitations and known gotchas
 
-- **Current stations are not refined.** The CSV doesn't list them, so they retain their integer-minute PDF coords. Until CHS publishes a current-station inventory, current markers can land up to ~1 km from their true position. Add manual overrides for any noticeably misplaced ones.
+- **Some current stations remain unrefined.** The IWLS API covers all primary current stations and a handful of secondaries, but ~38 of the 39 secondary current stations in BC are *not* in any CHS database (they're prediction-only stations derived from a primary via Table 4 differences, with no measurement program of their own). These keep their integer-minute PDF coords. Add manual overrides from a marine chart for any visually-misplaced ones.
 - **The CSV is occasionally wrong.** It's a separate dataset maintained on a different cadence than the printed tables. The 2 km offset ceiling catches gross disagreements; subtler errors can slip through. The script's flagged list at the end of each run is the right place to look first when investigating.
 - **Some CSV rows have lower precision than ours.** Pacific stations span 0–6 decimal places. The 3-decimal floor stops us from regressing.
 - **CSV file path is awkward.** As downloaded, the file is `tide and water level station.csv` (with spaces). The script defaults to that name; rename or pass `--csv` if you have your own copy elsewhere. Whether to commit the file to git is a separate call — it's small (~1.2 MB) and reproducibility argues for committing, but it's also redownloadable from the open-data URL above.
