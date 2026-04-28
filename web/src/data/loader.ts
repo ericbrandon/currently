@@ -15,6 +15,7 @@
 // app treats them identically.
 
 import type {
+  CurrentPrimaryFile,
   Extreme,
   LoadedData,
   Manifest,
@@ -23,7 +24,7 @@ import type {
   TidePrimaryStation,
   TideSecondaryFile,
 } from "../types";
-import { tideExtremes } from "../interp/extremes";
+import { currentExtremes, tideExtremes } from "../interp/extremes";
 import {
   classifyHiLow,
   secondaryTideExtremes,
@@ -53,7 +54,7 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
     throw new Error("manifest contains no years");
   }
 
-  const [tidePrimaryFiles, tideSecondaryFiles] = await Promise.all([
+  const [tidePrimaryFiles, tideSecondaryFiles, currentPrimaryFiles] = await Promise.all([
     Promise.all(
       yearEntries.map(async (y) => {
         if (!y.tidal_primary) return null;
@@ -74,16 +75,32 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
         return (await r.json()) as TideSecondaryFile;
       }),
     ),
+    Promise.all(
+      yearEntries.map(async (y) => {
+        if (!y.current_primary) return null;
+        const r = await fetch(`data/${y.current_primary}`);
+        if (!r.ok) {
+          throw new Error(`current primary fetch failed: ${y.current_primary} (${r.status})`);
+        }
+        return (await r.json()) as CurrentPrimaryFile;
+      }),
+    ),
   ]);
 
   const stationsById = new Map<number, StationMeta>();
-  const extremesByStation = new Map<number, Extreme[][]>();
+  const tideExtremesByStation = new Map<number, Extreme[][]>();
+  const currentExtremesByStation = new Map<number, Extreme[][]>();
 
-  const pushExtremes = (id: number, ext: Extreme[]) => {
-    const list = extremesByStation.get(id);
+  const pushTo = (
+    bucket: Map<number, Extreme[][]>,
+    id: number,
+    ext: Extreme[],
+  ) => {
+    const list = bucket.get(id);
     if (list) list.push(ext);
-    else extremesByStation.set(id, [ext]);
+    else bucket.set(id, [ext]);
   };
+  const pushExtremes = (id: number, ext: Extreme[]) => pushTo(tideExtremesByStation, id, ext);
 
   yearEntries.forEach((_y, i) => {
     const tideFile = tidePrimaryFiles[i];
@@ -120,40 +137,74 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
     }
 
     const secFile = tideSecondaryFiles[i];
-    if (!secFile) return;
+    if (secFile) {
+      for (const sec of secFile.stations) {
+        const ref = refByName.get(sec.reference_port);
+        if (!ref) {
+          console.warn(
+            `secondary station ${sec.index_no} ${sec.name} references unknown primary "${sec.reference_port}"`,
+          );
+          continue;
+        }
+        const ext = secondaryTideExtremes(sec, ref.extremes, ref.station, ref.classified);
 
-    for (const sec of secFile.stations) {
-      const ref = refByName.get(sec.reference_port);
-      if (!ref) {
-        console.warn(
-          `secondary station ${sec.index_no} ${sec.name} references unknown primary "${sec.reference_port}"`,
-        );
-        continue;
+        // At large tide, secondaryTideExtremes degenerates to ref.X_large + sec.X_large_diff:
+        // dh = dhMean + (hLarge - hMean) * slope = dhMean + (dhLarge - dhMean) = dhLarge.
+        stationsById.set(sec.index_no, {
+          station_id: sec.index_no,
+          name: sec.name,
+          kind: "tide-secondary",
+          latitude: sec.latitude,
+          longitude: sec.longitude,
+          tide_lhhw: ref.station.higher_high_water_large_tide + sec.higher_high_water_large_tide_diff,
+          tide_lllw: ref.station.lower_low_water_large_tide + sec.lower_low_water_large_tide_diff,
+        });
+        pushExtremes(sec.index_no, ext);
       }
-      const ext = secondaryTideExtremes(sec, ref.extremes, ref.station, ref.classified);
+    }
 
-      // At large tide, secondaryTideExtremes degenerates to ref.X_large + sec.X_large_diff:
-      // dh = dhMean + (hLarge - hMean) * slope = dhMean + (dhLarge - dhMean) = dhLarge.
-      stationsById.set(sec.index_no, {
-        station_id: sec.index_no,
-        name: sec.name,
-        kind: "tide-secondary",
-        latitude: sec.latitude,
-        longitude: sec.longitude,
-        tide_lhhw: ref.station.higher_high_water_large_tide + sec.higher_high_water_large_tide_diff,
-        tide_lllw: ref.station.lower_low_water_large_tide + sec.lower_low_water_large_tide_diff,
+    const curFile = currentPrimaryFiles[i];
+    if (!curFile) return;
+
+    for (const c of curFile.stations) {
+      const ext = currentExtremes(c);
+      // Symmetric Y-axis bound for the current chart: the larger of the
+      // station's two reference max magnitudes. max_ebb_knots is signed
+      // negative in the JSON, so take its absolute value.
+      const maxMag = Math.max(
+        Math.abs(c.max_flood_knots),
+        Math.abs(c.max_ebb_knots),
+      );
+      stationsById.set(c.index_no, {
+        station_id: c.index_no,
+        name: c.name,
+        kind: "current-primary",
+        latitude: c.latitude,
+        longitude: c.longitude,
+        flood_dir: c.flood_direction_true,
+        ebb_dir: c.ebb_direction_true,
+        current_max_knots: maxMag,
       });
-      pushExtremes(sec.index_no, ext);
+      pushTo(currentExtremesByStation, c.index_no, ext);
     }
   });
 
-  const tideExtremesById = new Map<number, Extreme[]>();
-  for (const [id, perYear] of extremesByStation) {
-    const flat: Extreme[] = perYear.length === 1
-      ? perYear[0]
-      : perYear.flat().sort((a, b) => a.t - b.t);
-    tideExtremesById.set(id, flat);
-  }
+  const flattenPerYear = (
+    bucket: Map<number, Extreme[][]>,
+  ): Map<number, Extreme[]> => {
+    const out = new Map<number, Extreme[]>();
+    for (const [id, perYear] of bucket) {
+      out.set(
+        id,
+        perYear.length === 1
+          ? perYear[0]
+          : perYear.flat().sort((a: Extreme, b: Extreme) => a.t - b.t),
+      );
+    }
+    return out;
+  };
+  const tideExtremesById = flattenPerYear(tideExtremesByStation);
+  const currentExtremesById = flattenPerYear(currentExtremesByStation);
 
   // Scrubber range = union of all years' extremes from the manifest
   // (build_manifest.py already computed first/last per year).
@@ -178,5 +229,6 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
     scrubberRangeMs: { min: rangeMin, max: rangeMax },
     stationsById,
     tideExtremesById,
+    currentExtremesById,
   };
 }

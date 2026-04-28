@@ -331,8 +331,106 @@ html, body, #app {
 /* When a station is selected, hide every other marker so the user can
    focus on the selected one. The hidden markers use display:none so a
    click in their former location falls through to the map canvas, where
-   the map-click handler deselects (returning all markers). */
-.has-selection .tide-marker:not(.selected) {
+   the map-click handler deselects (returning all markers). Hides every
+   marker type (tide + current) regardless of which kind is selected, so
+   a tide selection collapses current clutter and vice versa. */
+.has-selection .tide-marker:not(.selected),
+.has-selection .current-marker:not(.selected) {
+  display: none;
+}
+
+/* ------------------------------------------------------------------
+   Current station markers
+   ------------------------------------------------------------------
+   Layout:
+     - Outer .current-marker is a 60×60 box that holds the rotated arrow
+       SVG and a non-rotated value overlay centered on top of it.
+     - .current-arrow is the SVG; we rotate AND scale it via inline
+       `transform: rotate(deg) scale(s)` written by currentStationLayer.
+     - .current-value sits absolutely centered, never rotates, so the kt
+       readout stays upright regardless of flow direction.
+*/
+.current-marker {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  cursor: pointer;
+}
+
+.current-marker .current-arrow {
+  display: block;
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 1px 2.5px rgba(0, 0, 0, 0.35));
+  transition: transform 120ms ease-out;
+  transform-origin: 50% 50%;
+}
+
+.current-marker .shape {
+  display: none;
+  stroke: #ffffff;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.current-marker.flood .shape-arrow { display: inline; fill: #0c2c5e; }
+.current-marker.ebb   .shape-arrow { display: inline; fill: #b91c1c; }
+.current-marker.slack .shape-slack { display: inline; fill: #6b21a8; }
+.current-marker.no-data .shape-slack { display: inline; fill: #94a3b8; }
+
+/* Weak/variable max — render a hollow arrow so the user can tell it
+   apart from a real flood/ebb event of the same magnitude. */
+.current-marker.weak .shape-arrow {
+  fill: rgba(255, 255, 255, 0.85);
+  stroke-width: 2;
+}
+.current-marker.weak.flood .shape-arrow { stroke: #0c2c5e; }
+.current-marker.weak.ebb   .shape-arrow { stroke: #b91c1c; }
+
+.current-marker .current-value {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 13px;
+  font-weight: 700;
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  color: #ffffff;
+  pointer-events: none;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+}
+
+.current-marker.no-data .current-value {
+  color: #475569;
+  text-shadow: none;
+  opacity: 0.85;
+}
+
+.current-marker.weak .current-value {
+  color: #0f172a;
+  text-shadow: none;
+}
+
+.current-marker .current-name {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 2px;
+  padding: 2px 5px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #6b21a8;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-radius: 3px;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+/* Hide every current marker when the user toggles the "Currents" control off. */
+.hide-currents .current-marker {
   display: none;
 }
 
@@ -428,6 +526,106 @@ html, body, #app {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   background: #0c4a6e;
+  color: #ffffff;
+  padding: 2px 7px;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+  z-index: 4;
+}
+
+/* ------------------------------------------------------------------
+   Current chart (mirrors TideChart, with a signed Y-axis around zero)
+   ------------------------------------------------------------------ */
+.current-chart {
+  position: relative;
+  width: 100%;
+  height: 180px;
+  overflow: hidden;
+}
+
+.current-chart-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+.current-chart-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.current-chart-fill.flood { fill: #bfdbfe; opacity: 0.6; }
+.current-chart-fill.ebb   { fill: #fecaca; opacity: 0.6; }
+
+.current-chart-zero {
+  stroke: #94a3b8;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  stroke-dasharray: 2 3;
+}
+
+.current-chart-curve {
+  fill: none;
+  stroke: #1e293b;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.current-chart-extreme {
+  position: absolute;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.92);
+  color: #0f172a;
+  padding: 1px 5px;
+  border-radius: 3px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.current-chart-extreme.flood {
+  transform: translate(-50%, -100%);
+  margin-top: -3px;
+  color: #0c2c5e;
+}
+.current-chart-extreme.ebb {
+  transform: translate(-50%, 0);
+  margin-top: 3px;
+  color: #7c2d12;
+}
+.current-chart-extreme.slack {
+  transform: translate(-50%, -50%);
+  color: #6b21a8;
+}
+.current-chart-extreme.weak {
+  background: rgba(255, 255, 255, 0.85);
+  color: #475569;
+  font-style: italic;
+}
+
+.current-chart-extreme-time { font-weight: 700; }
+.current-chart-extreme-val  { font-weight: 600; opacity: 0.85; margin-left: 0.35em; }
+
+.current-chart-thumb-label {
+  position: absolute;
+  top: 2px;
+  transform: translateX(-50%);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  background: #0c2c5e;
   color: #ffffff;
   padding: 2px 7px;
   border-radius: 4px;
@@ -605,6 +803,146 @@ html, body, #app {
   left: 0;
   right: 0;
   /* Previous: rgba(254, 240, 138, 0.32) — translucent yellow */
+  background: rgba(186, 230, 253, 0.26);
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* ------------------------------------------------------------------
+   Current panel (mirrors TidePanel, palette tuned for flood / ebb / slack)
+   ------------------------------------------------------------------ */
+.current-panel {
+  position: absolute;
+  top: 0;
+  bottom: var(--scrubber-h, 120px);
+  left: 0;
+  width: 390px;
+  max-width: 100%;
+  background: rgba(255, 255, 255, 0.96);
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 1px 0 8px rgba(0, 0, 0, 0.1);
+  pointer-events: auto;
+}
+
+.current-panel-header {
+  flex: 0 0 auto;
+  padding: 10px 14px;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  background: #0c2c5e;
+  color: #ffffff;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.current-panel-timeline {
+  flex: 1 1 auto;
+  position: relative;
+  display: flex;
+  overflow: hidden;
+}
+
+.current-panel-gutter {
+  flex: 0 0 90px;
+  position: relative;
+  border-right: 1px solid #e5e7eb;
+  background: #f8fafc;
+}
+
+.current-panel-day {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  z-index: 2;
+}
+
+.current-panel-day-weekday {
+  font-size: 12px;
+  font-weight: 800;
+  color: #0c2c5e;
+  letter-spacing: 0.06em;
+}
+
+.current-panel-day.today .current-panel-day-weekday {
+  color: #b91c1c;
+}
+
+.current-panel-day-date {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.current-panel-events {
+  flex: 1 1 auto;
+  position: relative;
+}
+
+.current-panel-event {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  padding: 2px 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 4px;
+  z-index: 2;
+}
+
+.current-panel-event-time {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.current-panel-event-kind {
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.current-panel-event.flood .current-panel-event-kind { background: #0c2c5e; color: #ffffff; }
+.current-panel-event.ebb   .current-panel-event-kind { background: #b91c1c; color: #ffffff; }
+.current-panel-event.slack .current-panel-event-kind { background: #ede9fe; color: #6b21a8; }
+.current-panel-event.weak  .current-panel-event-kind { background: #fef3c7; color: #92400e; }
+
+.current-panel-event-speed {
+  color: #475569;
+  font-weight: 600;
+}
+
+.current-panel-divider {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: #cbd5e1;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.current-panel-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
   background: rgba(186, 230, 253, 0.26);
   pointer-events: none;
   z-index: 3;

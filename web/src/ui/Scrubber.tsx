@@ -21,6 +21,7 @@ import {
 } from "../state/store";
 import { formatScrubber } from "../util/time";
 import { TideChart } from "./TideChart";
+import { CurrentChart } from "./CurrentChart";
 
 const HOUR_MS = 60 * 60 * 1000;
 const HALF_MS = 30 * 60 * 1000;
@@ -168,10 +169,15 @@ export function Scrubber() {
   }
 
   const sel = selectedStationId.value;
-  const hasChart = sel !== null;
-  const stationName = hasChart && loadedData.value
-    ? loadedData.value.stationsById.get(sel)?.name ?? null
+  const selMeta = sel !== null && loadedData.value
+    ? loadedData.value.stationsById.get(sel) ?? null
     : null;
+  const hasChart = selMeta !== null;
+  const stationName = selMeta?.name ?? null;
+  const isCurrentSel =
+    selMeta?.kind === "current-primary" || selMeta?.kind === "current-secondary";
+  const isTideSel =
+    selMeta?.kind === "tide-primary" || selMeta?.kind === "tide-secondary";
 
   return (
     <div class={`scrubber${hasChart ? " scrubber-with-chart" : ""}`}>
@@ -184,7 +190,8 @@ export function Scrubber() {
       </div>
       <div class="scrubber-row">
         <div class="scrubber-main">
-          <TideChart />
+          {isTideSel && <TideChart />}
+          {isCurrentSel && <CurrentChart />}
           <div
             class="scrubber-track"
             ref={trackRef}

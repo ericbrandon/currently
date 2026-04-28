@@ -91,6 +91,50 @@ export type TideSecondaryFile = {
 };
 
 // ---------------------------------------------------------------
+// Primary current stations (Table 4 of the CHS volume).
+// Each event is either a slack (knots = 0) or a max (signed knots:
+// positive = flood, negative = ebb). Weak/variable maxes are flagged
+// with `weak_variable: true` and serialised as knots = 0; the
+// interpolator preserves this so the curve actually crosses zero.
+// ---------------------------------------------------------------
+
+export type CurrentEvent = {
+  time: string;
+  kind: "slack" | "max";
+  knots: number;
+  weak_variable: boolean;
+};
+
+export type CurrentDay = {
+  month: number;
+  day: number;
+  weekday?: string;
+  events: CurrentEvent[];
+};
+
+export type CurrentPrimaryStation = {
+  name: string;
+  index_no: number;
+  year: number;
+  utc_offset: number;
+  latitude: number;
+  longitude: number;
+  timezone?: string;
+  flood_direction_true: number | null;
+  ebb_direction_true: number | null;
+  // Reference max magnitudes — used as the symmetric Y-axis bound on
+  // the current chart so the curve doesn't rescale while the user pans.
+  max_flood_knots: number;
+  max_ebb_knots: number;
+  days: CurrentDay[];
+};
+
+export type CurrentPrimaryFile = {
+  year: number;
+  stations: CurrentPrimaryStation[];
+};
+
+// ---------------------------------------------------------------
 // Internal flat representation used by the interpolator
 // ---------------------------------------------------------------
 
@@ -123,9 +167,12 @@ export type StationMeta = {
   // reference primary's values.
   tide_lhhw?: number;
   tide_lllw?: number;
-  // For currents (unused in v1):
+  // Current stations only — true bearings (degrees) for the rotated
+  // arrow marker, and the symmetric Y-axis magnitude bound used by the
+  // current chart (max of |max_flood_knots|, |max_ebb_knots|).
   flood_dir?: number | null;
   ebb_dir?: number | null;
+  current_max_knots?: number;
 };
 
 export type LoadedData = {
@@ -133,6 +180,6 @@ export type LoadedData = {
   scrubberRangeMs: { min: number; max: number };
   stationsById: Map<number, StationMeta>;
   // Per-station merged Extreme[], sorted by t ascending.
-  // Tides only for v1; currents will live alongside in a parallel map.
   tideExtremesById: Map<number, Extreme[]>;
+  currentExtremesById: Map<number, Extreme[]>;
 };

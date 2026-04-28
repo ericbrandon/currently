@@ -22,3 +22,17 @@ export function formatTideValue(metres: number): string {
     ? (metres * M_TO_FT).toFixed(1)
     : metres.toFixed(1);
 }
+
+/** Format a current speed in knots with a unit suffix, e.g. "2.6 kt".
+ *  The sign carries through; callers can show absolute value if they're
+ *  also showing a flood/ebb badge. */
+export function formatCurrentSpeed(knots: number): string {
+  return `${knots.toFixed(1)} kt`;
+}
+
+/** Format a current speed as a bare absolute number — used in the
+ *  station markers where space is tight and the arrow direction already
+ *  conveys flood vs ebb. */
+export function formatCurrentValue(knots: number): string {
+  return Math.abs(knots).toFixed(1);
+}

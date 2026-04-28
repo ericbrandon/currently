@@ -17,20 +17,24 @@ import {
   recenterAt,
   selectedStationId,
   showTides,
+  showCurrents,
   useFeet,
 } from "./state/store";
 import { fetchManifest, loadAllYears } from "./data/loader";
 import { createMap, stationBounds } from "./map/map";
 import { TideStationLayer } from "./map/stationLayer";
+import { CurrentStationLayer } from "./map/currentStationLayer";
 import { rafCoalesce } from "./util/rafCoalesce";
 import { Scrubber } from "./ui/Scrubber";
 import { TidePanel } from "./ui/TidePanel";
+import { CurrentPanel } from "./ui/CurrentPanel";
 import { Controls } from "./ui/Controls";
 
 export function App() {
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
   const layerRef = useRef<TideStationLayer | null>(null);
+  const currentLayerRef = useRef<CurrentStationLayer | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Step 1 + 2: fetch manifest, load all years.
@@ -69,10 +73,14 @@ export function App() {
 
     const layer = new TideStationLayer(map, data);
     layerRef.current = layer;
+    const currentLayer = new CurrentStationLayer(map, data);
+    currentLayerRef.current = currentLayer;
 
     map.on("load", () => {
       layer.attach();
       layer.updateAt(scrubberMs.value);
+      currentLayer.attach();
+      currentLayer.updateAt(scrubberMs.value);
     });
     // Marker DOM clicks are handled by the marker's own listener (and call
     // stopPropagation), so this fires only for clicks that hit the map canvas.
@@ -101,36 +109,56 @@ export function App() {
 
   // Step 4: scrubber → station-layer updates, rAF-coalesced.
   // Also re-runs when `useFeet` flips so markers re-render in the new
-  // unit, and short-circuits when `showTides` is off (markers are
-  // already hidden via CSS, so per-frame interpolation is wasted work).
+  // unit, and short-circuits when both layers' visibility is off.
   useEffect(() => {
-    const coalesce = rafCoalesce<number>((t) => {
+    const coalesceTide = rafCoalesce<number>((t) => {
       layerRef.current?.updateAt(t);
+    });
+    const coalesceCurrent = rafCoalesce<number>((t) => {
+      currentLayerRef.current?.updateAt(t);
     });
     const dispose = effect(() => {
       const t = scrubberMs.value;
       useFeet.value;
-      if (!showTides.value) return;
-      if (mapRef.current && mapRef.current.loaded()) {
-        coalesce.schedule(t);
-      }
+      const tides = showTides.value;
+      const currents = showCurrents.value;
+      const map = mapRef.current;
+      if (!map || !map.loaded()) return;
+      if (tides) coalesceTide.schedule(t);
+      if (currents) coalesceCurrent.schedule(t);
     });
-    return () => { dispose(); coalesce.cancel(); };
+    return () => {
+      dispose();
+      coalesceTide.cancel();
+      coalesceCurrent.cancel();
+    };
   }, []);
 
-  // Toggle the .hide-tides class on the map container whenever the
-  // Tides control flips. CSS hides every .tide-marker under that class.
-  // Turning tides off also clears any active station selection so the
-  // TideChart and TidePanel disappear with the markers — otherwise a
-  // user who selected a station before flipping tides off would be left
-  // with a chart and a panel for an invisible marker.
+  // Toggle the .hide-tides / .hide-currents classes whenever the
+  // matching control flips. CSS hides the corresponding markers; the
+  // per-frame effect above also short-circuits while hidden. Flipping
+  // a layer off clears the station selection if the selected station
+  // belonged to that layer, so the chart + panel disappear too rather
+  // than dangling on an invisible marker.
   useEffect(() => {
     const dispose = effect(() => {
-      const hide = !showTides.value;
+      const hideTides = !showTides.value;
+      const hideCurrents = !showCurrents.value;
       const map = mapRef.current;
       if (!map) return;
-      map.getContainer().classList.toggle("hide-tides", hide);
-      if (hide) selectedStationId.value = null;
+      map.getContainer().classList.toggle("hide-tides", hideTides);
+      map.getContainer().classList.toggle("hide-currents", hideCurrents);
+      const sel = selectedStationId.value;
+      if (sel !== null) {
+        const meta = loadedData.value?.stationsById.get(sel);
+        if (meta) {
+          const isTide = meta.kind === "tide-primary" || meta.kind === "tide-secondary";
+          const isCurrent = meta.kind === "current-primary" || meta.kind === "current-secondary";
+          if ((isTide && hideTides) || (isCurrent && hideCurrents)) {
+            selectedStationId.value = null;
+          }
+        }
+      }
     });
     return () => dispose();
   }, [loadedData.value]);
@@ -141,6 +169,7 @@ export function App() {
       {error && <div class="error-banner">Error: {error}</div>}
       {!loadedData.value && !error && <div class="loading-overlay">Loading data…</div>}
       <TidePanel />
+      <CurrentPanel />
       <Scrubber />
       <Controls />
     </div>

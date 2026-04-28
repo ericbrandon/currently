@@ -4,7 +4,7 @@
 // Reference: notes/calculating_primary_tides_and_currents.md §"TypeScript
 // implementation" and §"Time zone & DST handling".
 
-import type { Extreme, TidePrimaryStation } from "../types";
+import type { CurrentPrimaryStation, Extreme, TidePrimaryStation } from "../types";
 
 /** Convert a station-local clock time (from the PDF) to absolute UTC ms.
  *  utc_offset is whatever the PDF's page header declared (e.g. -8 for PST).
@@ -28,6 +28,27 @@ export function tideExtremes(s: TidePrimaryStation): Extreme[] {
       out.push({
         t: stationTimeToUtcMs(s.year, d.month, d.day, r.time, s.utc_offset),
         v: r.metres,
+      });
+    }
+  }
+  return out.sort((a, b) => a.t - b.t);
+}
+
+/** Flatten a primary current station's per-day events into one sorted Extreme[].
+ *  Slack → v=0. Max → v=signed knots. Weak/variable max (`*` in the PDF) →
+ *  v=0 with weak=true, so the cosine interpolator passes through zero at
+ *  the published instant rather than drawing a straight line between the
+ *  surrounding flood/ebb maxes. */
+export function currentExtremes(s: CurrentPrimaryStation): Extreme[] {
+  const out: Extreme[] = [];
+  for (const d of s.days) {
+    for (const e of d.events) {
+      const t = stationTimeToUtcMs(s.year, d.month, d.day, e.time, s.utc_offset);
+      const isWeak = e.kind === "max" && e.weak_variable;
+      out.push({
+        t,
+        v: e.kind === "slack" ? 0 : isWeak ? 0 : e.knots,
+        ...(isWeak ? { weak: true } : {}),
       });
     }
   }

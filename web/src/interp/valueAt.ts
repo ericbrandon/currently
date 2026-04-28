@@ -65,3 +65,44 @@ export function tideStateAt(
   }
   return { state: e2.v > e1.v ? "flood" : "ebb", value };
 }
+
+export type CurrentState = "flood" | "ebb" | "slack";
+
+/** Below this magnitude (knots) we render the current as a slack circle
+ *  rather than a directional arrow. Picks up the genuine zero crossings as
+ *  well as the weak/variable max events that we serialise as v=0. */
+const SLACK_KNOTS = 0.1;
+
+/** Returns the interpolated signed knots at time `t` plus the phase
+ *  (flood / ebb / slack) and a weak flag that tracks the surrounding
+ *  weak/variable max events. */
+export function currentStateAt(
+  extremes: Extreme[],
+  t: number,
+): { state: CurrentState | null; value: number | null; weak: boolean } {
+  const n = extremes.length;
+  if (n < 2 || t < extremes[0].t || t > extremes[n - 1].t) {
+    return { state: null, value: null, weak: false };
+  }
+
+  let lo = 0, hi = n - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (extremes[mid].t <= t) lo = mid;
+    else hi = mid;
+  }
+  const e1 = extremes[lo];
+  const e2 = extremes[hi];
+  if (e2.t === e1.t) {
+    return { state: "slack", value: e1.v, weak: !!(e1.weak || e2.weak) };
+  }
+
+  const tau = (t - e1.t) / (e2.t - e1.t);
+  const value = (e1.v + e2.v) / 2 + ((e1.v - e2.v) / 2) * Math.cos(Math.PI * tau);
+  const weak = !!((e1.weak && tau < 0.5) || (e2.weak && tau >= 0.5));
+
+  if (Math.abs(value) < SLACK_KNOTS) {
+    return { state: "slack", value, weak };
+  }
+  return { state: value > 0 ? "flood" : "ebb", value, weak };
+}
