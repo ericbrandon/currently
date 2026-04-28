@@ -409,32 +409,107 @@ Total main-thread work per frame: well under 8 ms. Headroom for the rendering/co
 
 ## 12. Build & deploy
 
-### 12.1 Vite config highlights
+### 12.1 Mental model: nothing runs server-side
+
+The webapp is a 100% static SPA. The deployment artifact (`web/dist/` plus `web/public/data/`) is bytes only — HTML, JS, CSS, JSON, PNG. No Node, no npm, no `node_modules`, no Python ever runs at the host. The host's only job is to hand bytes to browsers.
+
+This means:
+- The **build environment** needs Node + npm (to run Vite and produce `web/dist/`).
+- The **host** needs nothing beyond static-file serving.
+
+`web/package.json` + `web/package-lock.json` are the npm equivalent of `requirements.txt` + `pip freeze`. Both must be committed. `npm ci` reads the lockfile and installs *exactly* those versions; `npm install` is for adding/updating deps.
+
+### 12.2 Toolchain pinning
+
+- `web/.nvmrc` pins the Node major version (currently `22`, the LTS line through April 2027).
+- `web/package.json` has `"engines": { "node": ">=22" }` so npm warns if the tree is built with an older Node.
+- Local dev with a higher Node (e.g. 23.x, 24.x) works fine — the floor is what matters.
+- CI environments use `actions/setup-node@v4` with `node-version-file: 'web/.nvmrc'` to read the pin.
+
+### 12.3 Vite config highlights
 
 - `base: "./"` for portable hosting.
 - `build.target: "es2020"` — covers all phones < 5 years old.
 - Asset filenames hashed by Vite default.
-- A custom plugin or pre-build step to:
-  - Copy `public/data/` through unchanged (Vite's default behaviour for `public/`).
-  - Build the icon sprite from `src/map/icons/*.svg`.
+- Pre-build step: build the icon sprite from `src/map/icons/*.svg`.
+- `public/data/` and `public/tiles/` pass through unchanged (Vite's default behaviour for `public/`).
 
-### 12.2 Hosting
+### 12.4 Scenario A: manual deploy (used during development)
 
-**Recommended**: Cloudflare Pages. Free tier, global CDN, simple `_headers` file for the cache rules in §4.3. Deploy via `wrangler pages deploy web/dist` or by pushing to a connected Git branch.
+This is the deploy flow until the project has a first production version.
 
-**Alternative**: GitHub Pages. Cache headers are not configurable per-file; the manifest will be served with a generic ~10-min cache, which is acceptable but not ideal. Use only if Cloudflare Pages is unavailable.
+```bash
+# 1. Update data (if needed)
+./process_tct.sh                         # parses PDFs, runs build_manifest.py
 
-### 12.3 Annual data drop workflow
+# 2. Build the static bundle
+cd web
+npm ci                                   # exact versions from lockfile
+npm run build                            # outputs to web/dist/
+
+# 3. Upload to host
+#    - Cloudflare Pages:   wrangler pages deploy dist
+#    - Netlify:            netlify deploy --prod --dir dist
+#    - S3+CloudFront:      aws s3 sync dist/ s3://bucket/ --delete
+#    - GitHub Pages:       push dist/ contents to gh-pages branch
+```
+
+Pros: zero CI infrastructure to set up. Full control over what goes out.
+Cons: manual step every time; risk of forgetting `npm ci` and shipping a stale `dist/`.
+
+When to switch to Scenario B: as soon as there's a first "production" deployment that real users hit.
+
+### 12.5 Scenario B: CI deploy (planned for production)
+
+Triggered by pushing to a chosen branch (e.g. `main`). Sketch as a GitHub Actions workflow `.github/workflows/deploy.yml`:
+
+```yaml
+name: Deploy
+on:
+  push: { branches: [main] }
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version-file: 'web/.nvmrc', cache: 'npm', cache-dependency-path: 'web/package-lock.json' }
+      - run: cd web && npm ci && npm run build
+      - name: Publish to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          accountId: ${{ secrets.CF_ACCOUNT_ID }}
+          projectName: currently
+          directory: web/dist
+```
+
+Cloudflare Pages can also do this without any Actions config — connect the repo through its dashboard, set build command `cd web && npm ci && npm run build`, output `web/dist`. The dashboard reads `web/.nvmrc` automatically.
+
+The CI runner is ephemeral: spins up, installs Node + locked deps, builds, uploads, dies. None of that infra exists at the host.
+
+### 12.6 Cache headers at the host
+
+Per §4.3:
+
+- `manifest.json` → `Cache-Control: no-cache, must-revalidate`
+- `data/**/*.{hash}.json`, hashed JS/CSS → `Cache-Control: public, max-age=31536000, immutable`
+- `tiles/*.pmtiles` → `Cache-Control: public, max-age=2592000`
+- `index.html` → `Cache-Control: no-cache`
+
+On Cloudflare Pages and Netlify this is a `web/public/_headers` file that ships unchanged into `dist/_headers`. Verify in DevTools after first deploy.
+
+### 12.7 Annual data drop workflow
 
 When the 2027 PDF is published (typically late autumn):
 
 1. Download the PDF; place in repo root.
-2. Run `process_tct.sh` (which now also runs `build_manifest.py`).
+2. Run `./process_tct.sh` (which also runs `build_manifest.py`).
 3. Verify the new files appear in `web/public/data/2027/vol5/` and that `manifest.json` lists 2027.
 4. `git add web/public/data/2027 web/public/data/manifest.json && git commit && git push`.
-5. CI/CD (or your manual deploy) publishes. Users see 2027 data on next page load.
+5. Scenario A: re-run the manual deploy. Scenario B: the push triggers CI and users see 2027 data within a couple minutes.
 
-No app code changes. No version bump. No app re-deploy required if the data is hosted on the same static host as the bundle.
+No app code changes. No version bump.
 
 ## 13. Testing strategy
 
