@@ -113,6 +113,8 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
         kind: "tide-primary",
         latitude: s.latitude,
         longitude: s.longitude,
+        tide_lhhw: s.higher_high_water_large_tide,
+        tide_lllw: s.lower_low_water_large_tide,
       });
       pushExtremes(s.index_no, ext);
     }
@@ -130,12 +132,16 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
       }
       const ext = secondaryTideExtremes(sec, ref.extremes, ref.station, ref.classified);
 
+      // At large tide, secondaryTideExtremes degenerates to ref.X_large + sec.X_large_diff:
+      // dh = dhMean + (hLarge - hMean) * slope = dhMean + (dhLarge - dhMean) = dhLarge.
       stationsById.set(sec.index_no, {
         station_id: sec.index_no,
         name: sec.name,
         kind: "tide-secondary",
         latitude: sec.latitude,
         longitude: sec.longitude,
+        tide_lhhw: ref.station.higher_high_water_large_tide + sec.higher_high_water_large_tide_diff,
+        tide_lllw: ref.station.lower_low_water_large_tide + sec.lower_low_water_large_tide_diff,
       });
       pushExtremes(sec.index_no, ext);
     }

@@ -4,10 +4,16 @@
 // time window as the scrubber (windowStartMs … +WINDOW_MS), so panning
 // the timeline drags the chart along automatically.
 //
+// Y-axis is *fixed* per station — bounds come from the station's
+// large-tide HHW/LLW (Table 2 for primaries, derived for secondaries).
+// This keeps the curve from rescaling as the user pans the timeline.
+// Values that exceed the reference range still render; they just sit
+// slightly into the padding zones.
+//
 // Layout zones inside the chart's vertical extent:
 //
 //   0 …  TOP_PAD%       — reserved for the thumb readout (and HW labels)
-//   TOP_PAD … BOTTOM_PAD — curve range; vMax → TOP_PAD%, vMin → BOTTOM_PAD%
+//   TOP_PAD … BOTTOM_PAD — curve range; LHHW → TOP_PAD%, LLLW → BOTTOM_PAD%
 //   BOTTOM_PAD … 100%   — reserved for LW labels
 //
 // HW labels are positioned at each peak's (x, y) and pushed up via a
@@ -16,8 +22,9 @@
 // Scrubber so it can extend down through the track to the dot — the
 // chart owns only the readout text at the line's top.
 //
-// Curve sampling is memoised on (extremes, start). Dragging the thumb
-// (which only changes thumbFraction → scrubberMs) doesn't re-sample.
+// Curve sampling is memoised on (extremes, start, lhhw, lllw). Dragging
+// the thumb (which only changes thumbFraction → scrubberMs) doesn't
+// re-sample.
 
 import { useMemo } from "preact/hooks";
 import {
@@ -63,32 +70,33 @@ export function TideChart() {
 
   const meta = id !== null && data ? data.stationsById.get(id) ?? null : null;
   const extremes = id !== null && data ? data.tideExtremesById.get(id) ?? null : null;
+  const lhhw = meta?.tide_lhhw;
+  const lllw = meta?.tide_lllw;
 
   const computed = useMemo<Computed | null>(() => {
-    if (!extremes) return null;
+    if (!extremes || lhhw === undefined || lllw === undefined) return null;
     const end = start + WINDOW_MS;
 
-    let vMin = Infinity;
-    let vMax = -Infinity;
+    // Defensive: if the station's reference range collapses to ~zero, expand
+    // symmetrically around its midpoint so the curve stays centred.
+    let lo = lllw;
+    let hi = lhhw;
+    if (hi - lo < MIN_RANGE_M) {
+      const mid = (lo + hi) / 2;
+      lo = mid - MIN_RANGE_M / 2;
+      hi = mid + MIN_RANGE_M / 2;
+    }
+    const yOf = (v: number) =>
+      TOP_PAD_PCT + ((hi - v) / (hi - lo)) * (BOTTOM_PAD_PCT - TOP_PAD_PCT);
+
+    let anySample = false;
     const samples: { x: number; v: number | null }[] = [];
     for (let t = start; t <= end; t += SAMPLE_INTERVAL_MS) {
       const v = valueAt(extremes, t);
       samples.push({ x: (t - start) / WINDOW_MS, v });
-      if (v !== null) {
-        if (v < vMin) vMin = v;
-        if (v > vMax) vMax = v;
-      }
+      if (v !== null) anySample = true;
     }
-    if (!Number.isFinite(vMin)) return { empty: true };
-
-    const range = Math.max(vMax - vMin, MIN_RANGE_M);
-    // If we hit the floor, expand symmetrically around the midpoint so the
-    // curve stays centred when it's nearly flat.
-    const mid = (vMin + vMax) / 2;
-    const lo = mid - range / 2;
-    const hi = mid + range / 2;
-    const yOf = (v: number) =>
-      TOP_PAD_PCT + ((hi - v) / (hi - lo)) * (BOTTOM_PAD_PCT - TOP_PAD_PCT);
+    if (!anySample) return { empty: true };
 
     let pathD = "";
     let inPath = false;
@@ -118,7 +126,7 @@ export function TideChart() {
     }
 
     return { empty: false, pathD, labels };
-  }, [extremes, start]);
+  }, [extremes, start, lhhw, lllw]);
 
   if (id === null || !data || !meta || !extremes) return null;
   if (meta.kind !== "tide-primary" && meta.kind !== "tide-secondary") return null;

@@ -116,6 +116,13 @@ export type StationMeta = {
   kind: StationKind;
   latitude: number;
   longitude: number;
+  // Tide stations only — large-tide reference heights in metres, used as
+  // fixed Y-axis bounds for the tide chart so it doesn't rescale while the
+  // user pans the timeline. For primaries these come straight from Table 2;
+  // for secondaries they're derived by applying the large-tide diffs to the
+  // reference primary's values.
+  tide_lhhw?: number;
+  tide_lllw?: number;
   // For currents (unused in v1):
   flood_dir?: number | null;
   ebb_dir?: number | null;
