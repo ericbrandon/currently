@@ -92,9 +92,10 @@ The webapp lives inside this repo under `web/`. The Python pipeline at the repo 
       ui/
         Scrubber.tsx              # custom 15-h windowed track + ticks + draggable thumb
         TideChart.tsx             # tide chart that underlies the scrubber when a station is selected
+        TidePanel.tsx             # 5-day HW/LW overview overlaid on the map when a station is selected
         Banner.tsx                # "2027 not yet available" etc. (not yet built)
       util/
-        time.ts                   # 15-min snap, Intl.DateTimeFormat helpers
+        time.ts                   # Intl.DateTimeFormat helpers + DST-safe local-midnight resolver
         rafCoalesce.ts            # rAF-based event coalescer
 ```
 
@@ -331,7 +332,7 @@ Steps:
 
 ### 10.1 Layout (responsive)
 
-- **All viewport sizes**: full-bleed map; scrubber pinned to bottom. With no station selected the scrubber holds the time label + 15-hour timeline track + Now button (~120 px tall). Tapping a station expands the scrubber upward to embed the `TideChart` (§10.3) aligned to the same time axis — the timeline ticks/thumb sit at the bottom of the panel, the chart fills the new vertical space.
+- **All viewport sizes**: full-bleed map; scrubber pinned to bottom. With no station selected the scrubber holds the time label + 15-hour timeline track + Now button (~120 px tall). Selecting a tide station does two things at once: the scrubber expands upward to embed the `TideChart` (§10.3) aligned to the same time axis, and the `TidePanel` (§10.4) appears overlaid on the left side of the map (390 px wide — full-width on phones at iPhone 12 Pro or below).
 - **Chart panel height**: 180 px on desktop, 150 px at ≤600 px viewport width. Total scrubber height with chart visible: ~310 px desktop, ~270 px mobile.
 - **One CSS file** with media queries; no separate mobile/desktop component trees.
 - All hit targets ≥ 44 × 44 px.
@@ -360,7 +361,20 @@ When the user taps a tide station, `TideChart` (`src/ui/TideChart.tsx`) renders 
 
 Currents will get an analogous chart later; the design accommodates signed values, weak/variable maxes, and a flood/ebb hatched band background straightforwardly.
 
-### 10.4 Banner
+### 10.4 Tide panel
+
+When the user taps a tide station, `TidePanel` (`src/ui/TidePanel.tsx`) overlays the map with a 5-day HW/LW reference. On iPhone 12 Pro the panel covers the full map width; on wider viewports it sits on the left at fixed iPhone-12-Pro width (390 px).
+
+- **Position**: `position: absolute`, `top: 0` to the scrubber's top, `left: 0`, `width: 390 px`, `max-width: 100%`, `z-index: 4` (above map markers, below the scrubber). The bottom edge tracks the scrubber's actual height via `--scrubber-h`, a CSS variable set by a `ResizeObserver` on `.scrubber` in `app.tsx`. That keeps the panel flush with the scrubber's top no matter how tall the scrubber gets when the chart expands, without hardcoding pixel values.
+- **Header**: small dark-blue strip with the station name centered.
+- **Timeline**: linear time mapping spanning 5 days = 120 h, anchored to today's local midnight in `America/Vancouver` (resolved via the iterative `localMidnightUtcMs` in `src/util/time.ts`, which converges in two passes and is robust across DST and BC's permanent UTC-7 transition). Day boundaries fall at 20% / 40% / 60% / 80% of the timeline height.
+- **Gutter (90 px wide, left column)**: each day section gets a vertically-centered label — `TODAY` (red) for day 0, then the local weekday abbreviation in dark blue for the next four days, with the local date below.
+- **Events (right column)**: every published HW/LW that falls inside the 5-day range gets one row, positioned absolutely at `top: pos(t)%` where `pos(t) = (t − panelStart) / 120 h × 100`. Each row is a small white pill with the time, an HW or LW badge (dark-blue or cream), and the height in metres. The white pill background masks the day-divider lines wherever an event sits on top of one. A z-index hierarchy keeps day labels and events (z:2) above dividers (z:1) and the bar (z:3) above everything.
+- **Highlighted bar**: a translucent yellow band whose top and height match the chart's visible window exactly — the bar's top corresponds to the leftmost time on the timeline track (`windowStartMs`), the bottom to the rightmost (`windowStartMs + WINDOW_MS`). Clamped to the panel's 5-day range and hidden entirely when the chart's window doesn't overlap (e.g., the user has scrubbed back to yesterday). Background is `rgba(254, 240, 138, 0.32)` — translucent enough to read text underneath, opaque enough to read as a band. **No CSS borders** on the bar: translucent borders on a frequently-repositioned absolute element leave compositor trails in Chromium, and the fill alone is enough.
+- **What moves the bar**: only window movements — dragging the thumb to the left or right edge of the timeline (which engages the auto-pan loop, see §10.2) or pressing "Now". Normal thumb dragging in the middle of the track does *not* shift the bar, because it doesn't shift the chart's content either.
+- **Dismiss**: tapping anywhere on the panel calls `selectedStationId.value = null`, which unmounts both the panel and the chart simultaneously. Important on iPhone 12 Pro where the panel covers the full map width and there's no map area to fall through to; harmless on desktop, where map clicks already deselect (§6.5).
+
+### 10.5 Banner
 
 A small dismissable strip across the top, shown only when:
 - Manifest fetch failed (offline or bad config).
@@ -554,8 +568,9 @@ Pre-ship checklist on a real iPhone and a real Android mid-tier:
 6. **Scrubber UI** + signals wiring; verify per-frame updates work and stay under budget.
 7. **Tap-to-select** with focus-mode hide-others (§6.5).
 8. **Tide chart** integrated into the bottom strip (§10.3) — hand-rolled SVG, not uPlot.
-9. **Banner** for edge cases (no data for now, manifest fetch failure).
-10. **Real-device perf pass** + bundle-size audit.
-11. **Deploy to Cloudflare Pages** with the cache headers in §4.3.
+9. **Tide panel** overlay (§10.4) — 5-day HW/LW reference with sliding-window highlight.
+10. **Banner** for edge cases (no data for now, manifest fetch failure).
+11. **Real-device perf pass** + bundle-size audit.
+12. **Deploy to Cloudflare Pages** with the cache headers in §4.3.
 
 Each step is independently shippable to a dev preview; the order minimises rework.

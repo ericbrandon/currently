@@ -22,6 +22,7 @@ import { createMap, stationBounds } from "./map/map";
 import { TideStationLayer } from "./map/stationLayer";
 import { rafCoalesce } from "./util/rafCoalesce";
 import { Scrubber } from "./ui/Scrubber";
+import { TidePanel } from "./ui/TidePanel";
 
 export function App() {
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -77,6 +78,24 @@ export function App() {
     });
   }, [loadedData.value]);
 
+  // Track the scrubber's height in a CSS variable so the TidePanel's
+  // bottom can sit flush with the scrubber's top, regardless of whether
+  // the chart is currently expanded. Runs once data is loaded — the
+  // scrubber is mounted by then.
+  useEffect(() => {
+    if (!loadedData.value) return;
+    const scrubberEl = document.querySelector(".scrubber") as HTMLElement | null;
+    if (!scrubberEl) return;
+    const update = () => {
+      const h = scrubberEl.getBoundingClientRect().height;
+      document.documentElement.style.setProperty("--scrubber-h", `${h}px`);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(scrubberEl);
+    return () => ro.disconnect();
+  }, [loadedData.value]);
+
   // Step 4: scrubber → station-layer updates, rAF-coalesced.
   useEffect(() => {
     const coalesce = rafCoalesce<number>((t) => {
@@ -96,6 +115,7 @@ export function App() {
       <div ref={mapContainer} class="map-container" />
       {error && <div class="error-banner">Error: {error}</div>}
       {!loadedData.value && !error && <div class="loading-overlay">Loading data…</div>}
+      <TidePanel />
       <Scrubber />
     </div>
   );
