@@ -43,12 +43,16 @@ function escapeHtml(s: string): string {
   );
 }
 
-function createMarkerEl(name: string): HTMLElement {
+function createMarkerEl(name: string, kindClass: string): HTMLElement {
   const el = document.createElement("div");
-  el.className = "tide-marker no-data";
+  el.className = `tide-marker no-data ${kindClass}`;
   el.innerHTML = `${SVG_TEMPLATE}<div class="tide-name">${escapeHtml(name)}</div>`;
   return el;
 }
+
+/** Below this zoom level, secondary-tide markers are hidden so the map
+ *  stays readable when zoomed out. Raise to keep them hidden longer. */
+const SECONDARY_MIN_ZOOM = 8;
 
 function updateMarkerEl(
   el: HTMLElement,
@@ -82,7 +86,8 @@ export class TideStationLayer {
 
     for (const meta of data.stationsById.values()) {
       if (meta.kind !== "tide-primary" && meta.kind !== "tide-secondary") continue;
-      const el = createMarkerEl(meta.name);
+      const kindClass = meta.kind === "tide-secondary" ? "secondary" : "primary";
+      const el = createMarkerEl(meta.name, kindClass);
       const marker = new maplibregl.Marker({ element: el, anchor: "center" })
         .setLngLat([meta.longitude, meta.latitude]);
       this.markers.set(meta.station_id, marker);
@@ -92,7 +97,16 @@ export class TideStationLayer {
 
   attach(): void {
     for (const marker of this.markers.values()) marker.addTo(this.map);
+    this.applyZoomVisibility();
+    this.map.on("zoom", this.applyZoomVisibility);
   }
+
+  /** Toggle a body-level class so a single CSS rule can hide every secondary
+   *  marker at low zooms. Cheaper than touching each marker on every event. */
+  private applyZoomVisibility = (): void => {
+    const hide = this.map.getZoom() < SECONDARY_MIN_ZOOM;
+    this.map.getContainer().classList.toggle("hide-secondary-tides", hide);
+  };
 
   updateAt(t: number): void {
     for (const [id, el] of this.elements) {
