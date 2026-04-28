@@ -81,7 +81,7 @@ export class TideStationLayer {
     this.extremesById = data.tideExtremesById;
 
     for (const meta of data.stationsById.values()) {
-      if (meta.kind !== "tide-primary") continue;
+      if (meta.kind !== "tide-primary" && meta.kind !== "tide-secondary") continue;
       const el = createMarkerEl(meta.name);
       const marker = new maplibregl.Marker({ element: el, anchor: "center" })
         .setLngLat([meta.longitude, meta.latitude]);

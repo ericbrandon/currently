@@ -2,14 +2,17 @@
 //
 // Two responsibilities:
 //   1. Fetch the manifest (no-cache) at app startup.
-//   2. Fetch every year's tidal_primary JSON in parallel and merge them
-//      into a single LoadedData:
-//        - per-station extremes concatenated across years and sorted by t
-//        - station metadata: latest year wins on conflict
-//        - scrubber range = union of all loaded years
+//   2. Fetch every year's tide JSONs (primary + secondary) in parallel,
+//      build per-station merged Extreme[] across years, and produce the
+//      authoritative station metadata map.
 //
-// v1 scope: primary tide stations only. Currents and secondary stations
-// are stubbed in the manifest types but skipped here.
+// Secondary stations are derived per-year by applying Table 3 differences
+// to that year's reference primary station's extremes. See
+// notes/calculating_primary_tides_and_currents.md and the secondary-tide
+// derivation reference in chs-shc-tct-tmc-vol5-2026 §"Prediction of Tides
+// at Secondary Ports". Once built, secondary extremes are stored alongside
+// primaries in `tideExtremesById` keyed by index_no, so the rest of the
+// app treats them identically.
 
 import type {
   Extreme,
@@ -17,8 +20,14 @@ import type {
   Manifest,
   StationMeta,
   TidePrimaryFile,
+  TidePrimaryStation,
+  TideSecondaryFile,
 } from "../types";
 import { tideExtremes } from "../interp/extremes";
+import {
+  classifyHiLow,
+  secondaryTideExtremes,
+} from "../interp/secondaryTides";
 
 const MANIFEST_URL = "data/manifest.json";
 
@@ -26,6 +35,14 @@ export async function fetchManifest(): Promise<Manifest> {
   const r = await fetch(MANIFEST_URL, { cache: "no-cache" });
   if (!r.ok) throw new Error(`manifest fetch failed: ${r.status}`);
   return (await r.json()) as Manifest;
+}
+
+/** CHS sometimes uses the short name in Table 3 references (e.g. "VICTORIA")
+ *  while Table 1/2 use a longer form for the same station ("VICTORIA HARBOUR").
+ *  Strip a small set of known suffixes to expose an alias. */
+function suffixAlias(name: string): string | null {
+  const m = name.match(/^(.+?)\s+(HARBOUR|HARBOR|INLET|BAY)$/i);
+  return m ? m[1] : null;
 }
 
 /** Fetch and merge every year listed in the manifest. */
@@ -36,22 +53,58 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
     throw new Error("manifest contains no years");
   }
 
-  const tideFiles = await Promise.all(
-    yearEntries.map(async (y) => {
-      if (!y.tidal_primary) return null;
-      const r = await fetch(`data/${y.tidal_primary}`);
-      if (!r.ok) throw new Error(`tide fetch failed: ${y.tidal_primary} (${r.status})`);
-      return (await r.json()) as TidePrimaryFile;
-    }),
-  );
+  const [tidePrimaryFiles, tideSecondaryFiles] = await Promise.all([
+    Promise.all(
+      yearEntries.map(async (y) => {
+        if (!y.tidal_primary) return null;
+        const r = await fetch(`data/${y.tidal_primary}`);
+        if (!r.ok) {
+          throw new Error(`tide primary fetch failed: ${y.tidal_primary} (${r.status})`);
+        }
+        return (await r.json()) as TidePrimaryFile;
+      }),
+    ),
+    Promise.all(
+      yearEntries.map(async (y) => {
+        if (!y.tidal_secondary) return null;
+        const r = await fetch(`data/${y.tidal_secondary}`);
+        if (!r.ok) {
+          throw new Error(`tide secondary fetch failed: ${y.tidal_secondary} (${r.status})`);
+        }
+        return (await r.json()) as TideSecondaryFile;
+      }),
+    ),
+  ]);
 
   const stationsById = new Map<number, StationMeta>();
   const extremesByStation = new Map<number, Extreme[][]>();
 
+  const pushExtremes = (id: number, ext: Extreme[]) => {
+    const list = extremesByStation.get(id);
+    if (list) list.push(ext);
+    else extremesByStation.set(id, [ext]);
+  };
+
   yearEntries.forEach((_y, i) => {
-    const file = tideFiles[i];
-    if (!file) return;
-    for (const s of file.stations) {
+    const tideFile = tidePrimaryFiles[i];
+    if (!tideFile) return;
+
+    // Per-year primary lookup: by index_no for sanity, by name (and a
+    // suffix-stripped alias) for matching secondary references.
+    type RefEntry = {
+      station: TidePrimaryStation;
+      extremes: Extreme[];
+      classified: boolean[];
+    };
+    const refByName = new Map<string, RefEntry>();
+
+    for (const s of tideFile.stations) {
+      const ext = tideExtremes(s);
+      const entry: RefEntry = { station: s, extremes: ext, classified: classifyHiLow(ext) };
+      refByName.set(s.name, entry);
+      const alias = suffixAlias(s.name);
+      if (alias && !refByName.has(alias)) refByName.set(alias, entry);
+
       // Latest-year-wins for metadata. Iterating in ascending year order
       // means each assignment overwrites with a later year's data.
       stationsById.set(s.index_no, {
@@ -61,10 +114,30 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
         latitude: s.latitude,
         longitude: s.longitude,
       });
+      pushExtremes(s.index_no, ext);
+    }
 
-      const list = extremesByStation.get(s.index_no) ?? [];
-      list.push(tideExtremes(s));
-      extremesByStation.set(s.index_no, list);
+    const secFile = tideSecondaryFiles[i];
+    if (!secFile) return;
+
+    for (const sec of secFile.stations) {
+      const ref = refByName.get(sec.reference_port);
+      if (!ref) {
+        console.warn(
+          `secondary station ${sec.index_no} ${sec.name} references unknown primary "${sec.reference_port}"`,
+        );
+        continue;
+      }
+      const ext = secondaryTideExtremes(sec, ref.extremes, ref.station, ref.classified);
+
+      stationsById.set(sec.index_no, {
+        station_id: sec.index_no,
+        name: sec.name,
+        kind: "tide-secondary",
+        latitude: sec.latitude,
+        longitude: sec.longitude,
+      });
+      pushExtremes(sec.index_no, ext);
     }
   });
 

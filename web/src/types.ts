@@ -42,12 +42,52 @@ export type TidePrimaryStation = {
   reference_name?: string | null;
   mean_tide_range?: number | null;
   large_tide_range?: number | null;
+  // Table 2 reference heights — required for secondary-station calculation
+  // (Step 6a: interpolate the height diff between mean-tide and large-tide).
+  higher_high_water_mean_tide: number;
+  higher_high_water_large_tide: number;
+  lower_low_water_mean_tide: number;
+  lower_low_water_large_tide: number;
   days: TideDay[];
 };
 
 export type TidePrimaryFile = {
   year: number;
   stations: TidePrimaryStation[];
+};
+
+// ---------------------------------------------------------------
+// Secondary tide stations (Table 3 of the CHS volume).
+// They are derived from a reference primary station by applying
+// per-station time and height differences.
+// ---------------------------------------------------------------
+
+export type TideSecondaryStation = {
+  index_no: number;
+  name: string;
+  utc_offset: number;
+  latitude: number;
+  longitude: number;
+  area_number?: number;
+  area_name?: string;
+  geographic_zone?: string;
+  reference_port: string;            // matches a TidePrimaryStation.name
+  // "+HH:MM" / "-HH:MM" — the shift applied to each high or low water.
+  higher_high_water_time_diff: string;
+  higher_high_water_mean_tide_diff: number;
+  higher_high_water_large_tide_diff: number;
+  lower_low_water_time_diff: string;
+  lower_low_water_mean_tide_diff: number;
+  lower_low_water_large_tide_diff: number;
+  mean_tide_range?: number;
+  large_tide_range?: number;
+  mean_water_level?: number;
+  has_footnote?: boolean;
+};
+
+export type TideSecondaryFile = {
+  year: number;
+  stations: TideSecondaryStation[];
 };
 
 // ---------------------------------------------------------------
