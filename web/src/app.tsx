@@ -120,12 +120,17 @@ export function App() {
 
   // Toggle the .hide-tides class on the map container whenever the
   // Tides control flips. CSS hides every .tide-marker under that class.
+  // Turning tides off also clears any active station selection so the
+  // TideChart and TidePanel disappear with the markers — otherwise a
+  // user who selected a station before flipping tides off would be left
+  // with a chart and a panel for an invisible marker.
   useEffect(() => {
     const dispose = effect(() => {
       const hide = !showTides.value;
       const map = mapRef.current;
       if (!map) return;
       map.getContainer().classList.toggle("hide-tides", hide);
+      if (hide) selectedStationId.value = null;
     });
     return () => dispose();
   }, [loadedData.value]);
