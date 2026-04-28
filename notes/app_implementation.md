@@ -90,11 +90,9 @@ The webapp lives inside this repo under `web/`. The Python pipeline at the repo 
         stationLayer.ts           # GeoJSON source + symbol/circle layers
         tilt.ts                   # optional 3D tilt for current arrows
       ui/
-        Scrubber.tsx              # <input type=range> + time label
-        StationSheet.tsx          # responsive bottom sheet / side panel
-        StationTable.tsx          # table of published extremes
-        StationChart.tsx          # uPlot wrapper
-        Banner.tsx                # "2027 not yet available" etc.
+        Scrubber.tsx              # custom 15-h windowed track + ticks + draggable thumb
+        TideChart.tsx             # tide chart that underlies the scrubber when a station is selected
+        Banner.tsx                # "2027 not yet available" etc. (not yet built)
       util/
         time.ts                   # 15-min snap, Intl.DateTimeFormat helpers
         rafCoalesce.ts            # rAF-based event coalescer
@@ -244,9 +242,12 @@ All visual encodings are MapLibre **paint-property expressions** reading `proper
 
 ### 6.5 Tap-to-select interaction
 
-- `map.on('click', layerIds, e)` — find the topmost station feature, set `selectedStationId` signal.
-- On phones, also accept long-press to disambiguate touch-to-pan vs tap-to-select (MapLibre's default click-vs-drag threshold handles this without extra code).
-- A station ring/halo paint expression highlights `properties.station_id === selectedStationId`.
+Selection is driven by the `selectedStationId` signal in `src/state/store.ts`. Stations are rendered as `maplibregl.Marker` instances wrapping DOM elements (see `src/map/stationLayer.ts`).
+
+- **Marker click**: each marker's DOM element has its own `click` listener that toggles `selectedStationId` (clicking the already-selected marker deselects). The handler calls `e.stopPropagation()` so the click doesn't bubble to the map.
+- **Map click**: `map.on('click', ...)` deselects. This fires only for clicks that hit the map canvas — marker clicks are handled by the marker's own listener and don't reach MapLibre's input dispatcher.
+- **Focus mode (rather than highlighting)**: when a station is selected, every *other* marker is hidden via a `.has-selection` class on the map container plus a CSS rule (`.has-selection .tide-marker:not(.selected) { display: none; }`). Hidden markers are `display: none` so a click in their former location falls through to the canvas (which deselects). The selected marker stays visible without any explicit highlight — the user already knows which one they picked, and clearing the surrounding clutter focuses attention on the chart underneath.
+- **Touch handling**: MapLibre's default click-vs-drag threshold prevents tap-to-select from triggering during pans. No long-press needed.
 
 ## 7. Interpolation module
 
@@ -330,8 +331,8 @@ Steps:
 
 ### 10.1 Layout (responsive)
 
-- **Mobile portrait (≤ 768 px wide)**: full-bleed map; scrubber pinned to bottom (~88 px tall, including time label and step buttons); tapping a station slides up a bottom sheet covering ~50% of the viewport with the chart on top, table below; swipe-down to dismiss.
-- **Tablet / desktop (> 768 px)**: full-bleed map; scrubber pinned to bottom; station detail appears as a fixed right-side panel (~360 px wide) instead of a bottom sheet.
+- **All viewport sizes**: full-bleed map; scrubber pinned to bottom. With no station selected the scrubber holds the time label + 15-hour timeline track + Now button (~120 px tall). Tapping a station expands the scrubber upward to embed the `TideChart` (§10.3) aligned to the same time axis — the timeline ticks/thumb sit at the bottom of the panel, the chart fills the new vertical space.
+- **Chart panel height**: 180 px on desktop, 150 px at ≤600 px viewport width. Total scrubber height with chart visible: ~310 px desktop, ~270 px mobile.
 - **One CSS file** with media queries; no separate mobile/desktop component trees.
 - All hit targets ≥ 44 × 44 px.
 
@@ -342,13 +343,22 @@ Steps:
 - Time label: `Intl.DateTimeFormat("en-CA", { timeZone: "America/Vancouver", … })` — shows e.g. `Sun, Apr 27 · 14:30 PDT`. Browser handles BC's permanent UTC-7 from Nov 1 2026 automatically.
 - **Coalesce input events to rAF**: store latest value in a ref; on each `requestAnimationFrame`, if changed, write it to the signal. Prevents 120-Hz touch event storms from triggering 120 map re-renders.
 - Keyboard: arrow keys = ±15 min, Shift+arrow = ±1 h. Native `<input type=range>` supports this for free.
+- **Station name pill (when a station is selected)**: the scrubber's top label row shows the selected station's name in a small dark-blue pill immediately to the left of the time, in the same font size/weight as the time. Rendered in the `Scrubber` component (not in the chart) so the chart can be a clean plot.
 
-### 10.3 Station detail sheet
+### 10.3 Tide chart
 
-- Header: station name, type badge (tide/current, primary/secondary), lat/lon, distance from selected station optional.
-- **Chart** (uPlot): plots interpolated value vs. time over `[scrubberMs − 12 h, scrubberMs + 12 h]`. Vertical line at `scrubberMs`. Dots at each published extreme. For current stations, a horizontal zero line and a flood/ebb hatched band background.
-- **Table**: list of published extremes for the surrounding ±48 h window. Columns: time (local), kind (HW/LW or slack/max-flood/max-ebb), value (metres or knots). Weak/variable rows visually distinct.
-- **Close button**: explicit, top-right; also dismissable by swipe-down on mobile or click-outside on desktop.
+When the user taps a tide station, `TideChart` (`src/ui/TideChart.tsx`) renders inline above the timeline track, sharing the timeline's exact time axis. There is no separate detail sheet or panel — the chart and timeline form one integrated bottom strip.
+
+- **Time range**: the visible scrubber window (`windowStartMs … +WINDOW_MS`, currently 15 h). When the user pans the timeline, the chart pans with it; the chart never has its own scroll axis.
+- **Curve**: a hand-rolled SVG `<path>`, sampled every 3 minutes via `valueAt`. Fill below the curve is light blue at 55% opacity. Stroke is a 2-px dark-blue line with `vector-effect: non-scaling-stroke` so the SVG can stretch to fit any viewport without distorting the line weight. uPlot wasn't worth the dependency for one curve drawn under the scrubber.
+- **Y-axis**: auto-scales to the window's visible min/max with a 0.6 m floor (so a near-flat window doesn't blow up to fill the chart). The data range maps to chart rows 22%–88%, reserving the top 22% for the thumb readout + HW labels and the bottom 12% for LW labels.
+- **HW / LW labels**: each published extreme inside the window gets a small white pill containing `HH:MM · X.X m`. HW labels sit just above the peak (anchored at the peak point and pushed up via `translate(-50%, -100%)`); LW labels sit just below the valley (`translate(-50%, 0)`). HW vs LW classification reuses `classifyHiLow()` from `src/interp/secondaryTides.ts`.
+- **Thumb vertical line + readout**: a 2-px vertical line passes through the thumb dot. The line is rendered at the `scrubber-main` level (parent of both the chart and the timeline track) so it spans both — top of the chart down through the chart, then through the upper half of the track, ending at the dot's centre. Stacking: line at `z-index: 1` (above curve, above timeline ticks), thumb dot at `z-index: 2` (above line). Above the line's top sits a dark-blue pill with the chosen instant's exact time and interpolated tide value.
+- **Memoisation**: the curve path and label list are memoised on `(extremes, windowStartMs)`. Dragging the thumb (which only changes `thumbFraction`) re-runs the cheap top-level render but reuses the cached path and labels.
+- **Dismiss**: there is no close button. Tapping the map (the selected marker, an empty area, or anywhere a non-selected marker would have been) deselects via the interactions in §6.5; the chart unmounts and the bottom strip collapses back to ~120 px.
+- **Empty state**: if the visible window contains no extremes for the station (e.g., scrubber outside the data range), the chart shows a centered "No tide data for this time window" message.
+
+Currents will get an analogous chart later; the design accommodates signed values, weak/variable maxes, and a flood/ebb hatched band background straightforwardly.
 
 ### 10.4 Banner
 
@@ -542,8 +552,8 @@ Pre-ship checklist on a real iPhone and a real Android mid-tier:
 4. **MapLibre + PMTiles basemap** rendering. No stations yet.
 5. **Station GeoJSON source + symbol/circle layers**, static (no scrubbing yet — show value at "now").
 6. **Scrubber UI** + signals wiring; verify per-frame updates work and stay under budget.
-7. **Tap-to-select + station detail sheet** with table.
-8. **uPlot chart** in the sheet.
+7. **Tap-to-select** with focus-mode hide-others (§6.5).
+8. **Tide chart** integrated into the bottom strip (§10.3) — hand-rolled SVG, not uPlot.
 9. **Banner** for edge cases (no data for now, manifest fetch failure).
 10. **Real-device perf pass** + bundle-size audit.
 11. **Deploy to Cloudflare Pages** with the cache headers in §4.3.
