@@ -307,6 +307,14 @@ export const showCurrents  = signal<boolean>(true);
 export const showPanels    = signal<boolean>(true);
 export const useFeet       = signal<boolean>(true);
 
+// Live user-location overlay (see §10.7). Two booleans because Google-
+// Maps-style follow behaviour decouples "show the dot" from "lock the
+// camera": the user can pan away (clearing `following` while leaving
+// `active` set) and re-engage with another tap.
+export const userLocationActive    = signal<boolean>(false);
+export const userLocationFollowing = signal<boolean>(false);
+export const userLocation          = signal<{ lat: number; lon: number } | null>(null);
+
 // Derived: which stations are currently visible on the map.
 export const visibleStationIds = computed(() => /* … */);
 ```
@@ -385,12 +393,13 @@ When the user taps a tide station, `TidePanel` (`src/ui/TidePanel.tsx`) overlays
 
 ### 10.5 Controls
 
-`Controls` (`src/ui/Controls.tsx`) is a four-box strip pinned to the top-right corner of the viewport, always visible above the map. `z-index: 3` — deliberately *below* both the `TidePanel` (z:4) and the scrubber (z:5), so on iPhone-width viewports where the panel covers the full map width, the panel overlays the controls cleanly instead of having them float on top of it. All four boxes are the same size — 96 × 36 px on desktop, 84 × 32 px at ≤600 px viewport width — stacked vertically.
+`Controls` (`src/ui/Controls.tsx`) is a vertical strip pinned to the top-right corner of the viewport, always visible above the map. `z-index: 3` — deliberately *below* both the `TidePanel` (z:4) and the scrubber (z:5), so on iPhone-width viewports where the panel covers the full map width, the panel overlays the controls cleanly instead of having them float on top of it. The four labelled toggles are uniform 96 × 36 px on desktop, 84 × 32 px at ≤600 px viewport width. The location button (§10.7) is a square 36 × 36 (32 × 32 mobile) icon-only box right-aligned to the column.
 
 - **Tides** (`showTides`) — when off, every tide marker is hidden via a `.hide-tides` class toggled on the map container, and the per-frame interpolation effect in `app.tsx` short-circuits so no work happens while markers are invisible. Flipping off also clears `selectedStationId`, so a user who had a station selected at the time exits chart + panel mode along with the markers (rather than being left with a chart for an invisible station). Flipping back on re-triggers a marker update so values are correct immediately.
 - **Currents** (`showCurrents`) — signal exists but is intentionally unwired in v1. Reserved for the future current overlay (§7.2).
 - **5 Day Panels** (`showPanels`) — when off, `TidePanel` (§10.4) early-returns even when a station is selected. Selection still expands the scrubber's chart; only the side panel is gated.
 - **Feet / Meters** (`useFeet`) — binary unit toggle, not on/off. Reuses the same on/off styling: Feet renders filled (the on style), Meters renders white-on-grey (the off style). The default is **Feet**, since the BC boating audience overwhelmingly thinks in feet.
+- **Location** — three-state square below the others; behaviour described in §10.7.
 
 The unit signal is read by `src/util/units.ts` — `formatTideHeight` (with unit suffix) is called from `TideChart` and `TidePanel`, `formatTideValue` (bare number) from the marker text in `stationLayer.ts`. Toggling the unit re-triggers the marker update effect in `app.tsx` so every marker re-renders in the new unit immediately.
 
@@ -402,6 +411,53 @@ A small dismissable strip across the top, shown only when:
 - Loaded data range ends in the past (e.g. it's Jan 5 2027 and only 2026 is loaded).
 
 Wording for the third case: *"2026 data ends Dec 31. The 2027 tables haven't been added yet — scrub back to see prior data."*
+
+### 10.7 User location overlay
+
+A live blue dot on the map showing the user's current position, modelled on Google Maps. Off by default; opt-in via the location button at the bottom of `Controls` (§10.5).
+
+**State.** Two signals govern behaviour, deliberately decoupled:
+
+- `userLocationActive` — a `navigator.geolocation.watchPosition` watcher is running and the dot is rendered.
+- `userLocationFollowing` — the camera recenters on every fresh fix.
+
+`active` without `following` is the "panned-away" state: the dot is still tracking the user, but the user has scrolled the map elsewhere. A third signal `userLocation` carries the latest fix.
+
+**Button states (three).** Tap cycles:
+
+- **off → following** — first tap: starts the watcher, locks the camera. Triggers the OS permission prompt on first ever use.
+- **following → off** — tap while locked: stops the watcher, hides the dot.
+- **active → following** — tap after the user has panned away: re-engages camera lock without restarting the watcher.
+
+The button's CSS reflects all three: black icon when off, blue outline when active-but-not-following, filled-blue when following. The glyph is a small "my location" crosshair (a circle with four cardinal-axis ticks); the hollow centre fills in when following.
+
+**Pan-to-unlock.** As soon as the user drags or wheel-zooms the map while following, `following` flips to false. The dot stays put but the camera releases. Implementation:
+
+- `map.on("dragstart", …)` — drag is always user-initiated, so this unconditionally clears `following`.
+- `map.on("zoomstart", e => …)` — zoom can fire from our own `flyTo` animation too, so we gate on `e.originalEvent` being present (programmatic moves don't carry one).
+
+**Camera follow.** A signal effect in `app.tsx` watches `(userLocation, userLocationFollowing)`. When following and a fresh fix arrives, calls `map.flyTo({ center, zoom, duration: 600 })`. On the *first* fix after activation, target zoom is `Math.max(currentZoom, 13)` so the dot is meaningfully framed; subsequent fixes preserve the user's current zoom.
+
+**Geolocation lifecycle (`src/util/geolocation.ts`).** Tiny module owning the `watchId`. `startGeolocation()` calls `watchPosition` with `{ enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }` plus a one-shot `getCurrentPosition` for fastest first-fix. `stopGeolocation()` clears the watch.
+
+Critical detail in the error path: on permission-denied / unavailable, **we do not reset `userLocationActive`** — only `stopGeolocation()` and log a warning. Some browsers fire the error callback synchronously when permission is already denied; resetting the flag from the error handler would set the signal back to false in the same microtask the click handler had just set it true, and the button would never visibly change (looks like "the click did nothing"). Leaving `active` as-is keeps the button in its tapped state; the user can untap explicitly.
+
+We also call out the secure-context requirement at start time with a `console.warn` if `!window.isSecureContext`. Geolocation only works over HTTPS or `http://localhost` — a LAN IP over plain HTTP will be silently blocked by the browser. This is a common dev gotcha (e.g. running the dev server in a VM and accessing it from the host via the VM's IP).
+
+**Marker (`src/map/userLocationMarker.ts`).** A single `maplibregl.Marker` wrapping a small DOM tree:
+
+```html
+<div class="user-location">
+  <div class="pulse-ring"></div>
+  <div class="dot"></div>
+</div>
+```
+
+`.dot` is a 22 px solid blue (`#1a73e8`) circle with a 3 px white border and drop-shadow. `.pulse-ring` is the same colour at low opacity, animated by a CSS `@keyframes user-location-pulse` (scale 1 → 2.6 with opacity fade, 2 s loop). No per-frame JS — the GPU drives the animation.
+
+The marker is constructed once at map mount. A signal effect calls `setLngLat()` on every `userLocation` update and `addTo(map)` / `remove()` based on `(active && hasFix)`. Show/hide is independent of follow mode: the dot moves whether or not the camera is locked.
+
+**Accuracy circle: deliberately omitted.** Google Maps draws a translucent circle scaled to GPS reported accuracy. The pixel radius needs recomputing on every zoom event (`map.project()` distance-per-degree) and the visual payoff is small. Skipped in v1; trivial to add later if missed.
 
 ## 11. Performance plan
 

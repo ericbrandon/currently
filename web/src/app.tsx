@@ -19,22 +19,30 @@ import {
   showTides,
   showCurrents,
   useFeet,
+  userLocation,
+  userLocationActive,
+  userLocationFollowing,
+  tosAccepted,
 } from "./state/store";
 import { fetchManifest, loadAllYears } from "./data/loader";
 import { createMap } from "./map/map";
 import { TideStationLayer } from "./map/stationLayer";
 import { CurrentStationLayer } from "./map/currentStationLayer";
+import { UserLocationMarker } from "./map/userLocationMarker";
 import { rafCoalesce } from "./util/rafCoalesce";
+import { startGeolocation, stopGeolocation } from "./util/geolocation";
 import { Scrubber } from "./ui/Scrubber";
 import { TidePanel } from "./ui/TidePanel";
 import { CurrentPanel } from "./ui/CurrentPanel";
 import { Controls } from "./ui/Controls";
+import { TosModal } from "./ui/TosModal";
 
 export function App() {
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
   const layerRef = useRef<TideStationLayer | null>(null);
   const currentLayerRef = useRef<CurrentStationLayer | null>(null);
+  const userLocMarkerRef = useRef<UserLocationMarker | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Step 1 + 2: fetch manifest, load all years.
@@ -72,6 +80,7 @@ export function App() {
     layerRef.current = layer;
     const currentLayer = new CurrentStationLayer(map, data);
     currentLayerRef.current = currentLayer;
+    userLocMarkerRef.current = new UserLocationMarker(map);
 
     map.on("load", () => {
       layer.attach();
@@ -83,6 +92,20 @@ export function App() {
     // stopPropagation), so this fires only for clicks that hit the map canvas.
     map.on("click", () => {
       selectedStationId.value = null;
+    });
+
+    // Pan-to-unlock for the user-location follow mode. Drag is always
+    // user-initiated, so dragstart unconditionally clears `following`.
+    // Wheel/touch zoom can come from either the user or our own flyTo
+    // animation, so we gate zoomstart on `originalEvent` being present —
+    // programmatic camera moves don't carry one.
+    map.on("dragstart", () => {
+      if (userLocationFollowing.value) userLocationFollowing.value = false;
+    });
+    map.on("zoomstart", (e) => {
+      if (e.originalEvent && userLocationFollowing.value) {
+        userLocationFollowing.value = false;
+      }
     });
   }, [loadedData.value]);
 
@@ -131,6 +154,70 @@ export function App() {
     };
   }, []);
 
+  // User location: geolocation watcher lifecycle. start/stop the
+  // navigator.geolocation.watchPosition in lockstep with the active
+  // signal. Runs once — independent of map mount, since starting the
+  // watcher early is harmless.
+  useEffect(() => {
+    const dispose = effect(() => {
+      if (userLocationActive.value) startGeolocation();
+      else {
+        stopGeolocation();
+        userLocation.value = null;
+      }
+    });
+    return () => {
+      dispose();
+      stopGeolocation();
+    };
+  }, []);
+
+  // User location: keep the dot marker's lng/lat in sync with the
+  // latest fix, and show/hide the marker as `active` flips. Two signals
+  // → one effect because the show/hide and reposition logic are coupled
+  // (no point showing a marker before the first fix arrives).
+  useEffect(() => {
+    if (!loadedData.value) return;
+    const dispose = effect(() => {
+      const active = userLocationActive.value;
+      const loc = userLocation.value;
+      const m = userLocMarkerRef.current;
+      if (!m) return;
+      if (active && loc) {
+        m.setPosition(loc.lon, loc.lat);
+        m.show();
+      } else {
+        m.hide();
+      }
+    });
+    return () => dispose();
+  }, [loadedData.value]);
+
+  // User location: when `following` is on, recenter the map on each new
+  // fix. Reads `userLocation` so the effect re-runs on every position
+  // update. On the first fix after activation, also bumps the zoom to
+  // at least 13 so the dot is meaningfully framed.
+  useEffect(() => {
+    let firstFix = true;
+    const dispose = effect(() => {
+      const following = userLocationFollowing.value;
+      const loc = userLocation.value;
+      const map = mapRef.current;
+      if (!following || !loc || !map) {
+        if (!following) firstFix = true;
+        return;
+      }
+      const targetZoom = firstFix ? Math.max(map.getZoom(), 13) : map.getZoom();
+      firstFix = false;
+      map.flyTo({
+        center: [loc.lon, loc.lat],
+        zoom: targetZoom,
+        duration: 600,
+      });
+    });
+    return () => dispose();
+  }, [loadedData.value]);
+
   // Toggle the .hide-tides / .hide-currents classes whenever the
   // matching control flips. CSS hides the corresponding markers; the
   // per-frame effect above also short-circuits while hidden. Flipping
@@ -169,6 +256,7 @@ export function App() {
       <CurrentPanel />
       <Scrubber />
       <Controls />
+      {!tosAccepted.value && <TosModal />}
     </div>
   );
 }

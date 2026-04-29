@@ -74,3 +74,47 @@ export const showTides = signal<boolean>(false);
 export const showCurrents = signal<boolean>(true);
 export const showPanels = signal<boolean>(false);
 export const useFeet = signal<boolean>(true);
+
+// Terms-of-Use gate. Acceptance is recorded in localStorage under a
+// versioned key — bump TOS_VERSION any time the terms change materially
+// so existing users are re-prompted (see notes/TOS.md §6).
+export const TOS_VERSION = "v1";
+const TOS_STORAGE_KEY = `tos-accepted-${TOS_VERSION}`;
+
+function readTosAccepted(): boolean {
+  try {
+    return localStorage.getItem(TOS_STORAGE_KEY) !== null;
+  } catch {
+    return false;
+  }
+}
+
+export const tosAccepted = signal<boolean>(readTosAccepted());
+
+export function acceptTos(): void {
+  try {
+    localStorage.setItem(
+      TOS_STORAGE_KEY,
+      JSON.stringify({
+        version: TOS_VERSION,
+        acceptedAt: new Date().toISOString(),
+      }),
+    );
+  } catch {
+    // Private-mode / storage-disabled: the click still counts for this
+    // session, but the user will be re-prompted next visit.
+  }
+  tosAccepted.value = true;
+}
+
+// Live user-location overlay (Google-Maps-style blue dot).
+//   - userLocationActive: a watchPosition is running and the marker is shown.
+//   - userLocationFollowing: the map recenters on each position update.
+//     Decoupled from `active` so the user can pan away (which clears
+//     `following` but leaves the dot rendered) and re-engage following by
+//     tapping the icon again.
+//   - userLocation: latest fix from the Geolocation API; null until the
+//     first reading or after the watcher stops.
+export const userLocationActive = signal<boolean>(false);
+export const userLocationFollowing = signal<boolean>(false);
+export const userLocation = signal<{ lat: number; lon: number } | null>(null);
