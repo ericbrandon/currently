@@ -1,23 +1,26 @@
 // 15-hour windowed timeline scrubber.
 //
-// Layout: a horizontal track with hour-number labels, half-hour and
-// quarter-hour tick marks, and a draggable thumb. The thumb's fraction
-// across the track maps to the displayed instant within the visible
-// 15-hour window. Dragging the thumb to either extreme starts an
-// auto-pan loop (6 h per real second) that slides the window through
-// time until the user releases.
+// The thumb sits at a fixed visual position (THUMB_FRACTION across the
+// track). The user pans the timeline content beneath it via:
+//   - pointer drag (mouse, pen, or touch — drag right to reveal earlier
+//     times, "content follows finger");
+//   - mouse wheel / trackpad scroll (down or right → advance into the
+//     future).
+// Drag is 1:1 with no momentum — boaters need precise minute-level control.
+// "Now" snaps the window so `Date.now()` sits exactly under the thumb.
 
 import { useEffect, useRef, useState } from "preact/hooks";
 import {
   windowStartMs,
-  thumbFraction,
   scrubberMs,
   scrubberRange,
   selectedStationId,
   loadedData,
+  panWindowTo,
   recenterAt,
   WINDOW_MS,
   STEP_MS,
+  THUMB_FRACTION,
 } from "../state/store";
 import { formatScrubber } from "../util/time";
 import { TideChart } from "./TideChart";
@@ -25,8 +28,17 @@ import { CurrentChart } from "./CurrentChart";
 
 const HOUR_MS = 60 * 60 * 1000;
 const HALF_MS = 30 * 60 * 1000;
-const PAN_RATE_MS_PER_SEC = 6 * HOUR_MS;          // 6 h per real second
-const EDGE_THRESHOLD = 0.02;                       // 2% from each end
+
+// Wheel calibration: ~15 min of pan per typical wheel notch (~100 px in
+// pixel mode). Trackpads send many small deltas which feels smooth at
+// this ratio.
+const WHEEL_MS_PER_PX = (15 * 60 * 1000) / 100;
+const WHEEL_LINE_PX = 16;
+const WHEEL_PAGE_PX = 800;
+
+// Drag speed: 0.5 means dragging the full track width pans the timeline by
+// half the visible window (7.5 h instead of 15 h).
+const DRAG_SPEED = 0.5;
 
 const HOUR_LABEL_FORMATTER = new Intl.DateTimeFormat("en-CA", {
   timeZone: "America/Vancouver",
@@ -52,7 +64,6 @@ type Tick = {
  *  and quarter ticks are visual only. */
 function buildTicks(start: number): Tick[] {
   const out: Tick[] = [];
-  // First quarter-hour boundary at or after start (start is already snapped).
   const firstQ = Math.ceil(start / STEP_MS) * STEP_MS;
   const end = start + WINDOW_MS;
   for (let t = firstQ; t <= end; t += STEP_MS) {
@@ -73,16 +84,21 @@ function buildTicks(start: number): Tick[] {
   return out;
 }
 
+type DragState = {
+  pointerId: number;
+  startClientX: number;
+  startWindowMs: number;
+  trackWidth: number;
+};
+
 export function Scrubber() {
   const range = scrubberRange.value;
+  const scrubberRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
-  const draggingRef = useRef(false);
-  const animFrameRef = useRef<number>(0);
-  const lastFrameTimeRef = useRef<number>(0);
+  const dragRef = useRef<DragState | null>(null);
+  const [grabbing, setGrabbing] = useState(false);
 
-  // Subscribe to signals by reading their values during render.
   const start = windowStartMs.value;
-  const f = thumbFraction.value;
   const ms = scrubberMs.value;
 
   // "Now" indicator: re-render once a minute so the red dot drifts across
@@ -98,67 +114,70 @@ export function Scrubber() {
   const ticks = buildTicks(start);
   const outOfRange = !!range && (ms < range.min || ms > range.max);
 
-  // ---------- Pointer handling ----------
-
-  function fractionFromPointer(e: PointerEvent): number {
-    const rect = trackRef.current!.getBoundingClientRect();
-    const raw = (e.clientX - rect.left) / rect.width;
-    return Math.max(0, Math.min(1, raw));
-  }
-
-  function ensurePanLoop() {
-    if (animFrameRef.current) return;
-    lastFrameTimeRef.current = performance.now();
-    const tick = (now: number) => {
-      const dt = now - lastFrameTimeRef.current;
-      lastFrameTimeRef.current = now;
-      const tf = thumbFraction.value;
-      let direction = 0;
-      if (tf <= EDGE_THRESHOLD) direction = -1;
-      else if (tf >= 1 - EDGE_THRESHOLD) direction = 1;
-      if (direction !== 0 && draggingRef.current) {
-        windowStartMs.value += direction * PAN_RATE_MS_PER_SEC * (dt / 1000);
-        animFrameRef.current = requestAnimationFrame(tick);
-      } else {
-        animFrameRef.current = 0;
-      }
-    };
-    animFrameRef.current = requestAnimationFrame(tick);
-  }
-
-  function stopPanLoop() {
-    if (animFrameRef.current) {
-      cancelAnimationFrame(animFrameRef.current);
-      animFrameRef.current = 0;
-    }
-  }
+  // ---------- Pointer drag ----------
+  //
+  // Handlers are attached at the .scrubber level so the gesture activates
+  // anywhere in the white panel — chart area included — and not just over
+  // the timeline track itself. The `closest('.scrubber-btn')` guard lets
+  // button clicks (Now) pass through normally.
 
   function handlePointerDown(e: PointerEvent) {
+    if ((e.target as Element | null)?.closest(".scrubber-btn")) return;
     e.preventDefault();
-    draggingRef.current = true;
+    const rect = trackRef.current!.getBoundingClientRect();
+    dragRef.current = {
+      pointerId: e.pointerId,
+      startClientX: e.clientX,
+      startWindowMs: windowStartMs.value,
+      trackWidth: rect.width,
+    };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    const f = fractionFromPointer(e);
-    thumbFraction.value = f;
-    if (f <= EDGE_THRESHOLD || f >= 1 - EDGE_THRESHOLD) ensurePanLoop();
+    setGrabbing(true);
   }
 
   function handlePointerMove(e: PointerEvent) {
-    if (!draggingRef.current) return;
-    const f = fractionFromPointer(e);
-    thumbFraction.value = f;
-    if (f <= EDGE_THRESHOLD || f >= 1 - EDGE_THRESHOLD) ensurePanLoop();
+    const d = dragRef.current;
+    if (!d || e.pointerId !== d.pointerId) return;
+    const dx = e.clientX - d.startClientX;
+    // Drag right → reveal earlier times → windowStartMs decreases.
+    panWindowTo(d.startWindowMs - DRAG_SPEED * (dx / d.trackWidth) * WINDOW_MS);
   }
 
   function handlePointerEnd(e: PointerEvent) {
-    if (!draggingRef.current) return;
-    draggingRef.current = false;
-    stopPanLoop();
+    const d = dragRef.current;
+    if (!d || e.pointerId !== d.pointerId) return;
+    dragRef.current = null;
+    setGrabbing(false);
     try {
       (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     } catch {
-      // Already released or never captured — ignore.
+      // Already released — ignore.
     }
   }
+
+  // ---------- Wheel ----------
+  //
+  // Attached via addEventListener with { passive: false } so we can
+  // preventDefault — Preact's JSX onWheel gives no direct way to pin
+  // passivity, and Chrome treats wheel listeners on the document tree
+  // as passive by default in some setups.
+
+  useEffect(() => {
+    const el = scrubberRef.current;
+    if (!el) return;
+    function onWheel(e: WheelEvent) {
+      if ((e.target as Element | null)?.closest(".scrubber-btn")) return;
+      e.preventDefault();
+      const scale =
+        e.deltaMode === 1 ? WHEEL_LINE_PX :
+        e.deltaMode === 2 ? WHEEL_PAGE_PX : 1;
+      const px = (e.deltaY + e.deltaX) * scale;
+      // Down / right → advance into the future → windowStartMs increases.
+      panWindowTo(windowStartMs.value + px * WHEEL_MS_PER_PX);
+    }
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [range]);
 
   function nowClick() {
     recenterAt(Date.now());
@@ -180,7 +199,14 @@ export function Scrubber() {
     selMeta?.kind === "tide-primary" || selMeta?.kind === "tide-secondary";
 
   return (
-    <div class={`scrubber${hasChart ? " scrubber-with-chart" : ""}`}>
+    <div
+      class={`scrubber${hasChart ? " scrubber-with-chart" : ""}${grabbing ? " is-grabbing" : ""}`}
+      ref={scrubberRef}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerEnd}
+      onPointerCancel={handlePointerEnd}
+    >
       <div class="scrubber-label">
         <div class="scrubber-label-left">
           {stationName && <span class="scrubber-station-name">{stationName}</span>}
@@ -192,14 +218,7 @@ export function Scrubber() {
         <div class="scrubber-main">
           {isTideSel && <TideChart />}
           {isCurrentSel && <CurrentChart />}
-          <div
-            class="scrubber-track"
-            ref={trackRef}
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerEnd}
-            onPointerCancel={handlePointerEnd}
-          >
+          <div class="scrubber-track" ref={trackRef}>
             <div class="scrubber-axis" />
             {ticks.map((t, i) => (
               <div
@@ -238,13 +257,13 @@ export function Scrubber() {
             )}
             <div
               class="scrubber-thumb"
-              style={{ left: `${f * 100}%` }}
+              style={{ left: `${THUMB_FRACTION * 100}%` }}
             />
           </div>
           {hasChart && (
             <div
               class="scrubber-thumb-vline"
-              style={{ left: `${f * 100}%` }}
+              style={{ left: `${THUMB_FRACTION * 100}%` }}
             />
           )}
         </div>

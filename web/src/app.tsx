@@ -21,7 +21,7 @@ import {
   useFeet,
 } from "./state/store";
 import { fetchManifest, loadAllYears } from "./data/loader";
-import { createMap, stationBounds } from "./map/map";
+import { createMap } from "./map/map";
 import { TideStationLayer } from "./map/stationLayer";
 import { CurrentStationLayer } from "./map/currentStationLayer";
 import { rafCoalesce } from "./util/rafCoalesce";
@@ -64,11 +64,8 @@ export function App() {
     const data = loadedData.value;
     if (!data || !mapContainer.current || mapRef.current) return;
 
-    const tideStations = [...data.stationsById.values()].filter(
-      (s) => s.kind === "tide-primary" || s.kind === "tide-secondary",
-    );
-    const bbox = stationBounds(tideStations);
-    const map = createMap(mapContainer.current, [[bbox[0], bbox[1]], [bbox[2], bbox[3]]]);
+    // Initial view: centered on Sidney, BC (Saanich Peninsula).
+    const map = createMap(mapContainer.current, [-123.3989, 48.6512], 9);
     mapRef.current = map;
 
     const layer = new TideStationLayer(map, data);

@@ -22,18 +22,18 @@
 // Scrubber so it can extend down through the track to the dot — the
 // chart owns only the readout text at the line's top.
 //
-// Curve sampling is memoised on (extremes, start, lhhw, lllw). Dragging
-// the thumb (which only changes thumbFraction → scrubberMs) doesn't
-// re-sample.
+// Curve sampling is memoised on (extremes, start, lhhw, lllw). Panning
+// the timeline changes start and forces a re-sample; redraws driven by
+// other state (selection, units) reuse the cached path.
 
 import { useMemo } from "preact/hooks";
 import {
   windowStartMs,
-  thumbFraction,
   scrubberMs,
   selectedStationId,
   loadedData,
   WINDOW_MS,
+  THUMB_FRACTION,
 } from "../state/store";
 import { valueAt } from "../interp/valueAt";
 import { classifyHiLow } from "../interp/secondaryTides";
@@ -65,7 +65,7 @@ export function TideChart() {
   const id = selectedStationId.value;
   const data = loadedData.value;
   const start = windowStartMs.value;
-  const f = thumbFraction.value;
+  const f = THUMB_FRACTION;
   const ms = scrubberMs.value;
 
   const meta = id !== null && data ? data.stationsById.get(id) ?? null : null;

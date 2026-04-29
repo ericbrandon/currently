@@ -1,17 +1,18 @@
 // Global app state.
 //
-// The scrubber is a 15-hour *windowed* view, not a full-year slider:
+// The scrubber is a 15-hour *windowed* view, not a full-year slider.
+// The thumb sits at a fixed visual position — `THUMB_FRACTION` of the
+// way across the track — and the user pans the timeline content
+// underneath it via drag, wheel, or touch. So:
 //
-//   - `windowStartMs` is the absolute UTC ms at the left edge of the visible
-//     scrubber window. It changes when the labels pan (edge-pan, ±1h/±1d
-//     buttons, "Now"). It is always snapped to the 15-min grid.
-//   - `thumbFraction` is the thumb's position within the window, 0..1.
-//     It changes when the user drags the thumb. Default 0.2 (3/15) places
-//     "now" three hours from the left, leaving twelve hours of forecast
-//     space to the right — useful for boaters planning a trip.
-//   - `scrubberMs` is computed from those two and is what the rest of the
-//     app reads. Snapped to STEP_MS so the map only re-renders on quarter-
-//     hour transitions.
+//   - `windowStartMs` is the absolute UTC ms at the left edge of the
+//     visible scrubber window. The Scrubber mutates it (via panWindowTo)
+//     in response to user input.
+//   - `THUMB_FRACTION` is a constant: 0.2, placing the thumb three hours
+//     from the left edge with twelve hours of forecast space to the right
+//     — useful for boaters planning a trip.
+//   - `scrubberMs` is computed from those and is what the rest of the
+//     app reads.
 
 import { signal, computed } from "@preact/signals";
 import type { LoadedData, Manifest } from "../types";
@@ -22,33 +23,16 @@ export const loadedData = signal<LoadedData | null>(null);
 // Scrubber constants.
 export const STEP_MS = 15 * 60 * 1000;                 // visual tick spacing
 export const WINDOW_MS = 15 * 60 * 60 * 1000;          // 15-hour visible window
-export const DEFAULT_THUMB_FRACTION = 3 / 15;          // 3 h past, 12 h future
-
-// Note: scrubberMs is *not* snapped to STEP_MS. STEP_MS is only the
-// visual tick spacing on the timeline; the thumb may sit anywhere along
-// it, and "Now" / initial load resolve to the exact current instant.
+export const THUMB_FRACTION = 3 / 15;                  // 3 h past, 12 h future
 
 export const windowStartMs = signal<number>(
-  Date.now() - DEFAULT_THUMB_FRACTION * WINDOW_MS,
+  Date.now() - THUMB_FRACTION * WINDOW_MS,
 );
-export const thumbFraction = signal<number>(DEFAULT_THUMB_FRACTION);
 
-/** Absolute UTC ms of the moment currently being displayed. */
+/** Absolute UTC ms of the moment currently being displayed (under the thumb). */
 export const scrubberMs = computed(
-  () => windowStartMs.value + thumbFraction.value * WINDOW_MS,
+  () => windowStartMs.value + THUMB_FRACTION * WINDOW_MS,
 );
-
-/** Move the displayed instant to `t` while keeping the thumb fraction stable
- *  (the labels visually pan rather than the thumb jumping). */
-export function setScrubberMs(t: number): void {
-  windowStartMs.value = t - thumbFraction.value * WINDOW_MS;
-}
-
-/** Reset the thumb to its default position with `t` aligned to it exactly. */
-export function recenterAt(t: number): void {
-  thumbFraction.value = DEFAULT_THUMB_FRACTION;
-  windowStartMs.value = t - DEFAULT_THUMB_FRACTION * WINDOW_MS;
-}
 
 export const selectedStationId = signal<number | null>(null);
 
@@ -57,6 +41,25 @@ export const scrubberRange = computed(() => {
   const v = loadedData.value;
   return v ? v.scrubberRangeMs : null;
 });
+
+/** Set windowStartMs, clamping so the thumb's instant stays inside the
+ *  loaded data range. Range may be null while loading; in that case the
+ *  caller's value passes through unclamped. */
+export function panWindowTo(t: number): void {
+  const r = scrubberRange.value;
+  if (r) {
+    const min = r.min - THUMB_FRACTION * WINDOW_MS;
+    const max = r.max - THUMB_FRACTION * WINDOW_MS;
+    if (t < min) t = min;
+    else if (t > max) t = max;
+  }
+  windowStartMs.value = t;
+}
+
+/** Place the instant `t` exactly under the thumb. */
+export function recenterAt(t: number): void {
+  panWindowTo(t - THUMB_FRACTION * WINDOW_MS);
+}
 
 // User-facing toggles surfaced via the Controls panel in the top-right.
 //   - showTides: render and update tide-station markers (off → markers

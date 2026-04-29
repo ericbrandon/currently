@@ -17,11 +17,11 @@
 import { useMemo } from "preact/hooks";
 import {
   windowStartMs,
-  thumbFraction,
   scrubberMs,
   selectedStationId,
   loadedData,
   WINDOW_MS,
+  THUMB_FRACTION,
 } from "../state/store";
 import { currentValueAt } from "../interp/valueAt";
 import { formatCurrentSpeed } from "../util/units";
@@ -58,7 +58,7 @@ export function CurrentChart() {
   const id = selectedStationId.value;
   const data = loadedData.value;
   const start = windowStartMs.value;
-  const f = thumbFraction.value;
+  const f = THUMB_FRACTION;
   const ms = scrubberMs.value;
 
   const meta = id !== null && data ? data.stationsById.get(id) ?? null : null;

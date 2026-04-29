@@ -65,6 +65,13 @@ html, body, #app {
   border-top: 1px solid #e5e7eb;
   z-index: 5;
   backdrop-filter: blur(6px);
+  cursor: grab;
+  touch-action: none;
+  overscroll-behavior: contain;
+  user-select: none;
+}
+.scrubber.is-grabbing {
+  cursor: grabbing;
 }
 
 .scrubber-loading {
@@ -139,9 +146,6 @@ html, body, #app {
   min-width: 0;
   position: relative;
   height: 72px;
-  cursor: ew-resize;
-  touch-action: none;
-  user-select: none;
 }
 
 /* Horizontal axis line: drawn through the centre of the tick zone. */
@@ -232,6 +236,10 @@ html, body, #app {
   border: 1px solid #cbd5e1;
   border-radius: 8px;
   cursor: pointer;
+  touch-action: auto;
+}
+.scrubber.is-grabbing .scrubber-btn {
+  cursor: grabbing;
 }
 .scrubber-btn:active {
   background: #e2e8f0;
