@@ -41,24 +41,41 @@ Pages wins on the last row: since `currentlybc.com` is registered at Cloudflare,
 
 Before starting:
 
-- [ ] `currentlybc.com` purchased through Cloudflare registrar. The zone shows up automatically in Cloudflare's dashboard under **Websites**.
+- [ ] `currentlybc.com` purchased through Cloudflare registrar. The zone shows up automatically in Cloudflare's dashboard under **Websites**. Buy with WHOIS redaction on (free, default), auto-renew on, and Cloudflare's nameservers (default). Click the ICANN verification email within 15 days or the domain gets suspended.
 - [ ] Repo pushed to GitHub (or GitLab — Pages supports both). CF Pages reads from the remote, not your laptop.
+- [ ] `release` branch exists on the remote and points at the commit you want live. `release` is the production branch; `main` is the iteration branch (see §4 for the why).
 - [ ] `web/package-lock.json` committed. `npm ci` requires it.
 - [ ] `web/.nvmrc` committed (currently pins Node 22). CF reads this automatically.
-- [ ] `main` builds cleanly locally: `cd web && npm ci && npm run build` produces `web/dist/` with no errors.
+- [ ] `web/vite.config.ts` sets `base: './'` so built asset paths work on both apex and preview hostnames.
+- [ ] `web/public/_headers` committed (see §5) so the very first deploy serves the right cache policy.
+- [ ] Local build is clean: `cd web && npm ci && npm run build` produces `web/dist/` with no errors and `dist/_headers` present.
 
 ## 4. Create the Pages project
 
-Go to **Cloudflare dashboard → Workers & Pages → Create → Pages → Connect to Git**.
+### 4.1 Finding the Pages flow (it's partially hidden)
 
-**Authorise GitHub** (one-time): grant CF read access to either all repos or just the `Currently` repo. Then select the repo.
+Cloudflare has been steering new projects toward "Workers + Static Assets" and the standalone Pages create button is no longer obvious in the UI. The default **Workers & Pages → Create** button now drops you in the Workers flow ("Create a Worker"). That's the wrong path for this project — our `_headers` file, build config, and this doc all assume Pages.
+
+To reach the Pages create flow directly:
+
+```
+https://dash.cloudflare.com/?to=/:account/pages/new/provider/github
+```
+
+Cloudflare resolves `:account` automatically. If that URL bounces you, navigate to `dash.cloudflare.com/?to=/:account/pages` (the Pages project list) and click **Create a project**. The page title should read **"Create a project"** with a step labeled **"Connect to Git"**, *not* **"Create a Worker"**.
+
+### 4.2 Authorise GitHub and select the repo
+
+One-time: grant CF read access to either all your repos or just the `currently` repo. Then select the repo.
+
+### 4.3 Build configuration
 
 On the **Set up builds and deployments** screen, enter exactly:
 
 | Field | Value |
 |---|---|
 | Project name | `currently` (becomes `currently.pages.dev`) |
-| Production branch | `main` |
+| Production branch | `release` |
 | Framework preset | **None** |
 | Build command | `cd web && npm ci && npm run build` |
 | Build output directory | `web/dist` |
@@ -67,11 +84,12 @@ On the **Set up builds and deployments** screen, enter exactly:
 
 Notes on the non-obvious choices:
 
+- **Production branch `release`, not `main`.** This is deliberate. We use `main` as the iteration branch (push freely, get private preview deploys at `main.currently.pages.dev`) and promote to `release` only when we want the public site to update. To publish: `git push origin main:release` (or open a `main → release` PR if you want a paper trail). Pushing to `main` does *not* update `currentlybc.com`.
 - **Framework preset "None"** — Vite is listed, but the preset assumes the project root is the Vite project. Ours is in `web/`, so we override the build command instead. None is cleaner.
 - **Build output `web/dist`** — relative to repo root, *not* relative to the build command's cwd. Pages runs the command, then looks for the output at this path from the repo root.
 - **No `NODE_VERSION` env var needed** — CF reads `web/.nvmrc` automatically. If you ever want to override, add `NODE_VERSION=22` in the env vars section.
 
-Click **Save and Deploy**. The first build runs immediately (~1–2 min). When it finishes, your site is live at `https://currently.pages.dev`. Click through and verify it works before attaching the custom domain.
+Click **Save and Deploy**. The first build runs immediately (~1–2 min) against whatever `release` currently points at. When it finishes, your site is live at `https://currently.pages.dev`. Click through and verify it works before attaching the custom domain.
 
 ## 5. The `_headers` file (cache policy)
 
@@ -83,13 +101,16 @@ Create `web/public/_headers` with this content:
 /index.html
   Cache-Control: no-cache
 
+/
+  Cache-Control: no-cache
+
 /manifest.webmanifest
   Cache-Control: no-cache
 
 /data/manifest.json
   Cache-Control: no-cache, must-revalidate
 
-/data/*/*.json
+/data/*
   Cache-Control: public, max-age=31536000, immutable
 
 /assets/*
@@ -108,7 +129,8 @@ A few things to know:
 
 - The first matching rule wins, top-down. Order matters: put more-specific paths before broader ones.
 - Pages applies `Content-Encoding: br` (brotli) automatically on top of whatever you set here. Don't try to set it yourself.
-- The `data/*/*.json` glob covers `data/2026/tidal_primary.abc123.json` etc. — exactly the hashed files that are safe to cache forever.
+- **Two rules for the index page** (`/` and `/index.html`): CF Pages matches paths literally, so a request for `/` doesn't match the `/index.html` rule. Without the explicit `/` rule, Pages falls back to its default (`max-age=0, must-revalidate`), which is functionally close to `no-cache` but not identical to what we declare.
+- **`/data/*` (single trailing splat), not `/data/*/*.json`.** CF Pages' `_headers` matcher reliably handles literal paths and single trailing splats, but multi-splat patterns with extension constraints (`/data/*/*.json`) silently don't match. Since the literal `/data/manifest.json` rule comes first, manifest.json gets the no-cache policy and everything else under `/data/` (the hashed yearly JSONs) falls through to the immutable rule.
 - `data/manifest.json` is not hashed, so it gets the no-cache policy. This is the one file the browser must revalidate on every load.
 - `assets/*` is where Vite puts its own hashed JS/CSS bundles (e.g. `assets/index-BzHW9vuW.js`).
 
@@ -198,16 +220,25 @@ cat web/public/data/manifest.json            # 2027 entry should be present
 # 4. Smoke-test in dev
 cd web && npm run dev                        # check the new year scrubs cleanly
 
-# 5. Commit and push
+# 5. Commit to main and push
 cd ..
 git add web/public/data/2027/ web/public/data/manifest.json
 git commit -m "Add 2027 CHS tables"
-git push
+git push origin main
+
+# 6. Smoke-test the preview deploy
+#    Open https://main.currently.pages.dev — confirm 2027 scrubs cleanly
+#    on the live build (not just `npm run dev`).
+
+# 7. Promote to production
+git push origin main:release
 ```
 
-Pushing to `main` triggers CF Pages automatically. About 90 seconds later `currentlybc.com` is serving 2027 data. Browsers with a stale `manifest.json` revalidate on next load (the no-cache header earns its keep here) and pick up the new year without a force-refresh.
+Pushing to `release` triggers CF Pages automatically. About 90 seconds later `currentlybc.com` is serving 2027 data. Browsers with a stale `manifest.json` revalidate on next load (the no-cache header earns its keep here) and pick up the new year without a force-refresh.
 
 No app code changes. No Pages settings change. No version bump.
+
+The same promote pattern (`git push origin main:release`) applies to any other change you want to publish — bug fixes, new features, copy edits. Iterate on `main`, verify on the preview URL, then promote.
 
 ## 10. Troubleshooting
 
