@@ -33,7 +33,7 @@ export function InfoModal() {
     >
       <div class="info-modal">
         <div class="info-header">
-          <h2 id="info-title" class="info-title">Currently</h2>
+          <h2 id="info-title" class="info-title">Information</h2>
           <button
             class="info-close"
             type="button"
@@ -44,6 +44,13 @@ export function InfoModal() {
           </button>
         </div>
         <div class="info-body">
+          <h3>Legend</h3>
+          <ul class="info-legend">
+            <li>Times are BC local time (UTC&minus;7 all year)</li>
+            <li>Current speed is in knots</li>
+            <li>Tide heights are in meters or feet (user selectable)</li>
+          </ul>
+
           <p class="info-copyright">© 2026</p>
           <p>
             Contact:{" "}

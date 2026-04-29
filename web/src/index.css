@@ -1253,6 +1253,14 @@ html, body, #app {
   font-variant-numeric: tabular-nums;
 }
 
+.info-legend {
+  margin: 0 0 0.85em;
+  padding-left: 1.2em;
+}
+.info-legend li {
+  margin: 0 0 0.25em;
+}
+
 /* ------------------------------------------------------------------
    Mobile breakpoint
    ------------------------------------------------------------------ */
