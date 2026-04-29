@@ -687,158 +687,13 @@ html, body, #app {
    scrubber's actual height via a CSS variable set by app.tsx through a
    ResizeObserver — keeps the panel flush with the scrubber's top no
    matter how tall the scrubber gets when the chart is showing. */
-.tide-panel {
-  position: absolute;
-  top: 0;
-  bottom: var(--scrubber-h, 120px);
-  left: 0;
-  width: 390px;                 /* iPhone 12 Pro viewport width */
-  max-width: 100%;              /* never exceed viewport on phones */
-  background: rgba(255, 255, 255, 0.96);
-  z-index: 4;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 1px 0 8px rgba(0, 0, 0, 0.1);
-  pointer-events: auto;
-}
-
-.tide-panel-header {
-  flex: 0 0 auto;
-  padding: 10px 14px;
-  font-weight: 700;
-  font-size: 15px;
-  letter-spacing: 0.02em;
-  background: #0c4a6e;
-  color: #ffffff;
-  text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.tide-panel-timeline {
-  flex: 1 1 auto;
-  position: relative;
-  display: flex;
-  overflow: hidden;
-}
-
-.tide-panel-gutter {
-  flex: 0 0 90px;
-  position: relative;
-  border-right: 1px solid #e5e7eb;
-  background: #f8fafc;
-}
-
-.tide-panel-day {
-  position: absolute;
-  left: 0;
-  right: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  z-index: 2;
-}
-
-.tide-panel-day-weekday {
-  font-size: 12px;
-  font-weight: 800;
-  color: #0c4a6e;
-  letter-spacing: 0.06em;
-}
-
-.tide-panel-day.today .tide-panel-day-weekday {
-  color: #b91c1c;
-}
-
-.tide-panel-day-date {
-  font-size: 11px;
-  color: #64748b;
-  margin-top: 2px;
-  font-variant-numeric: tabular-nums;
-}
-
-.tide-panel-events {
-  flex: 1 1 auto;
-  position: relative;
-}
-
-.tide-panel-event {
-  position: absolute;
-  left: 6px;
-  right: 6px;
-  padding: 2px 8px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-  transform: translateY(-50%);
-  white-space: nowrap;
-  background: rgba(255, 255, 255, 0.92);
-  border-radius: 4px;
-  z-index: 2;
-}
-
-.tide-panel-event-time {
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.tide-panel-event-kind {
-  font-weight: 700;
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  padding: 2px 6px;
-  border-radius: 3px;
-}
-
-.tide-panel-event.hw .tide-panel-event-kind {
-  background: #0c4a6e;
-  color: #ffffff;
-}
-
-.tide-panel-event.lw .tide-panel-event-kind {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.tide-panel-event-height {
-  color: #475569;
-  font-weight: 600;
-}
-
-.tide-panel-divider {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: #cbd5e1;
-  pointer-events: none;
-  z-index: 1;
-}
-
-/* The sliding 15-h window highlight. z:3 so it tints events / day
-   labels behind it. No borders — translucent borders on a frequently-
-   repositioned absolute element leave compositor trails in Chromium.
-   The fill alone is enough to read as a band; bumped up the alpha a
-   touch so the edges remain crisp without needing a stroke. */
-.tide-panel-bar {
-  position: absolute;
-  left: 0;
-  right: 0;
-  /* Previous: rgba(254, 240, 138, 0.32) — translucent yellow */
-  background: rgba(186, 230, 253, 0.26);
-  pointer-events: none;
-  z-index: 3;
-}
-
-/* ------------------------------------------------------------------
-   Current panel (mirrors TidePanel, palette tuned for flood / ebb / slack)
-   ------------------------------------------------------------------ */
-.current-panel {
+/* Shared station panel layout. The vertical axis is a fixed pixels-per-
+   hour scale; events and day labels are absolutely positioned at the
+   `top` computed by their absolute time. The bar pinned at top-quarter
+   marks the chart's visible 15-h window. Drag/wheel on the panel pans
+   `windowStartMs`, which is the same signal the timeline scrubber drives
+   — so the two are linked bidirectionally. */
+.station-panel {
   position: absolute;
   top: 0;
   bottom: var(--scrubber-h, 120px);
@@ -851,112 +706,64 @@ html, body, #app {
   flex-direction: column;
   box-shadow: 1px 0 8px rgba(0, 0, 0, 0.1);
   pointer-events: auto;
+  touch-action: none;
+  overscroll-behavior: contain;
+  user-select: none;
 }
 
-.current-panel-header {
+.station-panel-header {
   flex: 0 0 auto;
   padding: 10px 14px;
   font-weight: 700;
   font-size: 15px;
   letter-spacing: 0.02em;
-  background: #0c2c5e;
   color: #ffffff;
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.tide-panel .station-panel-header    { background: #0c4a6e; }
+.current-panel .station-panel-header { background: #0c2c5e; }
 
-.current-panel-timeline {
+.station-panel-timeline {
   flex: 1 1 auto;
   position: relative;
-  display: flex;
   overflow: hidden;
 }
 
-.current-panel-gutter {
-  flex: 0 0 90px;
-  position: relative;
-  border-right: 1px solid #e5e7eb;
-  background: #f8fafc;
-}
-
-.current-panel-day {
+/* Day-boundary row: a divider line spanning the full panel and a left
+   gutter holding the weekday + date labels. Both are absolutely
+   positioned at the day-boundary's computed top. */
+.station-panel-day {
   position: absolute;
   left: 0;
-  right: 0;
+  width: 90px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   text-align: center;
+  pointer-events: none;
   z-index: 2;
+  padding-top: 4px;
 }
-
-.current-panel-day-weekday {
+.station-panel-day-weekday {
   font-size: 12px;
   font-weight: 800;
-  color: #0c2c5e;
   letter-spacing: 0.06em;
 }
-
-.current-panel-day.today .current-panel-day-weekday {
-  color: #b91c1c;
-}
-
-.current-panel-day-date {
+.tide-panel    .station-panel-day-weekday { color: #0c4a6e; }
+.current-panel .station-panel-day-weekday { color: #0c2c5e; }
+.station-panel-day.today .station-panel-day-weekday { color: #b91c1c; }
+.station-panel-day-date {
   font-size: 11px;
   color: #64748b;
   margin-top: 2px;
   font-variant-numeric: tabular-nums;
 }
 
-.current-panel-events {
-  flex: 1 1 auto;
-  position: relative;
-}
-
-.current-panel-event {
-  position: absolute;
-  left: 6px;
-  right: 6px;
-  padding: 2px 8px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-  transform: translateY(-50%);
-  white-space: nowrap;
-  background: rgba(255, 255, 255, 0.92);
-  border-radius: 4px;
-  z-index: 2;
-}
-
-.current-panel-event-time {
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.current-panel-event-kind {
-  font-weight: 700;
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  padding: 2px 6px;
-  border-radius: 3px;
-}
-
-.current-panel-event.flood .current-panel-event-kind { background: #0c2c5e; color: #ffffff; }
-.current-panel-event.ebb   .current-panel-event-kind { background: #b91c1c; color: #ffffff; }
-.current-panel-event.slack .current-panel-event-kind { background: #ede9fe; color: #6b21a8; }
-.current-panel-event.weak  .current-panel-event-kind { background: #fef3c7; color: #92400e; }
-
-.current-panel-event-speed {
-  color: #475569;
-  font-weight: 600;
-}
-
-.current-panel-divider {
+.station-panel-divider {
   position: absolute;
   left: 0;
   right: 0;
@@ -966,13 +773,95 @@ html, body, #app {
   z-index: 1;
 }
 
-.current-panel-bar {
+/* Event row. Fixed height (matches PANEL_EVENT_ROW_HEIGHT_PX in JS so
+   the collision-avoidance pass can reason in pixels). Sits to the right
+   of the day-label gutter. */
+.station-panel-event {
+  position: absolute;
+  left: 96px;
+  right: 6px;
+  height: 22px;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 4px;
+  z-index: 2;
+}
+.station-panel-event-time {
+  font-weight: 700;
+  color: #0f172a;
+}
+.station-panel-event-kind {
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+.station-panel-event-height,
+.station-panel-event-speed {
+  color: #475569;
+  font-weight: 600;
+}
+
+/* Tide-specific event kind palette. */
+.station-panel-event.hw .station-panel-event-kind { background: #0c4a6e; color: #ffffff; }
+.station-panel-event.lw .station-panel-event-kind { background: #fef3c7; color: #92400e; }
+
+/* Current-specific event kind palette. */
+.station-panel-event.flood .station-panel-event-kind { background: #0c2c5e; color: #ffffff; }
+.station-panel-event.ebb   .station-panel-event-kind { background: #b91c1c; color: #ffffff; }
+.station-panel-event.slack .station-panel-event-kind { background: #ede9fe; color: #6b21a8; }
+.station-panel-event.weak  .station-panel-event-kind { background: #fef3c7; color: #92400e; }
+
+/* The fixed 15-h window highlight. Top + height come from inline style
+   (`PANEL_BAR_TOP_CSS` / `PANEL_BAR_HEIGHT_CSS`). z:3 → tints events
+   and day labels behind it. */
+.station-panel-bar {
   position: absolute;
   left: 0;
   right: 0;
   background: rgba(186, 230, 253, 0.26);
   pointer-events: none;
   z-index: 3;
+}
+
+/* Close affordance — chevron pinned to the right edge, vertically
+   centered. The `<<` reads as "swipe / dismiss to the left," matching
+   the swipe-left dismiss gesture. */
+.panel-close {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 64px;
+  border: none;
+  border-radius: 6px 0 0 6px;
+  background: rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 5;
+  padding: 0;
+  font-family: inherit;
+  /* Avoid having the close button steal touch from the panel pan. The
+     gesture handler short-circuits on `.panel-close` targets, but
+     touch-action:auto here also lets browser-level tap behavior work. */
+  touch-action: auto;
+}
+.panel-close:hover {
+  background: rgba(15, 23, 42, 0.16);
+}
+.panel-close:active {
+  background: rgba(15, 23, 42, 0.22);
 }
 
 /* ------------------------------------------------------------------

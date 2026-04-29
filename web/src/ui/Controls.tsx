@@ -1,14 +1,16 @@
 // Always-visible controls panel pinned to the top-right of the map.
 //
-// Four equally-sized boxes:
-//   - Tides           on/off — show tide-station markers.
-//   - Currents        on/off — show current-station markers.
-//   - 5 Day Panels    on/off — show TidePanel when a tide station is selected.
-//   - m / ft          binary — formatting unit for every tide height.
-//                     Rendered as a split-diagonal toggle: the selected unit's
-//                     half is blue. Clicking anywhere on the box flips it.
-//                     Hidden when tides are off (currents are in knots and
-//                     don't use this setting).
+// Boxes (top to bottom):
+//   - Tides     on/off — show tide-station markers.
+//   - Currents  on/off — show current-station markers.
+//   - Panels    on/off — show TidePanel/CurrentPanel when a station is
+//               selected. Default off; the panel covers a chunk of the
+//               map on phones, so the user opts in.
+//   - m / ft    binary — formatting unit for every tide height.
+//               Rendered as a split-diagonal toggle: the selected unit's
+//               half is blue. Clicking anywhere on the box flips it.
+//               Hidden when tides are off (currents are in knots and
+//               don't use this setting).
 
 import {
   showTides,
@@ -36,7 +38,7 @@ export function Controls() {
         class={`control-box ${showPanels.value ? "on" : "off"}`}
         onClick={() => { showPanels.value = !showPanels.value; }}
       >
-        5 Day Panels
+        Panels
       </button>
       {showTides.value && (
         <button

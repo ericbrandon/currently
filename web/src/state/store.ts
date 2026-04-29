@@ -72,5 +72,5 @@ export function recenterAt(t: number): void {
 //   - useFeet: format every tide height in feet instead of metres.
 export const showTides = signal<boolean>(false);
 export const showCurrents = signal<boolean>(true);
-export const showPanels = signal<boolean>(true);
+export const showPanels = signal<boolean>(false);
 export const useFeet = signal<boolean>(true);

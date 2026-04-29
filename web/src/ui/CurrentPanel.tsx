@@ -1,23 +1,29 @@
-// 5-day overview panel for the selected primary current station —
-// parallel to TidePanel. Lists every slack and max event in the next
-// five local days, with a translucent bar tracking the chart's visible
-// 15-h window. Layout mirrors TidePanel exactly so the two feel like
-// one feature.
+// 5-day-style overview for the selected primary current station —
+// parallel to TidePanel. Lists every slack and max event in the visible
+// time range. Currents are denser than tides (≈ 8 events/day vs 4), so
+// rows that would overlap at the fixed pixels-per-hour scale get shifted
+// down just enough to avoid touching. The label times remain accurate
+// even where the row's vertical position is fudged.
 
+import { useRef } from "preact/hooks";
 import {
   selectedStationId,
   loadedData,
+  scrubberMs,
   windowStartMs,
-  WINDOW_MS,
   showPanels,
 } from "../state/store";
 import { localMidnightUtcMs } from "../util/time";
 import { formatCurrentSpeed } from "../util/units";
+import {
+  DAY_MS,
+  PANEL_RENDER_HALF_DAYS,
+  PANEL_EVENT_ROW_HEIGHT_PX,
+  CURRENT_PANEL_LAYOUT,
+  usePanelGestures,
+} from "./panelGestures";
 
 const TZ = "America/Vancouver";
-const DAY_MS = 24 * 3600 * 1000;
-const PANEL_DAYS = 5;
-const PANEL_DURATION_MS = PANEL_DAYS * DAY_MS;
 
 const TIME_FMT = new Intl.DateTimeFormat("en-CA", {
   timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: false,
@@ -35,10 +41,12 @@ const fmtDate = (ms: number) => DATE_FMT.format(new Date(ms));
 
 type EventKind = "flood" | "ebb" | "slack";
 
+// Outer guard. Same split-component pattern as TidePanel — the inner is
+// only mounted when the panel is genuinely visible, so its useEffects
+// run with `panelRef.current` populated.
 export function CurrentPanel() {
   const id = selectedStationId.value;
   const data = loadedData.value;
-  const start = windowStartMs.value;
 
   if (id === null || !data) return null;
   if (!showPanels.value) return null;
@@ -47,26 +55,31 @@ export function CurrentPanel() {
   if (!meta || !extremes) return null;
   if (meta.kind !== "current-primary" && meta.kind !== "current-secondary") return null;
 
-  const panelStart = localMidnightUtcMs(Date.now());
-  const panelEnd = panelStart + PANEL_DURATION_MS;
+  return <CurrentPanelContent meta={meta} extremes={extremes} />;
+}
 
-  const days = Array.from({ length: PANEL_DAYS }, (_, i) => {
-    const anchorMs = panelStart + i * DAY_MS;
-    return {
-      isToday: i === 0,
-      weekday: i === 0 ? "TODAY" : fmtWeekday(anchorMs),
-      date: fmtDate(anchorMs),
-    };
-  });
+type ContentProps = {
+  meta: { name: string };
+  extremes: { t: number; v: number; weak?: boolean }[];
+};
 
-  // Build the event list. The raw extremes contain both slacks (v=0)
-  // and max events (signed knots, with v=0 also for weak/variable maxes
-  // — the `weak` flag distinguishes those).
+function CurrentPanelContent({ meta, extremes }: ContentProps) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const gestureHandlers = usePanelGestures(panelRef, CURRENT_PANEL_LAYOUT);
+
+  const start = windowStartMs.value;
+  const thumb = scrubberMs.value;
+
+  const visibleMin = thumb - PANEL_RENDER_HALF_DAYS * DAY_MS;
+  const visibleMax = thumb + PANEL_RENDER_HALF_DAYS * DAY_MS;
+  const todayMs = localMidnightUtcMs(Date.now());
+
+  // Events with classification.
   const events: { t: number; v: number; kind: EventKind; weak: boolean }[] = [];
   for (let i = 0; i < extremes.length; i++) {
     const e = extremes[i];
-    if (e.t < panelStart) continue;
-    if (e.t >= panelEnd) break;
+    if (e.t < visibleMin) continue;
+    if (e.t > visibleMax) break;
     const weak = !!e.weak;
     let kind: EventKind;
     if (weak || Math.abs(e.v) < 0.05) kind = "slack";
@@ -75,72 +88,88 @@ export function CurrentPanel() {
     events.push({ t: e.t, v: e.v, kind, weak });
   }
 
-  const pos = (t: number) => ((t - panelStart) / PANEL_DURATION_MS) * 100;
+  // Anti-collision pass: walk events in time order, shifting any row
+  // whose true position would overlap the previous one's tail. The label
+  // text keeps the true time; only the visual y is fudged.
+  type Placed = (typeof events)[number] & { displayOffsetPx: number };
+  const placed: Placed[] = [];
+  let lastBottom = -Infinity;
+  for (const e of events) {
+    const trueOffsetPx = CURRENT_PANEL_LAYOUT.offsetPxForTime(e.t, start);
+    const displayOffsetPx = Math.max(trueOffsetPx, lastBottom);
+    lastBottom = displayOffsetPx + PANEL_EVENT_ROW_HEIGHT_PX;
+    placed.push({ ...e, displayOffsetPx });
+  }
 
-  const winStartPct = pos(start);
-  const winEndPct = pos(start + WINDOW_MS);
-  const barTop = Math.max(0, winStartPct);
-  const barBottom = Math.min(100, winEndPct);
-  const showBar = barBottom > 0 && barTop < 100;
+  // Day labels.
+  const days: { t: number; label: string; date: string; isToday: boolean }[] = [];
+  const firstMidnight = localMidnightUtcMs(visibleMin);
+  for (let t = firstMidnight; t <= visibleMax; t += DAY_MS) {
+    const anchor = localMidnightUtcMs(t);
+    if (anchor < visibleMin - DAY_MS) continue;
+    const isToday = anchor === todayMs;
+    days.push({
+      t: anchor,
+      label: isToday ? "TODAY" : fmtWeekday(anchor),
+      date: fmtDate(anchor),
+      isToday,
+    });
+  }
 
   return (
     <div
-      class="current-panel"
-      onClick={() => { selectedStationId.value = null; }}
+      class="current-panel station-panel"
+      ref={panelRef}
+      {...gestureHandlers}
     >
-      <div class="current-panel-header">{meta.name}</div>
-      <div class="current-panel-timeline">
-        <div class="current-panel-gutter">
-          {days.map((d, i) => (
-            <div
-              key={i}
-              class={`current-panel-day${d.isToday ? " today" : ""}`}
-              style={{
-                top: `${(i / PANEL_DAYS) * 100}%`,
-                height: `${(1 / PANEL_DAYS) * 100}%`,
-              }}
-            >
-              <div class="current-panel-day-weekday">{d.weekday}</div>
-              <div class="current-panel-day-date">{d.date}</div>
-            </div>
-          ))}
-        </div>
-        <div class="current-panel-events">
-          {events.map((e, i) => (
-            <div
-              key={i}
-              class={`current-panel-event ${e.kind}${e.weak ? " weak" : ""}`}
-              style={{ top: `${pos(e.t)}%` }}
-            >
-              <span class="current-panel-event-time">{fmtTime(e.t)}</span>
-              <span class="current-panel-event-kind">
-                {e.kind === "slack"
-                  ? (e.weak ? "WEAK" : "SLACK")
-                  : e.kind === "flood" ? "FLOOD" : "EBB"}
-              </span>
-              <span class="current-panel-event-speed">
-                {e.kind === "slack" ? "" : formatCurrentSpeed(Math.abs(e.v))}
-              </span>
-            </div>
-          ))}
-        </div>
-        {[1, 2, 3, 4].map((i) => (
+      <div class="station-panel-header">{meta.name}</div>
+      <div class="station-panel-timeline">
+        {days.map((d) => (
           <div
-            key={`d${i}`}
-            class="current-panel-divider"
-            style={{ top: `${(i / PANEL_DAYS) * 100}%` }}
+            key={`d${d.t}`}
+            class="station-panel-divider"
+            style={{ top: CURRENT_PANEL_LAYOUT.topCssForTime(d.t, start) }}
           />
         ))}
-        {showBar && (
+        {days.map((d) => (
           <div
-            class="current-panel-bar"
-            style={{
-              top: `${barTop}%`,
-              height: `${barBottom - barTop}%`,
-            }}
-          />
-        )}
+            key={`l${d.t}`}
+            class={`station-panel-day${d.isToday ? " today" : ""}`}
+            style={{ top: CURRENT_PANEL_LAYOUT.topCssForTime(d.t, start) }}
+          >
+            <div class="station-panel-day-weekday">{d.label}</div>
+            <div class="station-panel-day-date">{d.date}</div>
+          </div>
+        ))}
+        {placed.map((e) => (
+          <div
+            key={e.t}
+            class={`station-panel-event ${e.kind}${e.weak ? " weak" : ""}`}
+            style={{ top: CURRENT_PANEL_LAYOUT.topCssForOffset(e.displayOffsetPx) }}
+          >
+            <span class="station-panel-event-time">{fmtTime(e.t)}</span>
+            <span class="station-panel-event-kind">
+              {e.kind === "slack"
+                ? (e.weak ? "WEAK" : "SLACK")
+                : e.kind === "flood" ? "FLOOD" : "EBB"}
+            </span>
+            <span class="station-panel-event-speed">
+              {e.kind === "slack" ? "" : formatCurrentSpeed(Math.abs(e.v))}
+            </span>
+          </div>
+        ))}
+        <div
+          class="station-panel-bar"
+          style={{ top: CURRENT_PANEL_LAYOUT.barTopCss, height: CURRENT_PANEL_LAYOUT.barHeightCss }}
+        />
       </div>
+      <button
+        class="panel-close"
+        aria-label="Close panel"
+        onClick={() => { selectedStationId.value = null; }}
+      >
+        «
+      </button>
     </div>
   );
 }
