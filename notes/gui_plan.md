@@ -4,6 +4,30 @@ This document tracks UI/UX changes to the *Currently* webapp as they're made. Th
 
 When a decision here contradicts `app_implementation.md`, this file wins for the latest entry — `app_implementation.md` should be updated to match if the change is durable.
 
+## 2026-04-28 — Track the arrowhead with the name pill when the arrow points down
+
+When the marker box grew 25% (60→75 px), the name pill stayed anchored at `top: 100% + 2 px` — fine in CSS terms but 15 px farther from the marker centre in absolute terms. For arrows pointing south, that put the name pill noticeably below the visible arrowhead, especially at low speeds where the arrow scales down and its tip retreats from the box edge.
+
+When the bearing is within ±60° of due south (`NAME_TRACK_THRESHOLD_DEG`), [`currentStationLayer.ts`](../web/src/map/currentStationLayer.ts) sets a `name-tracking` class and writes an inline `transform` on the name pill that places it directly below the visible arrowhead — `pill_cx = tip_x`, `pill_top = tip_y + NAME_TIP_GAP_PX`. The gap is a true vertical distance, not a distance along the bearing axis, so diagonal bearings (e.g., 220°, 240°) get the same 7 px breathing room as straight-down ones.
+
+The first attempt (2026-04-28 morning) positioned the pill along the bearing axis at `D = scale × 32.5 + GAP + half_height`. That math treated the pill as a circle — fine at b=180° but wrong for diagonal bearings, where the pill's *vertical* edge (perpendicular to screen y) is what's closest to the tip, not its bearing-axis edge. At b=220° the actual gap was ~1 px instead of the designed 4. Fixed by repositioning relative to the tip's screen coords directly.
+
+Threshold widened from 45° to 60° to catch arrows that "vaguely point down" — at 220–240° the tip reaches sideways far enough to land on top of a horizontally-centred default name pill, so they need tracking too.
+
+A 120 ms `transition: transform` on the tracking-mode rule makes the pill smoothly follow the arrow as the user scrubs through speed changes.
+
+The threshold-discontinuity worry (name jumps when the bearing crosses 120°/240°) is theoretical — flood/ebb directions are fixed station properties and don't change during scrubbing; only their magnitude (and thus scale) varies. A station with bearing 170° stays inside the tracking range forever; the user never sees a discontinuity.
+
+## 2026-04-28 — Push current name pill below the speed pill when the arrow points up
+
+Anticipated in the previous iteration: when a current arrow points within ~45° of due north, the speed pill at the tail lands on top of the station-name pill, which also lives below the marker.
+
+Now: when the bearing is within ±45° of 0°, [`currentStationLayer.ts`](../web/src/map/currentStationLayer.ts) sets a `name-pushed` class on the marker and a CSS rule bumps the name pill's `margin-top` to 14 px so it sits below the speed pill. Outside that range the pill stays at its default 2 px spacing.
+
+The visual reading order when an arrow points roughly north is now: icon → speed pill → name pill, stacked vertically. (Tried flipping the name above first; the user preferred keeping it below.)
+
+`NAME_PUSH_THRESHOLD_DEG = 45` is tuned to the geometry: at ±45° the speed pill is 27 px below centre and the name pill normally starts at 32 px below centre, so they just begin to touch. Past 45°, the speed pill drifts off-axis fast enough that the two pills can coexist below the marker without colliding.
+
 ## 2026-04-28 — Tide icons 10% smaller (text unchanged)
 
 Now that current arrows are 25% bigger, the tide markers were dominating the map relatively. Shrunk the icon 10% to rebalance — 25% felt too small in practice.

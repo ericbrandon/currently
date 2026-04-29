@@ -43,7 +43,21 @@
     -123.7982,
     49.09
   ],
+  "8118": [
+    -125.234,
+    50.304
+  ],
+  "7312": [
+    -123.554167,
+    48.783333
+  ],
+  "8482": [
+    -127.266667,
+    51.133333
+  ],
   "_block_pdf_correct_csv_wrong": "Stations where the CSV row is wrong but the PDF is right. Marked null so the script doesn't keep flagging them.",
+  "7284": null,
+  "7837": null,
   "8870": null,
   "_block_iwls_seeded": "Bulk-seeded from https://api-iwls.dfo-mpo.gc.ca/api/v1/stations by seed_iwls_overrides.py — do not edit by hand. Re-run that script after a new PDF year is processed to catch any newly-added stations. See notes/tables_processing.md.",
   "7090": [
@@ -583,10 +597,6 @@
     -122.943721,
     49.329235
   ],
-  "7837": [
-    -124.025573,
-    49.629508
-  ],
   "7847": [
     -123.824197,
     49.661119
@@ -839,14 +849,6 @@
     -123.325662,
     48.618995
   ],
-  "7284": [
-    -123.54655,
-    48.516039
-  ],
-  "7312": [
-    -123.566418,
-    48.79398
-  ],
   "7335": [
     -123.32956,
     48.775842
@@ -903,10 +905,6 @@
     -125.355556,
     50.143889
   ],
-  "8118": [
-    -125.247594,
-    50.285062
-  ],
   "8153": [
     -125.51,
     50.440833
@@ -946,10 +944,6 @@
   "8476": [
     -127.384722,
     51.205556
-  ],
-  "8482": [
-    -127.207509,
-    51.120021
   ],
   "8488": [
     -127.038889,

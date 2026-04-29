@@ -347,15 +347,11 @@ html, body, #app {
 /* ------------------------------------------------------------------
    Current station markers
    ------------------------------------------------------------------
-   Layout:
-     - Outer .current-marker is a 75×75 box that holds the rotated arrow
-       SVG and a non-rotated value pill.
-     - .current-arrow is the SVG; we rotate AND scale it via inline
-       `transform: rotate(deg) scale(s)` written by currentStationLayer.
-     - .current-value is a small pill positioned absolutely. For
-       flood/ebb its inline transform places it at the arrow's tail so
-       the pill sits "behind" the flow; for slack/no-data it sits
-       centred on the slack/no-data circle.
+   75×75 box. The arrow SVG fills it and is rotated + scaled via an
+   inline transform per scrub frame. The .current-value (speed) and
+   .current-name (station label) pills are positioned absolutely;
+   their inline transforms are also written per frame from
+   currentStationLayer.ts. See that file for the positioning logic.
 */
 .current-marker {
   position: relative;
@@ -385,13 +381,12 @@ html, body, #app {
 .current-marker.slack .shape-slack { display: inline; fill: #6b21a8; }
 .current-marker.no-data .shape-slack { display: inline; fill: #94a3b8; }
 
+/* Speed pill. Anchored at the marker centre; the inline transform
+   handles centring (-50%/-50%) and any tail offset. */
 .current-marker .current-value {
   position: absolute;
   top: 50%;
   left: 50%;
-  /* The transform is set inline by currentStationLayer.ts on every
-     scrub frame: -50%/-50% to centre, plus a tail-direction offset
-     for flood/ebb. */
   font-size: 13px;
   font-weight: 700;
   font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
@@ -399,10 +394,6 @@ html, body, #app {
   white-space: nowrap;
   transition: transform 120ms ease-out;
 }
-
-/* Flood/ebb: white pill with state-coloured text, sat behind the
-   arrow tail. The pill background masks the basemap so the digits
-   stay legible against any tile colour. */
 .current-marker.flood .current-value,
 .current-marker.ebb   .current-value {
   padding: 1px 5px;
@@ -412,10 +403,6 @@ html, body, #app {
 }
 .current-marker.flood .current-value { color: #0c2c5e; }
 .current-marker.ebb   .current-value { color: #b91c1c; }
-
-/* Slack / no-data: speed sits centred on the circle. Slack circle is
-   dark purple so the readout is white; no-data circle is light grey so
-   the readout is slate without a halo. */
 .current-marker.slack .current-value {
   color: #ffffff;
   text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
@@ -425,6 +412,13 @@ html, body, #app {
   opacity: 0.85;
 }
 
+/* Name pill. Default: anchored just below the marker box. Two overrides
+   triggered by classes set in currentStationLayer.ts:
+   - .name-pushed (arrow points ≈ N): pushed further down so the
+     south-side speed pill fits between icon and name.
+   - .name-tracking (arrow points ≈ S): re-anchored to the marker
+     centre so the inline transform can place the pill relative to the
+     visible arrowhead at any scale. */
 .current-marker .current-name {
   position: absolute;
   top: 100%;
@@ -441,6 +435,17 @@ html, body, #app {
   white-space: nowrap;
   pointer-events: none;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+.current-marker.name-pushed .current-name {
+  margin-top: 14px;
+}
+.current-marker.name-tracking .current-name {
+  top: 50%;
+  margin-top: 0;
+  /* Transition only in tracking mode so the pill smoothly follows the
+     arrowhead as the user scrubs. Animating across mode flips would be
+     glitchy because `top` and `margin-top` jump instantly. */
+  transition: transform 120ms ease-out;
 }
 
 /* Hide every current marker when the user toggles the "Currents" control off. */
