@@ -11,7 +11,7 @@ import {
   loadedData,
   scrubberMs,
   windowStartMs,
-  showPanels,
+  tableOpen,
 } from "../state/store";
 import { localMidnightUtcMs } from "../util/time";
 import { formatCurrentSpeed } from "../util/units";
@@ -49,7 +49,7 @@ export function CurrentPanel() {
   const data = loadedData.value;
 
   if (id === null || !data) return null;
-  if (!showPanels.value) return null;
+  if (!tableOpen.value) return null;
   const meta = data.stationsById.get(id);
   const extremes = data.currentExtremesById.get(id);
   if (!meta || !extremes) return null;
@@ -163,16 +163,6 @@ function CurrentPanelContent({ meta, extremes }: ContentProps) {
           style={{ top: CURRENT_PANEL_LAYOUT.barTopCss, height: CURRENT_PANEL_LAYOUT.barHeightCss }}
         />
       </div>
-      <button
-        class="panel-close"
-        aria-label="Close panel"
-        onClick={() => { selectedStationId.value = null; }}
-      >
-        <svg viewBox="0 0 16 24" aria-hidden="true">
-          <path d="M13 4 L7 12 L13 20" />
-          <path d="M7 4 L1 12 L7 20" />
-        </svg>
-      </button>
     </div>
   );
 }

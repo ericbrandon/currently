@@ -3,9 +3,6 @@
 // Boxes (top to bottom):
 //   - Tides     on/off — show tide-station markers.
 //   - Currents  on/off — show current-station markers.
-//   - Panels    on/off — show TidePanel/CurrentPanel when a station is
-//               selected. Default off; the panel covers a chunk of the
-//               map on phones, so the user opts in.
 //   - m / ft    binary — formatting unit for every tide height.
 //               Rendered as a split-diagonal toggle: the selected unit's
 //               half is blue. Clicking anywhere on the box flips it.
@@ -24,7 +21,6 @@
 import {
   showTides,
   showCurrents,
-  showPanels,
   useFeet,
   userLocationActive,
   userLocationFollowing,
@@ -66,12 +62,6 @@ export function Controls() {
         onClick={() => { showCurrents.value = !showCurrents.value; }}
       >
         Currents
-      </button>
-      <button
-        class={`control-box ${showPanels.value ? "on" : "off"}`}
-        onClick={() => { showPanels.value = !showPanels.value; }}
-      >
-        Tables
       </button>
       {showTides.value && (
         <button

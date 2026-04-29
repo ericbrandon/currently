@@ -883,13 +883,10 @@ html, body, #app {
 
 /* Close affordance for the chart strip — a small pill-shaped handle with
    a double-chevron pointing down, protruding slightly above the chart's
-   top edge. Mirrors `.panel-close` (which is `«` on the right edge for a
-   leftward swipe-out) rotated 90°: the chart exits downward. */
+   top edge like a Google-Maps-style bottom-sheet handle. Closes both the
+   chart and the table (if open) together. */
 .chart-close {
   position: absolute;
-  /* Sit on top of the scrubber's top border, with most of the pill above
-     the white panel edge — like a Google-Maps-style bottom-sheet handle.
-     Half of the 22px height protrudes upward into the map area. */
   top: -16px;
   left: 50%;
   transform: translateX(-50%);
@@ -907,8 +904,8 @@ html, body, #app {
   display: flex;
   align-items: center;
   justify-content: center;
-  /* Match panel-close: avoid stealing pointer-down direction-locking; the
-     scrubber gesture handler short-circuits on `.chart-close` targets. */
+  /* The scrubber gesture handler short-circuits on `.chart-close` targets
+     so the button doesn't get hijacked by the pan/swipe pointer logic. */
   touch-action: auto;
 }
 .chart-close svg {
@@ -928,36 +925,35 @@ html, body, #app {
   background: rgba(15, 23, 42, 0.26);
 }
 
-/* Close affordance — pill flush with the table's right edge, with a
-   left-pointing double chevron. Mirrors `.chart-close` rotated 90° in
-   chevron size and shape, but stays inside the panel so it doesn't go
-   off-screen on phones where the panel covers the full viewport width. */
-.panel-close {
+/* Open-table affordance — sibling of `.chart-close`, pinned to the top-
+   left of the chart strip. Chevron points up (mirror image of the chart-
+   close down chevron) to suggest the table opens upward. Hidden once the
+   table is open; the chart-close handle is then the only handle. */
+.table-open {
   position: absolute;
-  top: 50%;
-  right: 0;
-  transform: translateY(-50%);
-  width: 22px;
-  height: 56px;
+  top: -16px;
+  left: 12px;
+  height: 22px;
+  padding: 0 10px 0 8px;
   border: none;
-  border-radius: 11px 0 0 11px;
-  background: rgba(15, 23, 42, 0.10);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.18);
   color: #0f172a;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   cursor: pointer;
   z-index: 6;
-  padding: 0;
   font-family: inherit;
   display: flex;
   align-items: center;
-  justify-content: center;
-  /* Avoid having the close button steal touch from the panel pan. The
-     gesture handler short-circuits on `.panel-close` targets, but
-     touch-action:auto here also lets browser-level tap behavior work. */
+  gap: 5px;
   touch-action: auto;
 }
-.panel-close svg {
-  width: 14px;
-  height: 22px;
+.table-open svg {
+  width: 18px;
+  height: 12px;
   display: block;
   stroke: currentColor;
   stroke-width: 2.5;
@@ -965,11 +961,11 @@ html, body, #app {
   stroke-linejoin: round;
   fill: none;
 }
-.panel-close:hover {
-  background: rgba(15, 23, 42, 0.18);
+.table-open:hover {
+  background: rgba(255, 255, 255, 1);
 }
-.panel-close:active {
-  background: rgba(15, 23, 42, 0.24);
+.table-open:active {
+  background: rgba(241, 245, 249, 1);
 }
 
 /* ------------------------------------------------------------------

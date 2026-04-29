@@ -97,20 +97,14 @@ type DragState = {
 };
 
 /** Wires drag (vertical pan + horizontal flick-to-dismiss) and wheel
- *  handlers to a panel element. The element must include a child with
- *  class `panel-close` for the close-button bypass to work. */
+ *  handlers to a panel element. */
 export function usePanelGestures(
   elRef: RefObject<HTMLElement | null>,
   layout: PanelLayout,
 ) {
   const dragRef = useRef<DragState | null>(null);
 
-  function isCloseTarget(t: EventTarget | null): boolean {
-    return !!(t as Element | null)?.closest(".panel-close");
-  }
-
   function handlePointerDown(e: PointerEvent) {
-    if (isCloseTarget(e.target)) return;
     e.preventDefault();
     dragRef.current = {
       pointerId: e.pointerId,
@@ -170,7 +164,6 @@ export function usePanelGestures(
     const el = elRef.current;
     if (!el) return;
     function onWheel(e: WheelEvent) {
-      if (isCloseTarget(e.target)) return;
       e.preventDefault();
       const scale =
         e.deltaMode === 1 ? WHEEL_LINE_PX :

@@ -16,7 +16,7 @@ import {
   scrubberRange,
   selectedStationId,
   loadedData,
-  showPanels,
+  tableOpen,
   panWindowTo,
   recenterAt,
   WINDOW_MS,
@@ -140,7 +140,7 @@ export function Scrubber() {
 
   function handlePointerDown(e: PointerEvent) {
     const target = e.target as Element | null;
-    if (target?.closest(".scrubber-btn, .chart-close")) return;
+    if (target?.closest(".scrubber-btn, .chart-close, .table-open")) return;
     e.preventDefault();
     const rect = trackRef.current!.getBoundingClientRect();
     const startedOnChart = !!target?.closest(".tide-chart, .current-chart");
@@ -220,7 +220,7 @@ export function Scrubber() {
     const el = scrubberRef.current;
     if (!el) return;
     function onWheel(e: WheelEvent) {
-      if ((e.target as Element | null)?.closest(".scrubber-btn, .chart-close")) return;
+      if ((e.target as Element | null)?.closest(".scrubber-btn, .chart-close, .table-open")) return;
       e.preventDefault();
       const scale =
         e.deltaMode === 1 ? WHEEL_LINE_PX :
@@ -268,7 +268,7 @@ export function Scrubber() {
         </div>
         {outOfRange && <span class="scrubber-warn">no data for this time</span>}
       </div>
-      {hasChart && !showPanels.value && (
+      {hasChart && (
         <button
           class="chart-close"
           aria-label="Close chart"
@@ -278,6 +278,19 @@ export function Scrubber() {
             <path d="M4 3 L12 9 L20 3" />
             <path d="M4 9 L12 15 L20 9" />
           </svg>
+        </button>
+      )}
+      {hasChart && !tableOpen.value && (
+        <button
+          class="table-open"
+          aria-label="Show table"
+          onClick={() => { tableOpen.value = true; }}
+        >
+          <svg viewBox="0 0 24 16" aria-hidden="true">
+            <path d="M4 13 L12 7 L20 13" />
+            <path d="M4 7 L12 1 L20 7" />
+          </svg>
+          <span>Table</span>
         </button>
       )}
       <div class="scrubber-row">

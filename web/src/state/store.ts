@@ -14,7 +14,7 @@
 //   - `scrubberMs` is computed from those and is what the rest of the
 //     app reads.
 
-import { signal, computed } from "@preact/signals";
+import { signal, computed, effect } from "@preact/signals";
 import type { LoadedData, Manifest } from "../types";
 
 export const manifest = signal<Manifest | null>(null);
@@ -66,14 +66,22 @@ export function recenterAt(t: number): void {
 //     hidden via a class on the map container; per-frame interpolation
 //     is also skipped to save CPU).
 //   - showCurrents: same, for current-station markers.
-//   - showPanels: render the 5-day TidePanel when a tide station is
-//     selected. Off → station selection still works (the chart still
-//     appears in the scrubber) but the side panel stays hidden.
 //   - useFeet: format every tide height in feet instead of metres.
 export const showTides = signal<boolean>(false);
 export const showCurrents = signal<boolean>(true);
-export const showPanels = signal<boolean>(false);
 export const useFeet = signal<boolean>(true);
+
+// Per-selection table visibility. The table (TidePanel / CurrentPanel)
+// only opens when the user explicitly taps the "Table" handle on the
+// chart. Resets to false whenever the selected station changes — opening
+// a new station starts with the chart only, never with the table.
+export const tableOpen = signal<boolean>(false);
+effect(() => {
+  // Subscribe to selectedStationId; the body resets tableOpen but doesn't
+  // read it, so there's no feedback loop.
+  selectedStationId.value;
+  tableOpen.value = false;
+});
 
 // Terms-of-Use gate. Acceptance is recorded in localStorage under a
 // versioned key — bump TOS_VERSION any time the terms change materially
