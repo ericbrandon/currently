@@ -1002,6 +1002,57 @@ html, body, #app {
   background: #e2e8f0;
 }
 
+/* Split-diagonal m/ft toggle. The two halves are clip-path polygons that
+   meet on a line tilted ~30° from vertical (top of line is offset to the
+   right of the bottom). The on/off colour contrast draws the line. */
+.control-box.unit-toggle {
+  position: relative;
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+  --split-offset: 10px;
+}
+.unit-half {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+}
+.unit-half.left {
+  clip-path: polygon(
+    0 0,
+    calc(50% + var(--split-offset)) 0,
+    calc(50% - var(--split-offset)) 100%,
+    0 100%
+  );
+  justify-content: flex-start;
+  padding-left: 18px;
+}
+.unit-half.right {
+  clip-path: polygon(
+    calc(50% + var(--split-offset)) 0,
+    100% 0,
+    100% 100%,
+    calc(50% - var(--split-offset)) 100%
+  );
+  justify-content: flex-end;
+  padding-right: 18px;
+}
+.unit-half.on {
+  background: #0c4a6e;
+  color: #ffffff;
+}
+.unit-half.off {
+  background: rgba(255, 255, 255, 0.92);
+  color: #475569;
+}
+.control-box.unit-toggle:active .unit-half.on { background: #082f49; }
+.control-box.unit-toggle:active .unit-half.off { background: #e2e8f0; }
+
 /* ------------------------------------------------------------------
    Mobile breakpoint
    ------------------------------------------------------------------ */

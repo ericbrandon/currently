@@ -1,21 +1,27 @@
-For a marine map app with animated tide/current overlays and a scrubbable timeline that works well on mobile, here's the stack I'd recommend:
+# GUI iteration log
 
-**Core map + overlays**
-- **MapLibre GL JS** — open-source vector map renderer, GPU-accelerated, excellent on mobile. (Mapbox GL JS is the paid sibling; MapLibre is the free fork most people use now.)
-- **deck.gl** layered on top of MapLibre — built for animated, time-aware data layers (arrows, heatmaps, icons, paths). Pairs cleanly with MapLibre via `MapboxOverlay`.
+This document tracks UI/UX changes to the *Currently* webapp as they're made. The detailed architecture lives in [`app_implementation.md`](app_implementation.md); this file is the running log of decisions on top of it.
 
-**For current/wind-style animated flow**
-- If you want windy.com-style particle streams: roll your own with deck.gl, or grab a community shader layer. For the simpler Leaflet route, [`leaflet-velocity`](https://github.com/onaci/leaflet-velocity) gives you that effect for free but is slower at scale.
+When a decision here contradicts `app_implementation.md`, this file wins for the latest entry — `app_implementation.md` should be updated to match if the change is durable.
 
-**Timeline scrubber**
-- Plain `<input type="range">` is genuinely fine and mobile-native. If you want nicer styling/touch handles: **noUiSlider** (vanilla) or **rc-slider** (React).
+## 2026-04-28 — Hide m/ft toggle when tides are off
 
-**Tide curves / station detail charts**
-- **uPlot** (tiny, fast) or **Chart.js** for simple line charts; **Plotly** if you want zoom/pan + annotations out of the box.
+The unit toggle only governs tide-height formatting; current speeds are always knots. When `showTides` is `false`, the unit toggle is now hidden entirely (rather than greyed out). Implemented in [`web/src/ui/Controls.tsx`](../web/src/ui/Controls.tsx) by gating the JSX on `showTides.value`.
 
-**App shell**
-- **React + Vite** is the path of least resistance — keeps the timeline state and map layers in sync without ceremony. Vanilla JS is viable if you want to keep the bundle tiny.
+## 2026-04-28 — Split-diagonal m/ft toggle
 
-**Main tradeoff**: MapLibre + deck.gl + React is the most capable but has the steepest learning curve and biggest bundle (~400KB+ gzipped). Leaflet + leaflet-velocity + vanilla JS is far simpler and ships in a day, but animation fidelity and panning smoothness on mobile are noticeably worse with dense data.
+The unit toggle in `Controls` now reads as a single button split diagonally: `m` on the left, `ft` on the right, separated by a line tilted ~30° from vertical. The selected unit's half is blue, the other is white. Tapping the button anywhere flips the selection.
 
-Want me to sketch a starter project structure for the deck.gl/MapLibre route, or would you rather see what the Leaflet version looks like first?
+Implemented in [`web/src/ui/Controls.tsx`](../web/src/ui/Controls.tsx) (markup) and [`web/src/index.css`](../web/src/index.css) (`.unit-toggle` / `.unit-half`). The diagonal is two `clip-path` polygons that share an edge; the on/off colour contrast draws the line — no separate divider element.
+
+Why: the previous "Feet/Meters" word toggle was visually indistinguishable from the on/off boxes above it (Tides, Currents, Panels), even though it's a binary unit choice rather than an enable/disable. Splitting the button shows both states at once and makes the choice unambiguous.
+
+## 2026-04-28 — Default toggles at launch
+
+**Tides off, currents on by default.**
+
+Implemented in [`web/src/state/store.ts`](../web/src/state/store.ts): `showTides` defaults to `false`, `showCurrents` stays `true`.
+
+Why: currents are the primary use case for the BC boating audience this app targets. Tides are useful but secondary, and showing every tide marker by default crowds the map. Users who want tides can flip the toggle.
+
+Side effect: `app_implementation.md` §8 still lists `showTides: true` as the default and §10.5 still describes `showCurrents` as "intentionally unwired in v1". Both are out of date relative to the code; should be reconciled the next time that doc is touched.

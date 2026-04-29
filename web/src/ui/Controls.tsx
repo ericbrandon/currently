@@ -2,12 +2,13 @@
 //
 // Four equally-sized boxes:
 //   - Tides           on/off — show tide-station markers.
-//   - Currents        on/off — reserved for current overlay (no-op v1).
+//   - Currents        on/off — show current-station markers.
 //   - 5 Day Panels    on/off — show TidePanel when a tide station is selected.
-//   - Feet / Meters   binary — formatting unit for every tide height.
-//
-// Each box reflects its signal state via `.on` / `.off` classes — the
-// unit toggle reuses the same styling, with Feet rendered as "on".
+//   - m / ft          binary — formatting unit for every tide height.
+//                     Rendered as a split-diagonal toggle: the selected unit's
+//                     half is blue. Clicking anywhere on the box flips it.
+//                     Hidden when tides are off (currents are in knots and
+//                     don't use this setting).
 
 import {
   showTides,
@@ -37,12 +38,16 @@ export function Controls() {
       >
         5 Day Panels
       </button>
-      <button
-        class={`control-box ${useFeet.value ? "on" : "off"}`}
-        onClick={() => { useFeet.value = !useFeet.value; }}
-      >
-        {useFeet.value ? "Feet" : "Meters"}
-      </button>
+      {showTides.value && (
+        <button
+          class="control-box unit-toggle"
+          onClick={() => { useFeet.value = !useFeet.value; }}
+          aria-label={useFeet.value ? "Switch to meters" : "Switch to feet"}
+        >
+          <span class={`unit-half left ${useFeet.value ? "off" : "on"}`}>m</span>
+          <span class={`unit-half right ${useFeet.value ? "on" : "off"}`}>ft</span>
+        </button>
+      )}
     </div>
   );
 }

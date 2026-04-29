@@ -62,13 +62,12 @@ export const scrubberRange = computed(() => {
 //   - showTides: render and update tide-station markers (off → markers
 //     hidden via a class on the map container; per-frame interpolation
 //     is also skipped to save CPU).
-//   - showCurrents: reserved for the future current overlay; not wired
-//     to anything yet.
+//   - showCurrents: same, for current-station markers.
 //   - showPanels: render the 5-day TidePanel when a tide station is
 //     selected. Off → station selection still works (the chart still
 //     appears in the scrubber) but the side panel stays hidden.
 //   - useFeet: format every tide height in feet instead of metres.
-export const showTides = signal<boolean>(true);
+export const showTides = signal<boolean>(false);
 export const showCurrents = signal<boolean>(true);
 export const showPanels = signal<boolean>(true);
 export const useFeet = signal<boolean>(true);
