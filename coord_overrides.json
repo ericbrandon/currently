@@ -55,6 +55,18 @@
     -127.266667,
     51.133333
   ],
+  "7836": [
+    -124.05649,
+    49.632083
+  ],
+  "7771": [
+    -122.874575,
+    49.375929
+  ],
+  "7515": [
+    -123.197222,
+    48.825
+  ],
   "_block_pdf_correct_csv_wrong": "Stations where the CSV row is wrong but the PDF is right. Marked null so the script doesn't keep flagging them.",
   "7284": null,
   "7837": null,
