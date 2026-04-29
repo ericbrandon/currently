@@ -110,7 +110,7 @@ Create `web/public/_headers` with this content:
 /data/manifest.json
   Cache-Control: no-cache, must-revalidate
 
-/data/*
+/data/2*
   Cache-Control: public, max-age=31536000, immutable
 
 /assets/*
@@ -130,7 +130,11 @@ A few things to know:
 - The first matching rule wins, top-down. Order matters: put more-specific paths before broader ones.
 - Pages applies `Content-Encoding: br` (brotli) automatically on top of whatever you set here. Don't try to set it yourself.
 - **Two rules for the index page** (`/` and `/index.html`): CF Pages matches paths literally, so a request for `/` doesn't match the `/index.html` rule. Without the explicit `/` rule, Pages falls back to its default (`max-age=0, must-revalidate`), which is functionally close to `no-cache` but not identical to what we declare.
-- **`/data/*` (single trailing splat), not `/data/*/*.json`.** CF Pages' `_headers` matcher reliably handles literal paths and single trailing splats, but multi-splat patterns with extension constraints (`/data/*/*.json`) silently don't match. Since the literal `/data/manifest.json` rule comes first, manifest.json gets the no-cache policy and everything else under `/data/` (the hashed yearly JSONs) falls through to the immutable rule.
+- **`/data/2*`, not `/data/*` and not `/data/*/*.json`.** Two CF Pages `_headers` gotchas in one rule:
+  1. Multi-splat patterns with extension constraints (`/data/*/*.json`) silently don't match — only literal paths and single trailing splats are reliable.
+  2. CF Pages does **not** do first-match-wins for `Cache-Control`. Multiple matching rules each contribute their directives, which get *concatenated* into one merged header. So if both `/data/manifest.json` (no-cache) and `/data/*` (immutable) match the manifest path, the response gets `cache-control: no-cache, must-revalidate, public, max-age=31536000, immutable` — contradictory directives that browsers may resolve in favor of `immutable`, silently breaking the data-drop story.
+  
+  The fix: use a splat that *doesn't* overlap with the literal manifest rule. `/data/2*` matches yearly folders (`/data/2026/...`, `/data/2027/...`) but not `/data/manifest.json`. Future-proof until year 3000.
 - `data/manifest.json` is not hashed, so it gets the no-cache policy. This is the one file the browser must revalidate on every load.
 - `assets/*` is where Vite puts its own hashed JS/CSS bundles (e.g. `assets/index-BzHW9vuW.js`).
 
