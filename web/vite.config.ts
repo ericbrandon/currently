@@ -3,6 +3,7 @@ import preact from '@preact/preset-vite'
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: './',
   plugins: [preact()],
   server: { host: true, port: 5173 },
 })
