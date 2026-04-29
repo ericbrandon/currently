@@ -24,6 +24,7 @@ export function createMap(
     attributionControl: { compact: true },
     pitchWithRotate: false,
     dragRotate: false,
+    touchPitch: false,
   });
   map.touchZoomRotate.disableRotation();
   return map;

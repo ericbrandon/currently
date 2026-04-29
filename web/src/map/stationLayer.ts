@@ -56,7 +56,7 @@ function createMarkerEl(name: string, kindClass: string): HTMLElement {
 
 /** Below this zoom level, secondary-tide markers are hidden so the map
  *  stays readable when zoomed out. Raise to keep them hidden longer. */
-const SECONDARY_MIN_ZOOM = 8;
+const SECONDARY_MIN_ZOOM = 9;
 
 function updateMarkerEl(
   el: HTMLElement,

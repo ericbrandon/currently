@@ -16,6 +16,7 @@ import {
   scrubberRange,
   selectedStationId,
   loadedData,
+  showPanels,
   panWindowTo,
   recenterAt,
   WINDOW_MS,
@@ -39,6 +40,13 @@ const WHEEL_PAGE_PX = 800;
 // Drag speed: 0.5 means dragging the full track width pans the timeline by
 // half the visible window (7.5 h instead of 15 h).
 const DRAG_SPEED = 0.5;
+
+// Direction-locking thresholds for chart-area gestures. Mirror the
+// horizontal flick-to-dismiss in panelGestures.ts but rotated 90° — the
+// chart sits at the top of the scrubber strip and exits downward.
+const SWIPE_LOCK_PX = 8;
+const SWIPE_DISMISS_DY_PX = 60;
+const SWIPE_DISMISS_VELOCITY_PX_PER_MS = 0.4;
 
 const HOUR_LABEL_FORMATTER = new Intl.DateTimeFormat("en-CA", {
   timeZone: "America/Vancouver",
@@ -87,8 +95,17 @@ function buildTicks(start: number): Tick[] {
 type DragState = {
   pointerId: number;
   startClientX: number;
+  startClientY: number;
   startWindowMs: number;
   trackWidth: number;
+  // Gestures that begin on the chart area participate in direction-locking
+  // so a vertical-down flick can dismiss without also panning the timeline.
+  // Gestures that begin on the timeline track skip this and pan as before.
+  startedOnChart: boolean;
+  mode: "uncommitted" | "pan" | "swipe-down";
+  lastY: number;
+  lastT: number;
+  velocityYPxPerMs: number;
 };
 
 export function Scrubber() {
@@ -122,14 +139,24 @@ export function Scrubber() {
   // button clicks (Now) pass through normally.
 
   function handlePointerDown(e: PointerEvent) {
-    if ((e.target as Element | null)?.closest(".scrubber-btn")) return;
+    const target = e.target as Element | null;
+    if (target?.closest(".scrubber-btn, .chart-close")) return;
     e.preventDefault();
     const rect = trackRef.current!.getBoundingClientRect();
+    const startedOnChart = !!target?.closest(".tide-chart, .current-chart");
     dragRef.current = {
       pointerId: e.pointerId,
       startClientX: e.clientX,
+      startClientY: e.clientY,
       startWindowMs: windowStartMs.value,
       trackWidth: rect.width,
+      startedOnChart,
+      // Gestures on the timeline track commit to pan immediately so the
+      // existing horizontal-pan feel is unchanged.
+      mode: startedOnChart ? "uncommitted" : "pan",
+      lastY: e.clientY,
+      lastT: performance.now(),
+      velocityYPxPerMs: 0,
     };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     setGrabbing(true);
@@ -139,19 +166,46 @@ export function Scrubber() {
     const d = dragRef.current;
     if (!d || e.pointerId !== d.pointerId) return;
     const dx = e.clientX - d.startClientX;
-    // Drag right → reveal earlier times → windowStartMs decreases.
-    panWindowTo(d.startWindowMs - DRAG_SPEED * (dx / d.trackWidth) * WINDOW_MS);
+    const dy = e.clientY - d.startClientY;
+
+    if (d.mode === "uncommitted" && Math.max(Math.abs(dx), Math.abs(dy)) >= SWIPE_LOCK_PX) {
+      // Lock to swipe-down only when the dominant axis is vertical AND the
+      // direction is downward. Horizontal-dominant or upward-vertical flicks
+      // fall through to pan, preserving the existing horizontal scrub on
+      // the chart area.
+      d.mode = dy > 0 && Math.abs(dy) > Math.abs(dx) ? "swipe-down" : "pan";
+    }
+
+    if (d.mode === "pan") {
+      // Drag right → reveal earlier times → windowStartMs decreases.
+      panWindowTo(d.startWindowMs - DRAG_SPEED * (dx / d.trackWidth) * WINDOW_MS);
+    }
+
+    const now = performance.now();
+    const sampleDt = now - d.lastT;
+    if (sampleDt > 0) {
+      d.velocityYPxPerMs = (e.clientY - d.lastY) / sampleDt;
+    }
+    d.lastY = e.clientY;
+    d.lastT = now;
   }
 
   function handlePointerEnd(e: PointerEvent) {
     const d = dragRef.current;
     if (!d || e.pointerId !== d.pointerId) return;
+    const dy = e.clientY - d.startClientY;
     dragRef.current = null;
     setGrabbing(false);
     try {
       (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     } catch {
       // Already released — ignore.
+    }
+    if (
+      d.mode === "swipe-down" &&
+      (dy >= SWIPE_DISMISS_DY_PX || d.velocityYPxPerMs >= SWIPE_DISMISS_VELOCITY_PX_PER_MS)
+    ) {
+      selectedStationId.value = null;
     }
   }
 
@@ -166,7 +220,7 @@ export function Scrubber() {
     const el = scrubberRef.current;
     if (!el) return;
     function onWheel(e: WheelEvent) {
-      if ((e.target as Element | null)?.closest(".scrubber-btn")) return;
+      if ((e.target as Element | null)?.closest(".scrubber-btn, .chart-close")) return;
       e.preventDefault();
       const scale =
         e.deltaMode === 1 ? WHEEL_LINE_PX :
@@ -214,6 +268,18 @@ export function Scrubber() {
         </div>
         {outOfRange && <span class="scrubber-warn">no data for this time</span>}
       </div>
+      {hasChart && !showPanels.value && (
+        <button
+          class="chart-close"
+          aria-label="Close chart"
+          onClick={() => { selectedStationId.value = null; }}
+        >
+          <svg viewBox="0 0 24 16" aria-hidden="true">
+            <path d="M4 3 L12 9 L20 3" />
+            <path d="M4 9 L12 15 L20 9" />
+          </svg>
+        </button>
+      )}
       <div class="scrubber-row">
         <div class="scrubber-main">
           {isTideSel && <TideChart />}

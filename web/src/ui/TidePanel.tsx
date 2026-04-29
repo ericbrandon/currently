@@ -152,7 +152,10 @@ function TidePanelContent({ meta, extremes }: ContentProps) {
         aria-label="Close panel"
         onClick={() => { selectedStationId.value = null; }}
       >
-        «
+        <svg viewBox="0 0 16 24" aria-hidden="true">
+          <path d="M13 4 L7 12 L13 20" />
+          <path d="M7 4 L1 12 L7 20" />
+        </svg>
       </button>
     </div>
   );

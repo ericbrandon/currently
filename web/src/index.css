@@ -711,11 +711,15 @@ html, body, #app {
   display: flex;
   flex-direction: column;
   box-shadow: 1px 0 8px rgba(0, 0, 0, 0.1);
+  /* Thin accent line at the panel's bottom edge — visually separates the
+     table from the timeline strip directly below it. */
+  border-bottom: 1px solid #0c4a6e;
   pointer-events: auto;
   touch-action: none;
   overscroll-behavior: contain;
   user-select: none;
 }
+.current-panel { border-bottom-color: #0c2c5e; }
 
 .station-panel-header {
   flex: 0 0 auto;
@@ -837,37 +841,95 @@ html, body, #app {
   z-index: 3;
 }
 
-/* Close affordance — chevron pinned to the right edge, vertically
-   centered. The `<<` reads as "swipe / dismiss to the left," matching
-   the swipe-left dismiss gesture. */
-.panel-close {
+/* Close affordance for the chart strip — a small pill-shaped handle with
+   a double-chevron pointing down, protruding slightly above the chart's
+   top edge. Mirrors `.panel-close` (which is `«` on the right edge for a
+   leftward swipe-out) rotated 90°: the chart exits downward. */
+.chart-close {
   position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 28px;
-  height: 64px;
+  /* Sit on top of the scrubber's top border, with most of the pill above
+     the white panel edge — like a Google-Maps-style bottom-sheet handle.
+     Half of the 22px height protrudes upward into the map area. */
+  top: -16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 56px;
+  height: 22px;
   border: none;
-  border-radius: 6px 0 0 6px;
-  background: rgba(15, 23, 42, 0.08);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.18);
   color: #0f172a;
-  font-size: 18px;
-  font-weight: 700;
-  line-height: 1;
   cursor: pointer;
-  z-index: 5;
+  z-index: 6;
   padding: 0;
   font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Match panel-close: avoid stealing pointer-down direction-locking; the
+     scrubber gesture handler short-circuits on `.chart-close` targets. */
+  touch-action: auto;
+}
+.chart-close svg {
+  width: 22px;
+  height: 14px;
+  display: block;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+.chart-close:hover {
+  background: rgba(15, 23, 42, 0.20);
+}
+.chart-close:active {
+  background: rgba(15, 23, 42, 0.26);
+}
+
+/* Close affordance — pill flush with the table's right edge, with a
+   left-pointing double chevron. Mirrors `.chart-close` rotated 90° in
+   chevron size and shape, but stays inside the panel so it doesn't go
+   off-screen on phones where the panel covers the full viewport width. */
+.panel-close {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 56px;
+  border: none;
+  border-radius: 11px 0 0 11px;
+  background: rgba(15, 23, 42, 0.10);
+  color: #0f172a;
+  cursor: pointer;
+  z-index: 6;
+  padding: 0;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   /* Avoid having the close button steal touch from the panel pan. The
      gesture handler short-circuits on `.panel-close` targets, but
      touch-action:auto here also lets browser-level tap behavior work. */
   touch-action: auto;
 }
+.panel-close svg {
+  width: 14px;
+  height: 22px;
+  display: block;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
 .panel-close:hover {
-  background: rgba(15, 23, 42, 0.16);
+  background: rgba(15, 23, 42, 0.18);
 }
 .panel-close:active {
-  background: rgba(15, 23, 42, 0.22);
+  background: rgba(15, 23, 42, 0.24);
 }
 
 /* ------------------------------------------------------------------
@@ -900,6 +962,7 @@ html, body, #app {
   cursor: pointer;
   font-family: inherit;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  touch-action: manipulation;
 }
 
 .control-box.on {

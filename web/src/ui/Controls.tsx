@@ -71,7 +71,7 @@ export function Controls() {
         class={`control-box ${showPanels.value ? "on" : "off"}`}
         onClick={() => { showPanels.value = !showPanels.value; }}
       >
-        Panels
+        Tables
       </button>
       {showTides.value && (
         <button
