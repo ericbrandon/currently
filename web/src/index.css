@@ -348,17 +348,19 @@ html, body, #app {
    Current station markers
    ------------------------------------------------------------------
    Layout:
-     - Outer .current-marker is a 60×60 box that holds the rotated arrow
-       SVG and a non-rotated value overlay centered on top of it.
+     - Outer .current-marker is a 75×75 box that holds the rotated arrow
+       SVG and a non-rotated value pill.
      - .current-arrow is the SVG; we rotate AND scale it via inline
        `transform: rotate(deg) scale(s)` written by currentStationLayer.
-     - .current-value sits absolutely centered, never rotates, so the kt
-       readout stays upright regardless of flow direction.
+     - .current-value is a small pill positioned absolutely. For
+       flood/ebb its inline transform places it at the arrow's tail so
+       the pill sits "behind" the flow; for slack/no-data it sits
+       centred on the slack/no-data circle.
 */
 .current-marker {
   position: relative;
-  width: 60px;
-  height: 60px;
+  width: 75px;
+  height: 75px;
   cursor: pointer;
 }
 
@@ -383,37 +385,44 @@ html, body, #app {
 .current-marker.slack .shape-slack { display: inline; fill: #6b21a8; }
 .current-marker.no-data .shape-slack { display: inline; fill: #94a3b8; }
 
-/* Weak/variable max — render a hollow arrow so the user can tell it
-   apart from a real flood/ebb event of the same magnitude. */
-.current-marker.weak .shape-arrow {
-  fill: rgba(255, 255, 255, 0.85);
-  stroke-width: 2;
-}
-.current-marker.weak.flood .shape-arrow { stroke: #0c2c5e; }
-.current-marker.weak.ebb   .shape-arrow { stroke: #b91c1c; }
-
 .current-marker .current-value {
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
+  /* The transform is set inline by currentStationLayer.ts on every
+     scrub frame: -50%/-50% to centre, plus a tail-direction offset
+     for flood/ebb. */
   font-size: 13px;
   font-weight: 700;
   font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  color: #ffffff;
   pointer-events: none;
+  white-space: nowrap;
+  transition: transform 120ms ease-out;
+}
+
+/* Flood/ebb: white pill with state-coloured text, sat behind the
+   arrow tail. The pill background masks the basemap so the digits
+   stay legible against any tile colour. */
+.current-marker.flood .current-value,
+.current-marker.ebb   .current-value {
+  padding: 1px 5px;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 3px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+.current-marker.flood .current-value { color: #0c2c5e; }
+.current-marker.ebb   .current-value { color: #b91c1c; }
+
+/* Slack / no-data: speed sits centred on the circle. Slack circle is
+   dark purple so the readout is white; no-data circle is light grey so
+   the readout is slate without a halo. */
+.current-marker.slack .current-value {
+  color: #ffffff;
   text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
 }
-
 .current-marker.no-data .current-value {
   color: #475569;
-  text-shadow: none;
   opacity: 0.85;
-}
-
-.current-marker.weak .current-value {
-  color: #0f172a;
-  text-shadow: none;
 }
 
 .current-marker .current-name {

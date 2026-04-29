@@ -5,12 +5,21 @@
 //   - flood (v > 0):  arrow rotated to flood_direction_true, navy fill.
 //   - ebb   (v < 0):  arrow rotated to ebb_direction_true,  red  fill.
 //   - slack (|v| < 0.1 kt): non-rotated circle, purple fill.
-//   - weak/variable max:  hollow / hatched arrow variant.
 //
-// The numeric speed (kt, absolute) sits in a non-rotated overlay
-// centred on the marker so it's always upright regardless of the
-// arrow's rotation. Mirrors TideStationLayer in structure: per-frame
-// scrub updates mutate marker DOM in place.
+// Weak/variable max events (where CHS has flagged the peak as too
+// variable to publish a magnitude) are rendered as ordinary flood/ebb
+// arrows on the map — the small interpolated magnitude already conveys
+// uncertainty, and a separate visual treatment was confusing here. The
+// distinction is preserved in the chart and side panel.
+//
+// The numeric speed (kt, absolute) sits in a non-rotated pill positioned
+// just beyond the arrow's tail (i.e., on the opposite side of the
+// station from where the flow is heading). The pill itself never
+// rotates so the digits stay upright; we just translate it along the
+// bearing vector from the marker centre. For slack / no-data, the pill
+// sits centred on the marker since there's no direction. Mirrors
+// TideStationLayer in structure: per-frame scrub updates mutate marker
+// DOM in place.
 
 import maplibregl, { type Map as MlMap } from "maplibre-gl";
 import { effect } from "@preact/signals";
@@ -35,6 +44,13 @@ const SVG_TEMPLATE = `
  *  distinct from Juan-de-Fuca's ~3 kt without losing weak-flow stations. */
 const REF_KNOTS = 8;
 const MIN_SCALE = 0.45;
+
+/** Distance in CSS px from the marker centre at which the speed pill is
+ *  placed when the arrow has a direction (flood/ebb). Sized to sit
+ *  just past the un-scaled arrow tail (which is at 30 px from centre at
+ *  the marker's 75 px box) — independent of the arrow's per-frame scale,
+ *  so the pill doesn't pop around as the speed ramps. */
+const TAIL_OFFSET_PX = 38;
 
 function arrowScale(absKnots: number): number {
   const r = Math.min(absKnots / REF_KNOTS, 1);
@@ -66,21 +82,20 @@ function updateMarkerEl(
   meta: StationMeta,
   state: CurrentState | null,
   value: number | null,
-  weak: boolean,
 ): void {
-  el.classList.remove("flood", "ebb", "slack", "no-data", "weak");
+  el.classList.remove("flood", "ebb", "slack", "no-data");
   const valueEl = el.querySelector(".current-value") as HTMLElement;
   const svg = el.querySelector("svg.current-arrow") as SVGSVGElement;
 
   if (state === null || value === null) {
     el.classList.add("no-data");
     valueEl.textContent = "—";
+    valueEl.style.transform = "translate(-50%, -50%)";
     svg.style.transform = `rotate(0deg) scale(${MIN_SCALE})`;
     return;
   }
 
   el.classList.add(state);
-  if (weak) el.classList.add("weak");
   valueEl.textContent = formatCurrentValue(value);
 
   // Direction: flood bearing for flood, ebb bearing for ebb. Slack has no
@@ -92,6 +107,19 @@ function updateMarkerEl(
 
   const scale = state === "slack" ? MIN_SCALE : arrowScale(Math.abs(value));
   svg.style.transform = `rotate(${bearing}deg) scale(${scale})`;
+
+  // Speed pill placement: slack is centred on the slack circle; flood
+  // and ebb sit at the arrow's tail. The tail is opposite the arrowhead,
+  // so it's offset along (-sin b, +cos b) in screen coords where b is
+  // the bearing measured clockwise from north.
+  if (state === "slack") {
+    valueEl.style.transform = "translate(-50%, -50%)";
+  } else {
+    const rad = (bearing * Math.PI) / 180;
+    const dx = -Math.sin(rad) * TAIL_OFFSET_PX;
+    const dy = Math.cos(rad) * TAIL_OFFSET_PX;
+    valueEl.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+  }
 }
 
 export class CurrentStationLayer {
@@ -151,8 +179,8 @@ export class CurrentStationLayer {
       const ext = this.extremesById.get(id);
       const meta = this.metaById.get(id);
       if (!ext || !meta) continue;
-      const { state, value, weak } = currentStateAt(ext, t);
-      updateMarkerEl(el, meta, state, value, weak);
+      const { state, value } = currentStateAt(ext, t);
+      updateMarkerEl(el, meta, state, value);
     }
   }
 }
