@@ -118,3 +118,8 @@ export function acceptTos(): void {
 export const userLocationActive = signal<boolean>(false);
 export const userLocationFollowing = signal<boolean>(false);
 export const userLocation = signal<{ lat: number; lon: number } | null>(null);
+
+// Info modal: copyright/contact + basemap and data attributions. Opened
+// from the "i" button in the Controls panel; dismissed by tapping the
+// backdrop, the close button, or pressing Escape.
+export const infoModalOpen = signal<boolean>(false);

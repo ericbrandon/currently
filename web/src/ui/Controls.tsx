@@ -28,6 +28,7 @@ import {
   useFeet,
   userLocationActive,
   userLocationFollowing,
+  infoModalOpen,
 } from "../state/store";
 
 function onLocationClick() {
@@ -90,6 +91,14 @@ export function Controls() {
       >
         <LocationIcon filled={locFollowing} />
       </button>
+      <button
+        class="control-box info"
+        onClick={() => { infoModalOpen.value = true; }}
+        aria-label="About this site"
+        title="About this site"
+      >
+        <InfoIcon />
+      </button>
     </div>
   );
 }
@@ -108,6 +117,16 @@ function LocationIcon({ filled }: { filled: boolean }) {
       {filled
         ? <circle cx="12" cy="12" r="3" fill="currentColor" stroke="none" />
         : <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />}
+    </svg>
+  );
+}
+
+function InfoIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="11" x2="12" y2="17" />
+      <circle cx="12" cy="7.5" r="0.6" fill="currentColor" stroke="none" />
     </svg>
   );
 }

@@ -1045,6 +1045,31 @@ html, body, #app {
 }
 
 /* ------------------------------------------------------------------
+   Info ("i") control button — same square footprint as the location
+   button, sits below it. Opens the InfoModal (about / attributions).
+   ------------------------------------------------------------------ */
+.control-box.info {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-end;
+  background: rgba(255, 255, 255, 0.92);
+  color: #1f2937;
+  border-color: #cbd5e1;
+}
+.control-box.info:active {
+  background: #e2e8f0;
+}
+.control-box.info svg {
+  display: block;
+  width: 20px;
+  height: 20px;
+}
+
+/* ------------------------------------------------------------------
    Terms-of-Use modal (first-launch clickwrap; see notes/TOS.md)
    ------------------------------------------------------------------
    Backdrop covers the full viewport and intercepts all pointer/touch
@@ -1140,6 +1165,95 @@ html, body, #app {
 }
 
 /* ------------------------------------------------------------------
+   Info modal (about / contact / data attributions)
+   ------------------------------------------------------------------
+   Same backdrop pattern as the TOS modal but dismissible — the user
+   can tap the backdrop, the × button, or press Escape. */
+.info-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+           env(safe-area-inset-bottom) env(safe-area-inset-left);
+  z-index: 100;
+  overscroll-behavior: contain;
+}
+
+.info-modal {
+  width: min(480px, 100%);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  color: #0f172a;
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+.info-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 8px 12px 18px;
+  background: #0c4a6e;
+  color: #ffffff;
+}
+
+.info-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.info-close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: #ffffff;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 4px;
+  font-family: inherit;
+  padding: 0;
+}
+.info-close:hover { background: rgba(255, 255, 255, 0.15); }
+.info-close:active { background: rgba(255, 255, 255, 0.25); }
+
+.info-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 14px 18px calc(14px + env(safe-area-inset-bottom));
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-overflow-scrolling: touch;
+}
+.info-body p { margin: 0 0 0.85em; }
+.info-body h3 {
+  margin: 1.2em 0 0.4em;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0c4a6e;
+  letter-spacing: 0.02em;
+}
+.info-body a {
+  color: #0c4a6e;
+  text-decoration: underline;
+}
+.info-copyright {
+  color: #475569;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------------
    Mobile breakpoint
    ------------------------------------------------------------------ */
 @media (max-width: 600px) {
@@ -1161,6 +1275,14 @@ html, body, #app {
     height: 32px;
   }
   .control-box.location svg {
+    width: 18px;
+    height: 18px;
+  }
+  .control-box.info {
+    width: 32px;
+    height: 32px;
+  }
+  .control-box.info svg {
     width: 18px;
     height: 18px;
   }

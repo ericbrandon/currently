@@ -23,6 +23,7 @@ import {
   userLocationActive,
   userLocationFollowing,
   tosAccepted,
+  infoModalOpen,
 } from "./state/store";
 import { fetchManifest, loadAllYears } from "./data/loader";
 import { createMap } from "./map/map";
@@ -36,6 +37,7 @@ import { TidePanel } from "./ui/TidePanel";
 import { CurrentPanel } from "./ui/CurrentPanel";
 import { Controls } from "./ui/Controls";
 import { TosModal } from "./ui/TosModal";
+import { InfoModal } from "./ui/InfoModal";
 
 export function App() {
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -125,6 +127,34 @@ export function App() {
     const ro = new ResizeObserver(update);
     ro.observe(scrubberEl);
     return () => ro.disconnect();
+  }, [loadedData.value]);
+
+  // Recenter the map on a newly-selected station, accounting for the
+  // timeline panel that overlays the bottom of the map. The station
+  // should land at the centre of the area visible *above* the post-
+  // expansion scrubber, so we wait one frame for the chart to render
+  // (which grows the scrubber), measure its height, and pass that as a
+  // pixel offset to flyTo. Deselection (id === null) is a no-op so the
+  // map stays put when the user dismisses the chart.
+  useEffect(() => {
+    const dispose = effect(() => {
+      const id = selectedStationId.value;
+      const data = loadedData.value;
+      const map = mapRef.current;
+      if (id === null || !data || !map) return;
+      const meta = data.stationsById.get(id);
+      if (!meta) return;
+      requestAnimationFrame(() => {
+        const scrubberEl = document.querySelector(".scrubber") as HTMLElement | null;
+        const scrubberH = scrubberEl?.getBoundingClientRect().height ?? 0;
+        map.flyTo({
+          center: [meta.longitude, meta.latitude],
+          offset: [0, -scrubberH / 2],
+          duration: 600,
+        });
+      });
+    });
+    return () => dispose();
   }, [loadedData.value]);
 
   // Step 4: scrubber → station-layer updates, rAF-coalesced.
@@ -257,6 +287,7 @@ export function App() {
       <Scrubber />
       <Controls />
       {!tosAccepted.value && <TosModal />}
+      {infoModalOpen.value && <InfoModal />}
     </div>
   );
 }
