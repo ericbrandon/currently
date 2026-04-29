@@ -302,15 +302,27 @@ html, body, #app {
   opacity: 0.7;
 }
 
-.tide-marker .tide-name {
+/* Wrapper centers the pill via flex so the pill itself carries no
+   transform — `translateX(-50%)` on the pill produces sub-pixel
+   positioning in combination with MapLibre's per-frame translate3d on
+   the marker, which on desktop Chrome renders text fuzzily. The wrapper
+   spans the marker's width and the pill sits at its natural width,
+   centered by `justify-content`. */
+.tide-marker .tide-name-row {
   position: absolute;
   top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
+  right: 0;
   margin-top: 2px;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.tide-marker .tide-name {
   padding: 2px 5px;
   background: rgba(255, 255, 255, 0.92);
-  color: #0c4a6e;
+  color: #000000;
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -321,6 +333,13 @@ html, body, #app {
   pointer-events: auto;
   cursor: pointer;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  /* Force grayscale AA — sharper than Chrome's default subpixel-AA inside
+     a transformed parent layer (MapLibre's marker uses translate3d, which
+     can land the layer at sub-pixel screen positions and break subpixel-
+     AA color fringes). iOS already uses grayscale AA; this is a no-op
+     there. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Hide secondary-tide markers when the map is zoomed out beyond the
@@ -404,6 +423,9 @@ html, body, #app {
   pointer-events: none;
   white-space: nowrap;
   transition: transform 120ms ease-out;
+  /* See `.tide-marker .tide-name` for why grayscale AA is forced. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 .current-marker.flood .current-value,
 .current-marker.ebb   .current-value {
@@ -423,22 +445,36 @@ html, body, #app {
   opacity: 0.85;
 }
 
-/* Name pill. Default: anchored just below the marker box. Two overrides
-   triggered by classes set in currentStationLayer.ts:
+/* Name pill. Default: anchored just below the marker box, centered by a
+   flex wrapper (avoids transform-induced subpixel fuzz on desktop). Two
+   overrides triggered by classes set in currentStationLayer.ts:
    - .name-pushed (arrow points ≈ N): pushed further down so the
      south-side speed pill fits between icon and name.
-   - .name-tracking (arrow points ≈ S): re-anchored to the marker
-     centre so the inline transform can place the pill relative to the
-     visible arrowhead at any scale. */
-.current-marker .current-name {
+   - .name-tracking (arrow points ≈ S): pill follows the visible
+     arrowhead via a per-frame transform set by JS. The wrapper goes
+     `display: contents` so the pill becomes effectively a child of the
+     marker and its `position: absolute` + JS transform work as before. */
+.current-marker .current-name-row {
   position: absolute;
   top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
+  right: 0;
   margin-top: 2px;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.current-marker.name-pushed .current-name-row {
+  margin-top: 14px;
+}
+.current-marker.name-tracking .current-name-row {
+  display: contents;
+}
+
+.current-marker .current-name {
   padding: 2px 5px;
   background: rgba(255, 255, 255, 0.92);
-  color: #6b21a8;
+  color: #000000;
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -449,13 +485,17 @@ html, body, #app {
   pointer-events: auto;
   cursor: pointer;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
-}
-.current-marker.name-pushed .current-name {
-  margin-top: 14px;
+  /* See `.tide-marker .tide-name` for why grayscale AA is forced. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 .current-marker.name-tracking .current-name {
+  /* Re-establish absolute positioning for the JS-driven transform path.
+     Anchored at marker centre; JS sets `transform: translate(calc(-50% +
+     dx), calc(-50% + dy))` to follow the arrow tip. */
+  position: absolute;
   top: 50%;
-  margin-top: 0;
+  left: 50%;
   /* Transition only in tracking mode so the pill smoothly follows the
      arrowhead as the user scrubs. Animating across mode flips would be
      glitchy because `top` and `margin-top` jump instantly. */

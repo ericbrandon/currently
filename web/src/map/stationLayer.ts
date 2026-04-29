@@ -50,7 +50,7 @@ function escapeHtml(s: string): string {
 function createMarkerEl(name: string, kindClass: string): HTMLElement {
   const el = document.createElement("div");
   el.className = `tide-marker no-data ${kindClass}`;
-  el.innerHTML = `${SVG_TEMPLATE}<div class="tide-name">${escapeHtml(name)}</div>`;
+  el.innerHTML = `${SVG_TEMPLATE}<div class="tide-name-row"><div class="tide-name">${escapeHtml(name)}</div></div>`;
   return el;
 }
 

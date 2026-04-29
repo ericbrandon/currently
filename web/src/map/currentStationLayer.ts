@@ -105,7 +105,7 @@ function createMarkerEl(name: string, kindClass: "primary" | "secondary"): HTMLE
   el.innerHTML =
     `${SVG_TEMPLATE}` +
     `<div class="current-value">—</div>` +
-    `<div class="current-name">${escapeHtml(name)}</div>`;
+    `<div class="current-name-row"><div class="current-name">${escapeHtml(name)}</div></div>`;
   return el;
 }
 
