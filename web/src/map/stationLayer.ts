@@ -25,8 +25,9 @@ import { formatTideValue } from "../util/units";
 // SVG viewBox is 40 wide × 55 tall. The 40×40 square sits centred
 // vertically; the triangle occupies the remaining 15 units (above for
 // flood, below for ebb). For slack the square is centred (y=7.5..47.5).
+// Rendered size 43×59 px (10% smaller than the original 48×66).
 const SVG_TEMPLATE = `
-<svg viewBox="0 0 40 55" width="48" height="66" preserveAspectRatio="xMidYMid meet">
+<svg viewBox="0 0 40 55" width="43" height="59" preserveAspectRatio="xMidYMid meet">
   <polygon class="shape shape-flood" points="20,0 40,15 40,55 0,55 0,15" />
   <polygon class="shape shape-ebb" points="0,0 40,0 40,40 20,55 0,40" />
   <rect class="shape shape-slack" x="0" y="7.5" width="40" height="40" />

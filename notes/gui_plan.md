@@ -4,6 +4,13 @@ This document tracks UI/UX changes to the *Currently* webapp as they're made. Th
 
 When a decision here contradicts `app_implementation.md`, this file wins for the latest entry — `app_implementation.md` should be updated to match if the change is durable.
 
+## 2026-04-28 — Tide icons 10% smaller (text unchanged)
+
+Now that current arrows are 25% bigger, the tide markers were dominating the map relatively. Shrunk the icon 10% to rebalance — 25% felt too small in practice.
+
+- SVG render size 48×66 → 43×59 in [`web/src/map/stationLayer.ts`](../web/src/map/stationLayer.ts) (`viewBox` unchanged at 40×55).
+- Depth value text and station-name pill both stay at their original sizes (14px / 10px). The text now occupies a slightly larger fraction of the icon than before, which is fine — the depth readout is the load-bearing piece of info on a tide marker, and keeping it readable matters more than preserving the original text-to-icon ratio.
+
 ## 2026-04-28 — Drop hollow weak rendering on map markers
 
 CHS flags some current maxima as "weak and variable" (`*` in the PDF). The map marker previously rendered those segments as a hollow arrow (white fill, coloured stroke) so they were visually distinct from a small but normal flood/ebb. With the speed readout now living outside the arrow, the hollow look read more like a desaturated arrow than a meaningful state — the user found it strange to see what looked like a "white-inside red arrow" for any ebb under ~2 kt.
