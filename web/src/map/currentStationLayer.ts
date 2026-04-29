@@ -69,15 +69,19 @@ const NAME_PUSH_THRESHOLD_DEG = 45;
 /** When the bearing is within ±this of due south, the arrowhead reaches
  *  toward the name pill's default location. The name pill is repositioned
  *  to track the arrowhead. Wider than NAME_PUSH so that bearings like
- *  220–240° (which point "vaguely down" but reach far sideways) also
- *  get tracking. */
-const NAME_TRACK_THRESHOLD_DEG = 60;
+ *  220–240° (which point "vaguely down" but reach far sideways) and
+ *  105°/255° (almost horizontal but still meaningfully below centre)
+ *  also get tracking. Capped below 90° from due south so that
+ *  near-horizontal arrows (e.g. 95°, where the tip dips only ~3 px
+ *  below centre) don't snap into a big lateral track for what's
+ *  visually still a horizontal arrow. */
+const NAME_TRACK_THRESHOLD_DEG = 75;
 
 /** When tracking, vertical gap between the arrow tip and the name pill's
  *  top edge. The pill sits directly below the tip (pill_cx = tip_x), so
  *  this is a true vertical distance — diagonal bearings get the same
  *  breathing room as straight-down ones. */
-const NAME_TIP_GAP_PX = 7;
+const NAME_TIP_GAP_PX = 13;
 
 /** Half the height of the name pill in CSS px — converts the desired
  *  tip-to-pill-top gap into a tip-to-pill-centre offset for the
