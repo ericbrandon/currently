@@ -74,7 +74,7 @@ On the **Set up builds and deployments** screen, enter exactly:
 
 | Field | Value |
 |---|---|
-| Project name | `currently` (becomes `currently.pages.dev`) |
+| Project name | `currently` — but expect a suffix: `currently.pages.dev` is globally namespaced and was already taken when this project deployed, so CF appended a random suffix and you got `currently-XXX.pages.dev`. Doesn't matter operationally — the custom domain hides this. |
 | Production branch | `release` |
 | Framework preset | **None** |
 | Build command | `cd web && npm ci && npm run build` |
@@ -104,9 +104,6 @@ Create `web/public/_headers` with this content:
 /
   Cache-Control: no-cache
 
-/manifest.webmanifest
-  Cache-Control: no-cache
-
 /data/manifest.json
   Cache-Control: no-cache, must-revalidate
 
@@ -116,7 +113,25 @@ Create `web/public/_headers` with this content:
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
 
-/favicon.svg
+/site.webmanifest
+  Cache-Control: public, max-age=86400
+
+/favicon.ico
+  Cache-Control: public, max-age=86400
+
+/favicon-96x96.png
+  Cache-Control: public, max-age=86400
+
+/apple-touch-icon.png
+  Cache-Control: public, max-age=86400
+
+/web-app-manifest-192x192.png
+  Cache-Control: public, max-age=86400
+
+/web-app-manifest-512x512.png
+  Cache-Control: public, max-age=86400
+
+/og-image.jpg
   Cache-Control: public, max-age=86400
 
 /icons.svg
@@ -127,7 +142,6 @@ Vite copies `public/_headers` into `dist/_headers` unchanged. Pages reads it at 
 
 A few things to know:
 
-- The first matching rule wins, top-down. Order matters: put more-specific paths before broader ones.
 - Pages applies `Content-Encoding: br` (brotli) automatically on top of whatever you set here. Don't try to set it yourself.
 - **Two rules for the index page** (`/` and `/index.html`): CF Pages matches paths literally, so a request for `/` doesn't match the `/index.html` rule. Without the explicit `/` rule, Pages falls back to its default (`max-age=0, must-revalidate`), which is functionally close to `no-cache` but not identical to what we declare.
 - **`/data/2*`, not `/data/*` and not `/data/*/*.json`.** Two CF Pages `_headers` gotchas in one rule:
@@ -140,54 +154,112 @@ A few things to know:
 
 ## 6. Attach the custom domain
 
-In the Pages project, **Custom domains → Set up a custom domain**.
+### 6.1 Add both domains to the Pages project
 
-Add both:
+In the Pages project, **Custom domains → Set up a custom domain**. Add each, one at a time:
 
 - `currentlybc.com`
 - `www.currentlybc.com`
 
-Cloudflare detects that the zone is in your account and auto-creates the DNS records (CNAME for www, a flattened CNAME / A record for apex). No manual record editing required. Provisioning the SSL cert takes 30 seconds to a couple of minutes.
+Cloudflare detects that the zone is in your account and auto-creates the DNS records (CNAME for www, a flattened CNAME / A record for apex). No manual record editing required. Provisioning the SSL cert takes 30 seconds to a couple of minutes; status flips from "Verifying" → **Active** when both DNS and cert are ready.
 
-Decide which one is canonical. The convention for marketing sites is apex (`currentlybc.com`) with `www` redirecting to it. To set up the redirect:
+### 6.2 SSL/TLS settings to verify
 
-**Cloudflare dashboard → currentlybc.com zone → Rules → Redirect Rules → Create rule:**
+Before deploying the redirect rule, confirm three settings on the zone. These are mostly defaults, but worth eyeballing:
 
-| Field | Value |
-|---|---|
-| Rule name | `www → apex` |
-| When incoming requests match | Hostname equals `www.currentlybc.com` |
-| Then | Static redirect |
-| Type | 301 |
-| URL | `https://currentlybc.com${request.uri.path}` |
-| Preserve query string | On |
+**SSL/TLS → Overview:**
+- [ ] **Encryption mode = Full (strict)**. If yours says **Full** (without strict), click Configure and switch — Full (strict) validates the origin cert (CF Pages always has a valid one). If yours says **Flexible**, switch immediately; Flexible would let CF talk to Pages over plain HTTP, which is wrong.
+
+**SSL/TLS → Edge Certificates:**
+- [ ] **Always Use HTTPS = On**. Redirects `http://` → `https://` automatically, which §7 verifies.
+- [ ] **Automatic HTTPS Rewrites = On**. Fixes mixed-content links inside HTML — cheap insurance.
+- [ ] In the certificate table, look for a Universal cert covering `*.currentlybc.com, currentlybc.com` with status **Active**. CF auto-renews; you do nothing.
+
+Ignore the upsells (**Order an advanced certificate**, **Activate ACM**, **Upgrade to Business**). Free-tier Universal SSL is sufficient.
+
+### 6.3 The www → apex redirect
+
+Decide which is canonical. The convention for marketing sites is apex (`currentlybc.com`) with `www` redirecting to it.
+
+**The easy path: use the template.** Navigate to the zone's **Rules → Overview** (not Rules → Page Rules — Page Rules is the legacy feature, capped at 3 on the free plan). Find the **"Redirect from www to root"** template and click it. CF pre-fills a Single Redirect rule:
+
+| Field | Pre-filled value | Action |
+|---|---|---|
+| Rule name | `Redirect from WWW to root [Template]` | Leave |
+| Match type | Wildcard pattern | Leave |
+| Request URL | `https://www.*` | Leave — wildcard captures everything after `www.` |
+| Target URL | `https://${1}` | Leave — `${1}` is the captured tail |
+| Status code | `301 - Permanent Redirect` | Leave |
+| Preserve query string | unchecked | **Check this box** so `?utm_source=...` survives the redirect |
+
+Click **Deploy**. If a popup warns *"This rule may not apply to your traffic — DNS configuration may not be proxying traffic for www"*, that's a **false positive** for Pages-managed CNAMEs (verify by opening DNS → Records in another tab and confirming the `www` row shows the orange-cloud Proxied status). Pick **"Ignore and deploy rule anyway"** and continue. **Do not pick "Create a new proxied DNS record"** — that creates a duplicate alongside the Pages-managed one and can break the custom domain.
+
+**The manual path** (if the template isn't there for some reason): Rules → Redirect Rules → Create rule, with values: name `www → apex`, match Hostname equals `www.currentlybc.com`, Then Static redirect, Type 301, URL `https://currentlybc.com${request.uri.path}`, Preserve query string On.
 
 (Or run it the other way — apex → www — if that's your preference. Whatever you pick, pick one and stick with it.)
 
 ## 7. Verifying the first real deploy
 
-After the deploy finishes, open `https://currentlybc.com` and check:
+After the deploy finishes, run through the checks below.
 
-**Functionality:**
+### 7.1 Functionality (browser, 30 seconds)
+
+Open `https://currentlybc.com`:
 - [ ] Map renders, basemap tiles load.
 - [ ] Stations appear and have values.
 - [ ] Scrubber moves; values update.
 - [ ] Tap a tide station — chart and 5-day panel appear.
 
-**Cache headers** (DevTools → Network, hard reload, click each row → Headers tab):
-- [ ] `/` (index.html): `cache-control: no-cache`
-- [ ] `/data/manifest.json`: `cache-control: no-cache, must-revalidate`
-- [ ] `/data/2026/tidal_primary.{hash}.json`: `cache-control: public, max-age=31536000, immutable`
-- [ ] `/assets/index-{hash}.js`: `cache-control: public, max-age=31536000, immutable`
+### 7.2 Cache headers + compression (curl, copy-pasteable)
 
-**Compression:**
-- [ ] JSON and JS responses have `content-encoding: br` (or `gzip`).
-- [ ] Transfer size in DevTools is much smaller than resource size — e.g. `current_primary.{hash}.json` should show ~400 KB transfer for ~10 MB resource.
+This is the fastest way to verify all the cache rules at once. Replace the hashed filenames with whatever's in `web/public/data/manifest.json` for the current year and the `assets/index-*.js` filename from `dist/index.html`:
 
-**HTTPS / domain:**
-- [ ] `currentlybc.com` works (cert valid).
-- [ ] `www.currentlybc.com` redirects to `currentlybc.com` (or vice versa, depending which you chose).
-- [ ] `http://currentlybc.com` redirects to `https://`. (Cloudflare does this automatically when the zone has "Always Use HTTPS" enabled — verify under SSL/TLS → Edge Certificates.)
+```bash
+URLS=(
+  "https://currentlybc.com/"
+  "https://currentlybc.com/data/manifest.json"
+  "https://currentlybc.com/data/2026/current_primary.<hash>.json"
+  "https://currentlybc.com/data/2026/tidal_primary.<hash>.json"
+  "https://currentlybc.com/assets/index-<hash>.js"
+  "https://currentlybc.com/favicon.svg"
+)
+for u in "${URLS[@]}"; do
+  HEADERS=$(curl -sD - -o /dev/null -H "Accept-Encoding: br, gzip" "$u")
+  echo "=== $u ==="
+  echo "$HEADERS" | head -1 | tr -d '\r'
+  echo "$HEADERS" | grep -i "^cache-control:" | tr -d '\r'
+  echo "$HEADERS" | grep -i "^content-encoding:" | tr -d '\r'
+done
+```
+
+Expected:
+
+| URL | Status | Cache-Control | Content-Encoding |
+|---|---|---|---|
+| `/` | 200 | `no-cache` | `br` |
+| `/data/manifest.json` | 200 | `no-cache, must-revalidate` | `br` |
+| `/data/{year}/*.json` | 200 | `public, max-age=31536000, immutable` | `br` |
+| `/assets/index-*.js` | 200 | `public, max-age=31536000, immutable` | `br` |
+| `/favicon.svg` | 200 | `public, max-age=86400` | `br` |
+
+If `/data/manifest.json` returns multiple comma-separated cache directives (e.g. `no-cache, must-revalidate, public, max-age=31536000, immutable`), your `_headers` has overlapping rules merging — see §5's gotcha 2 and §10.
+
+If you'd rather use DevTools: Network tab, hard-reload, click each row → Headers tab. Same expectations apply. Transfer size should be much smaller than resource size — e.g. `current_primary.{hash}.json` shows ~400 KB transfer for ~10 MB resource.
+
+### 7.3 Redirect chains (curl one-liner)
+
+```bash
+for u in https://www.currentlybc.com http://currentlybc.com http://www.currentlybc.com https://currentlybc.com; do
+  echo "=== $u ==="
+  curl -sIL "$u" | grep -iE "^(HTTP/|location:)"
+done
+```
+
+Expected:
+- [ ] `https://www.currentlybc.com` → 301 → `https://currentlybc.com/` → 200
+- [ ] `http://currentlybc.com` → 301 → `https://currentlybc.com/` → 200 (Always Use HTTPS)
+- [ ] `http://www.currentlybc.com` → 301 → `https://www.currentlybc.com/` → 301 → `https://currentlybc.com/` → 200 (chains both rules)
+- [ ] `https://currentlybc.com` → 200 directly (no redirect)
 
 If any of the above fails, see §10.
 
@@ -250,7 +322,7 @@ The same promote pattern (`git push origin main:release`) applies to any other c
 
 **Build succeeds but site is blank.** Almost always a `base` path issue. `web/vite.config.ts` should have `base: "./"` per [app_implementation.md §12.3](app_implementation.md#L463). Check the deployed `index.html` for `<script src="...">` paths — they should be relative.
 
-**`manifest.json` doesn't update after a data push.** Hard-reload once. If it still serves stale, check the response's `cache-control` header in DevTools — it should be `no-cache, must-revalidate`. If you see `max-age=...`, your `_headers` file isn't matching that path. The `/data/manifest.json` rule must come *before* the `/data/*/*.json` rule.
+**`manifest.json` doesn't update after a data push.** Hard-reload once. If it still serves stale, check the response's `cache-control` header (DevTools or `curl -sI`) — it should be exactly `no-cache, must-revalidate`. If you see extra directives concatenated (`...public, max-age=31536000, immutable`), the `/data/2*` rule is somehow matching the manifest path — check that the immutable rule's pattern is `/data/2*` (or another non-overlapping splat) and not `/data/*`. See §5's gotcha 2.
 
 **Hashed JSONs return 404 after a deploy.** The browser cached `manifest.json` pointing at old hashes, but the deploy removed those files. Hard-reload pulls the new manifest. The fact that this self-heals is *why* `manifest.json` is no-cache.
 
