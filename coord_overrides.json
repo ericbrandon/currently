@@ -71,6 +71,11 @@
   "7284": null,
   "7837": null,
   "8870": null,
+  "_block_us_cross_border": "US stations included in CHS tables for cross-border tidal context. Not in the CHS CSV, IWLS, or BC-only CGNDB, so they fall through every automated source. Coords sourced from NOAA / station detail pages and converted from DMS to decimal degrees.",
+  "7240": [
+    -122.994444,
+    48.541667
+  ],
   "_block_iwls_seeded": "Bulk-seeded from https://api-iwls.dfo-mpo.gc.ca/api/v1/stations by seed_iwls_overrides.py — do not edit by hand. Re-run that script after a new PDF year is processed to catch any newly-added stations. See notes/tables_processing.md.",
   "7090": [
     -123.536667,
