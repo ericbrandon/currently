@@ -44,6 +44,14 @@ export function InfoModal() {
           </button>
         </div>
         <div class="info-body">
+          <h3>Tips</h3>
+          <ul class="info-legend">
+            <li>Show tides and currents with the top right corner buttons</li>
+            <li>Click on a station to see its chart</li>
+            <li>Drag the timeline left or right</li>
+            <li>To see a station's information as a table, press "Table" at the top left of the chart box</li>
+          </ul>
+
           <h3>Legend</h3>
           <ul class="info-legend">
             <li>Times are BC local time (UTC&minus;7 all year)</li>
@@ -54,7 +62,7 @@ export function InfoModal() {
           <p class="info-copyright">© 2026</p>
           <p>
             Contact:{" "}
-            <a href="mailto:info@currentlybc.com">info@currentlybc.com</a>
+            <a href="mailto:admin.currentlybc@gmail.com">admin.currentlybc@gmail.com</a>
           </p>
 
           <h3>Basemap</h3>
