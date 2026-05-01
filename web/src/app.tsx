@@ -110,14 +110,20 @@ export function App() {
       }
     });
 
-    // Refresh newly-revealed markers after a pan/zoom. The layers' updateAt
-    // skips off-screen markers, so a marker that was off-screen at the last
-    // scrub frame and has now panned in would otherwise show stale text
-    // until the next scrub event.
-    map.on("moveend", () => {
+    // Refresh every marker (including currently off-screen ones) at the
+    // start of a pan/zoom, before the camera actually moves. The layers'
+    // updateAt skips off-screen markers, so a marker that was off-screen
+    // at the last scrub frame would otherwise slide into view showing
+    // stale text and only refresh on moveend — visible as a flash during
+    // the pan. movestart runs once before any camera motion, so by the
+    // time off-screen markers enter the viewport they already hold
+    // current values. We call updateAt twice (once per layer) — once per
+    // pan, not per frame — so the cull optimisation in the per-frame
+    // scrub path is unaffected.
+    map.on("movestart", () => {
       const t = scrubberMs.value;
-      if (showTides.value) layer.updateAt(t);
-      if (showCurrents.value) currentLayer.updateAt(t);
+      if (showTides.value) layer.updateAt(t, true);
+      if (showCurrents.value) currentLayer.updateAt(t, true);
     });
   }, [loadedData.value]);
 

@@ -18,7 +18,7 @@
 import maplibregl, { type Map as MlMap } from "maplibre-gl";
 import { effect } from "@preact/signals";
 import type { Extreme, LoadedData } from "../types";
-import { tideStateAt, type TideState } from "../interp/valueAt";
+import { tideStateAt, type SegmentCache, type TideState } from "../interp/valueAt";
 import { selectedStationId } from "../state/store";
 import { formatTideValue } from "../util/units";
 
@@ -87,6 +87,11 @@ export class TideStationLayer {
   // updateAt(). Cheaper than re-reading lat/lon from a maplibregl.Marker
   // (which goes through the marker's LngLat object) on every frame.
   private coordsById: Map<string, [number, number]> = new Map();
+  // Per-station last-segment cache for tideStateAt's segment search.
+  // See SegmentCache in interp/valueAt.ts — between consecutive scrub
+  // frames `t` rarely crosses an extreme, so the cache turns the lookup
+  // into amortised O(1).
+  private segmentCache: Map<string, SegmentCache> = new Map();
 
   constructor(map: MlMap, data: LoadedData) {
     this.map = map;
@@ -114,6 +119,7 @@ export class TideStationLayer {
       this.markers.set(id, marker);
       this.elements.set(id, el);
       this.coordsById.set(id, [meta.longitude, meta.latitude]);
+      this.segmentCache.set(id, { i: 0 });
     }
   }
 
@@ -141,18 +147,22 @@ export class TideStationLayer {
     this.map.getContainer().classList.toggle("hide-secondary-tides", hide);
   };
 
-  updateAt(t: number): void {
-    // Off-screen cull. Skip the per-marker work for stations outside the
-    // current viewport — their DOM stays stale, then is refreshed by the
-    // moveend hook in app.tsx when they pan back in. Drops per-frame work
-    // by ~50% at typical zoom levels.
-    const bounds = this.map.getBounds();
+  /** Recompute and apply each marker's state at time `t`.
+   *  When `full` is false (the per-frame scrub path), markers outside the
+   *  current viewport are skipped to halve the per-frame cost. When `full`
+   *  is true (movestart in app.tsx, pre-pan), the cull is bypassed so
+   *  off-screen markers that are about to slide into view already hold
+   *  current values when they appear. */
+  updateAt(t: number, full = false): void {
+    const bounds = full ? null : this.map.getBounds();
     for (const [id, el] of this.elements) {
-      const c = this.coordsById.get(id);
-      if (c && !bounds.contains(c)) continue;
+      if (bounds) {
+        const c = this.coordsById.get(id);
+        if (c && !bounds.contains(c)) continue;
+      }
       const ext = this.extremesById.get(id);
       if (!ext) continue;
-      const { state, value } = tideStateAt(ext, t);
+      const { state, value } = tideStateAt(ext, t, this.segmentCache.get(id));
       updateMarkerEl(el, state, value);
     }
   }

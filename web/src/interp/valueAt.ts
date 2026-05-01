@@ -7,14 +7,36 @@
 
 import type { Extreme } from "../types";
 
-/** Returns the interpolated value at absolute UTC ms `t`, or null if `t`
- *  falls outside [first, last] extreme of the array. We never extrapolate. */
-export function valueAt(extremes: Extreme[], t: number): number | null {
-  const n = extremes.length;
-  if (n < 2) return null;
-  if (t < extremes[0].t || t > extremes[n - 1].t) return null;
+/** Per-station hint object passed back into successive lookups so the
+ *  segment search exploits temporal locality: most scrub frames advance
+ *  `t` by minutes while segments span hours, so the segment containing
+ *  `t` is almost always the same as the previous frame, occasionally one
+ *  off. Callers create one object per station and reuse it. */
+export type SegmentCache = { i: number };
 
-  // Binary search: find the largest i such that extremes[i].t <= t.
+/** Find the largest i such that extremes[i].t <= t < extremes[i+1].t.
+ *  Cache fast-paths: same segment as last frame (hit), one segment
+ *  forward / back (boundary cross), then full binary search. The cache,
+ *  if provided, is mutated in place with the new index. */
+function findSegment(
+  extremes: Extreme[],
+  t: number,
+  cache?: SegmentCache,
+): number {
+  const n = extremes.length;
+  if (cache) {
+    const i = cache.i;
+    if (i < n - 1 && extremes[i].t <= t && t < extremes[i + 1].t) return i;
+    if (i + 2 < n && extremes[i + 1].t <= t && t < extremes[i + 2].t) {
+      cache.i = i + 1;
+      return i + 1;
+    }
+    if (i > 0 && extremes[i - 1].t <= t && t < extremes[i].t) {
+      cache.i = i - 1;
+      return i - 1;
+    }
+  }
+  // Cold / big-jump fallback: binary search.
   let lo = 0;
   let hi = n - 1;
   while (hi - lo > 1) {
@@ -22,9 +44,24 @@ export function valueAt(extremes: Extreme[], t: number): number | null {
     if (extremes[mid].t <= t) lo = mid;
     else hi = mid;
   }
+  if (cache) cache.i = lo;
+  return lo;
+}
 
+/** Returns the interpolated value at absolute UTC ms `t`, or null if `t`
+ *  falls outside [first, last] extreme of the array. We never extrapolate. */
+export function valueAt(
+  extremes: Extreme[],
+  t: number,
+  cache?: SegmentCache,
+): number | null {
+  const n = extremes.length;
+  if (n < 2) return null;
+  if (t < extremes[0].t || t > extremes[n - 1].t) return null;
+
+  const lo = findSegment(extremes, t, cache);
   const e1 = extremes[lo];
-  const e2 = extremes[hi];
+  const e2 = extremes[lo + 1];
   if (e2.t === e1.t) return e1.v;     // defensive: zero-duration segment
 
   const tau = (t - e1.t) / (e2.t - e1.t);
@@ -41,20 +78,16 @@ const SLACK_WINDOW_MS = 5 * 60 * 1000;
 export function tideStateAt(
   extremes: Extreme[],
   t: number,
+  cache?: SegmentCache,
 ): { state: TideState | null; value: number | null } {
   const n = extremes.length;
   if (n < 2 || t < extremes[0].t || t > extremes[n - 1].t) {
     return { state: null, value: null };
   }
 
-  let lo = 0, hi = n - 1;
-  while (hi - lo > 1) {
-    const mid = (lo + hi) >> 1;
-    if (extremes[mid].t <= t) lo = mid;
-    else hi = mid;
-  }
+  const lo = findSegment(extremes, t, cache);
   const e1 = extremes[lo];
-  const e2 = extremes[hi];
+  const e2 = extremes[lo + 1];
   if (e2.t === e1.t) return { state: "slack", value: e1.v };
 
   const tau = (t - e1.t) / (e2.t - e1.t);
@@ -103,19 +136,18 @@ function currentSegment(
 /** Interpolated signed knots at absolute UTC ms `t`, using the piecewise
  *  quarter-cycle shape described in `currentSegment`. Returns null outside
  *  the published range. */
-export function currentValueAt(extremes: Extreme[], t: number): number | null {
+export function currentValueAt(
+  extremes: Extreme[],
+  t: number,
+  cache?: SegmentCache,
+): number | null {
   const n = extremes.length;
   if (n < 2) return null;
   if (t < extremes[0].t || t > extremes[n - 1].t) return null;
 
-  let lo = 0, hi = n - 1;
-  while (hi - lo > 1) {
-    const mid = (lo + hi) >> 1;
-    if (extremes[mid].t <= t) lo = mid;
-    else hi = mid;
-  }
+  const lo = findSegment(extremes, t, cache);
   const e1 = extremes[lo];
-  const e2 = extremes[hi];
+  const e2 = extremes[lo + 1];
   if (e2.t === e1.t) return e1.v;
 
   const tau = (t - e1.t) / (e2.t - e1.t);
@@ -128,20 +160,16 @@ export function currentValueAt(extremes: Extreme[], t: number): number | null {
 export function currentStateAt(
   extremes: Extreme[],
   t: number,
+  cache?: SegmentCache,
 ): { state: CurrentState | null; value: number | null; weak: boolean } {
   const n = extremes.length;
   if (n < 2 || t < extremes[0].t || t > extremes[n - 1].t) {
     return { state: null, value: null, weak: false };
   }
 
-  let lo = 0, hi = n - 1;
-  while (hi - lo > 1) {
-    const mid = (lo + hi) >> 1;
-    if (extremes[mid].t <= t) lo = mid;
-    else hi = mid;
-  }
+  const lo = findSegment(extremes, t, cache);
   const e1 = extremes[lo];
-  const e2 = extremes[hi];
+  const e2 = extremes[lo + 1];
   if (e2.t === e1.t) {
     return { state: "slack", value: e1.v, weak: !!(e1.weak || e2.weak) };
   }

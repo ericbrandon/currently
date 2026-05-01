@@ -28,7 +28,7 @@
 import maplibregl, { type Map as MlMap } from "maplibre-gl";
 import { effect } from "@preact/signals";
 import type { Extreme, LoadedData, StationMeta } from "../types";
-import { currentStateAt, type CurrentState } from "../interp/valueAt";
+import { currentStateAt, type CurrentState, type SegmentCache } from "../interp/valueAt";
 import { selectedStationId } from "../state/store";
 import { formatCurrentValue } from "../util/units";
 
@@ -198,6 +198,8 @@ export class CurrentStationLayer {
   // Cached [lng, lat] per id for the per-frame off-screen cull. See
   // TideStationLayer for the same pattern and rationale.
   private coordsById: Map<string, [number, number]> = new Map();
+  // Per-station last-segment cache; see TideStationLayer.
+  private segmentCache: Map<string, SegmentCache> = new Map();
 
   constructor(map: MlMap, data: LoadedData) {
     this.map = map;
@@ -223,6 +225,7 @@ export class CurrentStationLayer {
       this.markers.set(id, marker);
       this.elements.set(id, el);
       this.coordsById.set(id, [meta.longitude, meta.latitude]);
+      this.segmentCache.set(id, { i: 0 });
     }
   }
 
@@ -249,16 +252,18 @@ export class CurrentStationLayer {
     this.map.getContainer().classList.toggle("hide-secondary-currents", hide);
   };
 
-  updateAt(t: number): void {
-    // Off-screen cull — see TideStationLayer.updateAt.
-    const bounds = this.map.getBounds();
+  /** See TideStationLayer.updateAt for the `full` flag. */
+  updateAt(t: number, full = false): void {
+    const bounds = full ? null : this.map.getBounds();
     for (const [id, el] of this.elements) {
-      const c = this.coordsById.get(id);
-      if (c && !bounds.contains(c)) continue;
+      if (bounds) {
+        const c = this.coordsById.get(id);
+        if (c && !bounds.contains(c)) continue;
+      }
       const ext = this.extremesById.get(id);
       const meta = this.metaById.get(id);
       if (!ext || !meta) continue;
-      const { state, value } = currentStateAt(ext, t);
+      const { state, value } = currentStateAt(ext, t, this.segmentCache.get(id));
       updateMarkerEl(el, meta, state, value);
     }
   }
