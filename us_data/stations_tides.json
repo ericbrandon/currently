@@ -1,0 +1,321 @@
+{
+  "_comment": "NOAA tide prediction stations matched to our target placenames. Use with https://api.tidesandcurrents.noaa.gov/api/prod/datagetter (product=predictions, station=<id>, datum=MLLW). type=R is harmonic/reference; type=S is subordinate (offsets applied to the referenced station).",
+  "stations": [
+    {
+      "placename": "Seattle / Elliott Bay",
+      "id": "9447130",
+      "name": "SEATTLE (Madison St.), Elliott Bay",
+      "type": "R",
+      "NOAA_short_name": "Elliott Bay"
+    },
+    {
+      "placename": "Shilshole Bay / Ballard",
+      "id": "9447265",
+      "name": "Meadow Point, Shilshole Bay",
+      "type": "S",
+      "reference_id": "9447130",
+      "NOAA_short_name": "Shilshole Bay"
+    },
+    {
+      "placename": "Ballard Locks / Ship Canal entrance",
+      "id": "9447265",
+      "name": "Meadow Point, Shilshole Bay",
+      "type": "S",
+      "note": "No station at the locks; Meadow Point is the closest saltwater-side station (~0.5 mi NW of locks).",
+      "reference_id": "9447130",
+      "NOAA_short_name": "Shilshole Bay"
+    },
+    {
+      "placename": "Edmonds",
+      "id": "9447427",
+      "name": "Edmonds",
+      "type": "S",
+      "reference_id": "9447130",
+      "NOAA_short_name": "Edmonds"
+    },
+    {
+      "placename": "Everett / Port Gardner",
+      "id": "9447659",
+      "name": "Everett",
+      "type": "R",
+      "NOAA_short_name": "Everett"
+    },
+    {
+      "placename": "Mukilteo / Possession Sound",
+      "id": "9447814",
+      "name": "Glendale, Whidbey Island",
+      "type": "S",
+      "note": "No Mukilteo station; Glendale is directly across Possession Sound. Edmonds (9447427) and Everett (9447659) are also nearby.",
+      "reference_id": "9447130",
+      "NOAA_short_name": "Glendale"
+    },
+    {
+      "placename": "Kingston / Apple Tree Cove",
+      "id": "9445639",
+      "name": "Kingston, Appletree Cove",
+      "type": "S",
+      "reference_id": "9447130",
+      "NOAA_short_name": "Appletree Cove"
+    },
+    {
+      "placename": "Port Madison",
+      "id": "9445753",
+      "name": "Port Madison",
+      "type": "S",
+      "reference_id": "9447130",
+      "NOAA_short_name": "Port Madison"
+    },
+    {
+      "placename": "Eagle Harbor / Bainbridge Island",
+      "id": "9445882",
+      "name": "Eagle Harbor, Bainbridge Island",
+      "type": "S",
+      "reference_id": "9447130",
+      "NOAA_short_name": "Eagle Harbor"
+    },
+    {
+      "placename": "Poulsbo / Liberty Bay",
+      "id": "9445719",
+      "name": "Poulsbo, Liberty Bay",
+      "type": "S",
+      "reference_id": "9447130",
+      "NOAA_short_name": "Liberty Bay"
+    },
+    {
+      "placename": "Bremerton / Sinclair Inlet",
+      "id": "9445958",
+      "name": "Bremerton, Sinclair Inlet, Port Orchard",
+      "type": "R",
+      "NOAA_short_name": "Sinclair Inlet"
+    },
+    {
+      "placename": "Port Orchard (Brownsville)",
+      "id": "9445832",
+      "name": "Brownsville, Port Orchard",
+      "type": "S",
+      "reference_id": "9447130",
+      "NOAA_short_name": "Brownsville"
+    },
+    {
+      "placename": "Blake Island",
+      "id": "9445993",
+      "name": "Harper, Yukon Harbor",
+      "type": "S",
+      "note": "No Blake Island station; Harper (Yukon Hbr) and Pt Vashon (9446025) are closest. Port Blakely (9445913) is also nearby.",
+      "reference_id": "9447130",
+      "NOAA_short_name": "Yukon Harbor"
+    },
+    {
+      "placename": "Gig Harbor",
+      "id": "9446369",
+      "name": "Gig Harbor",
+      "type": "S",
+      "reference_id": "9447130",
+      "NOAA_short_name": "Gig Harbor"
+    },
+    {
+      "placename": "Tacoma / Commencement Bay",
+      "id": "9446484",
+      "name": "Tacoma, Commencement Bay, Sitcum Waterway",
+      "type": "R",
+      "NOAA_short_name": "Commencement Bay"
+    },
+    {
+      "placename": "Tacoma Narrows / Narrows Marina",
+      "id": "9446486",
+      "name": "Tacoma Narrows Bridge",
+      "type": "S",
+      "reference_id": "9447130",
+      "NOAA_short_name": "Tacoma Narrows"
+    },
+    {
+      "placename": "Quartermaster Harbor / Vashon-Maury",
+      "id": "9446254",
+      "name": "Burton, Quartermaster Hbr. (inside), Vashon I.",
+      "type": "S",
+      "additional": [
+        "9446025",
+        "9446375"
+      ],
+      "reference_id": "9447130",
+      "NOAA_short_name": "Quartermaster Harbor"
+    },
+    {
+      "placename": "Des Moines / Redondo",
+      "id": "9446248",
+      "name": "Des Moines, East Passage",
+      "type": "S",
+      "reference_id": "9447130",
+      "NOAA_short_name": "East Passage"
+    },
+    {
+      "placename": "Olympia / Budd Inlet",
+      "id": "9446969",
+      "name": "Olympia, Budd Inlet",
+      "type": "S",
+      "additional": [
+        "9446807",
+        "9446800"
+      ],
+      "reference_id": "9447130",
+      "NOAA_short_name": "Budd Inlet"
+    },
+    {
+      "placename": "Shelton / Oakland Bay / Hammersley",
+      "id": "9446628",
+      "name": "Shelton, Oakland Bay",
+      "type": "S",
+      "reference_id": "9447130",
+      "NOAA_short_name": "Oakland Bay"
+    },
+    {
+      "placename": "Jarrell Cove",
+      "id": "9446489",
+      "name": "Walkers Landing, Pickering Passage",
+      "type": "S",
+      "note": "No Jarrell Cove station; Walkers Landing on Pickering Pass is closest. McMicken Island (9446583) also nearby.",
+      "reference_id": "9447130",
+      "NOAA_short_name": "Pickering Passage"
+    },
+    {
+      "placename": "Penrose Point / Lakebay",
+      "id": "9446500",
+      "name": "Home, Von Geldern Cove, Carr Inlet",
+      "type": "S",
+      "note": "No Penrose Point station; Home (Von Geldern Cove) is closest. Longbranch (9446638) is also nearby.",
+      "reference_id": "9447130",
+      "NOAA_short_name": "Von Geldern Cove"
+    },
+    {
+      "placename": "McMicken Island / Harstine",
+      "id": "9446583",
+      "name": "McMicken Island, Case Inlet",
+      "type": "S",
+      "reference_id": "9447130",
+      "NOAA_short_name": "Case Inlet"
+    },
+    {
+      "placename": "Hope Island / Squaxin Island",
+      "id": "9446666",
+      "name": "Arcadia, Totten Inlet",
+      "type": "S",
+      "note": "No Hope/Squaxin Island station; Arcadia is closest. McMicken Island (9446583) and Walkers Landing (9446489) also reasonable.",
+      "reference_id": "9447130",
+      "NOAA_short_name": "Totten Inlet"
+    },
+    {
+      "placename": "Hood Canal \u2014 Seabeck / Dabob",
+      "id": "9445303",
+      "name": "Seabeck, Seabeck Bay",
+      "type": "S",
+      "additional": [
+        "9445246",
+        "9445269",
+        "9445272"
+      ],
+      "reference_id": "9447130",
+      "NOAA_short_name": "Seabeck Bay"
+    },
+    {
+      "placename": "Hood Canal \u2014 Union / Great Bend",
+      "id": "9445478",
+      "name": "Union",
+      "type": "R",
+      "additional": [
+        "9445441"
+      ],
+      "NOAA_short_name": "Union"
+    },
+    {
+      "placename": "Port Townsend",
+      "id": "9444900",
+      "name": "PORT TOWNSEND",
+      "type": "R",
+      "NOAA_short_name": "Port Townsend"
+    },
+    {
+      "placename": "Port Ludlow",
+      "id": "9445017",
+      "name": "Port Ludlow",
+      "type": "S",
+      "reference_id": "9447130",
+      "NOAA_short_name": "Port Ludlow"
+    },
+    {
+      "placename": "Port Hadlock / Port Townsend Bay south",
+      "id": "9444971",
+      "name": "Mystery Bay, Marrowstone Island",
+      "type": "S",
+      "note": "No Port Hadlock station; Mystery Bay is closest in same body of water. Port Townsend (9444900) on the bay's other end.",
+      "reference_id": "9444900",
+      "NOAA_short_name": "Mystery Bay"
+    },
+    {
+      "placename": "Mystery Bay / Marrowstone Island",
+      "id": "9444971",
+      "name": "Mystery Bay, Marrowstone Island",
+      "type": "S",
+      "additional": [
+        "9444972"
+      ],
+      "reference_id": "9444900",
+      "NOAA_short_name": "Mystery Bay"
+    },
+    {
+      "placename": "Fort Flagler / Kilisut Harbor",
+      "id": "9444971",
+      "name": "Mystery Bay, Marrowstone Island",
+      "type": "S",
+      "note": "No Fort Flagler station; Mystery Bay is at the south end of Kilisut Harbor and is the natural substitute.",
+      "reference_id": "9444900",
+      "NOAA_short_name": "Mystery Bay"
+    },
+    {
+      "placename": "Hadlock / Oak Bay / Mats Mats Bay",
+      "id": "9445016",
+      "name": "Foulweather Bluff",
+      "type": "R",
+      "note": "No station in this cluster; Foulweather Bluff and Port Ludlow (9445017) are the nearest.",
+      "NOAA_short_name": "Foulweather Bluff"
+    },
+    {
+      "placename": "Oak Harbor",
+      "id": "9447952",
+      "name": "Crescent Harbor, N. Whidbey Island",
+      "type": "S",
+      "note": "No Oak Harbor station; Crescent Harbor (just east) is the closest. NAS Whidbey (9447973) is reference-quality and slightly further.",
+      "reference_id": "9447130",
+      "NOAA_short_name": "Crescent Harbor"
+    },
+    {
+      "placename": "Saratoga Passage",
+      "id": "9447929",
+      "name": "Coupeville, Penn Cove, Whidbey Island",
+      "type": "S",
+      "additional": [
+        "9447855"
+      ],
+      "reference_id": "9447130",
+      "NOAA_short_name": "Penn Cove"
+    },
+    {
+      "placename": "La Conner / Swinomish Channel",
+      "id": "9448558",
+      "name": "La Conner, Swinomish Channel",
+      "type": "S",
+      "additional": [
+        "9448682"
+      ],
+      "reference_id": "9447130",
+      "NOAA_short_name": "Swinomish Channel"
+    },
+    {
+      "placename": "Anacortes / Cap Sante / Guemes Channel",
+      "id": "9448794",
+      "name": "Anacortes, Guemes Channel",
+      "type": "S",
+      "reference_id": "9444900",
+      "NOAA_short_name": "Guemes Channel"
+    }
+  ]
+}

@@ -1,0 +1,280 @@
+{
+  "_comment": "NOAA current prediction stations matched to our target placenames. Bins are listed shallowest-first; pick the shallowest for surface/boater relevance. Use with https://api.tidesandcurrents.noaa.gov/api/prod/datagetter (product=currents_predictions, station=<id>, bin=<n>).",
+  "stations": [
+    {
+      "placename": "Deception Pass",
+      "primary": "PUG1701",
+      "primary_name": "Deception Pass (Narrows)",
+      "shallowest_bin": 18,
+      "shallowest_depth_ft": 18,
+      "additional": [
+        "PUG1629"
+      ],
+      "type": "H",
+      "NOAA_short_name": "Deception Pass"
+    },
+    {
+      "placename": "Swinomish Channel / La Conner",
+      "primary": null,
+      "primary_name": null,
+      "note": "No NOAA current prediction station; tide-only."
+    },
+    {
+      "placename": "Guemes Channel (W entrance)",
+      "primary": "PUG1734",
+      "primary_name": "Guemes Channel, West Entrance",
+      "shallowest_bin": 1,
+      "shallowest_depth_ft": 11,
+      "type": "H",
+      "NOAA_short_name": "Guemes Channel W"
+    },
+    {
+      "placename": "Guemes Channel (E entrance)",
+      "primary": "PUG1735",
+      "primary_name": "Guemes Channel, East Entrance",
+      "shallowest_bin": 1,
+      "shallowest_depth_ft": 9,
+      "type": "H",
+      "NOAA_short_name": "Guemes Channel E"
+    },
+    {
+      "placename": "Rosario Strait (Anacortes-SJI)",
+      "primary": "PUG1702",
+      "primary_name": "Rosario Strait",
+      "shallowest_bin": 9,
+      "shallowest_depth_ft": 47,
+      "type": "H",
+      "NOAA_short_name": "Rosario Strait"
+    },
+    {
+      "placename": "Admiralty Inlet (Bush Point)",
+      "primary": "PUG1616",
+      "primary_name": "Admiralty Inlet (off Bush Point)",
+      "shallowest_bin": 6,
+      "shallowest_depth_ft": 29,
+      "additional": [
+        "PUG1617"
+      ],
+      "type": "H",
+      "NOAA_short_name": "Bush Point"
+    },
+    {
+      "placename": "Admiralty Inlet (Point Wilson)",
+      "primary": "PUG1623",
+      "primary_name": "Point Wilson, 0.6 mi. NE of",
+      "shallowest_bin": 14,
+      "shallowest_depth_ft": 17,
+      "additional": [
+        "PUG1624",
+        "PUG1625",
+        "PCT1496"
+      ],
+      "type": "H",
+      "NOAA_short_name": "Point Wilson"
+    },
+    {
+      "placename": "Admiralty Inlet (Marrowstone Pt)",
+      "primary": "PUG1619",
+      "primary_name": "Marrowstone Point, 0.8 mi. NE of",
+      "shallowest_bin": 9,
+      "shallowest_depth_ft": 29,
+      "additional": [
+        "PUG1620",
+        "PCT1511"
+      ],
+      "type": "H",
+      "NOAA_short_name": "Marrowstone Point"
+    },
+    {
+      "placename": "Port Townsend Canal",
+      "primary": "PUG1614",
+      "primary_name": "Port Townsend Canal",
+      "shallowest_bin": 1,
+      "shallowest_depth_ft": 5,
+      "type": "H",
+      "NOAA_short_name": "Port Townsend Canal"
+    },
+    {
+      "placename": "Possession Sound / Saratoga",
+      "primary": "PUG1605",
+      "primary_name": "Possession Sound Entrance",
+      "shallowest_bin": 20,
+      "shallowest_depth_ft": 59,
+      "type": "H",
+      "NOAA_short_name": "Possession Sound"
+    },
+    {
+      "placename": "Agate Passage (S end)",
+      "primary": "PUG1501",
+      "primary_name": "Agate Passage, south end",
+      "shallowest_bin": 1,
+      "shallowest_depth_ft": 9,
+      "additional": [
+        "PCT1636"
+      ],
+      "type": "H",
+      "NOAA_short_name": "Agate Passage"
+    },
+    {
+      "placename": "Rich Passage (E end)",
+      "primary": "PUG1513",
+      "primary_name": "Rich Passage, East end",
+      "shallowest_bin": 1,
+      "shallowest_depth_ft": 11,
+      "type": "H",
+      "NOAA_short_name": "Rich Passage E"
+    },
+    {
+      "placename": "Rich Passage (W end)",
+      "primary": "PUG1514",
+      "primary_name": "Rich Passage, West end",
+      "shallowest_bin": 1,
+      "shallowest_depth_ft": 12,
+      "type": "H",
+      "NOAA_short_name": "Rich Passage W"
+    },
+    {
+      "placename": "Colvos Passage (Anderson Pt)",
+      "primary": "PUG1518",
+      "primary_name": "Anderson Point, East of, Colvos Passage",
+      "shallowest_bin": 10,
+      "shallowest_depth_ft": 35,
+      "additional": [
+        "PUG1519"
+      ],
+      "type": "H",
+      "NOAA_short_name": "Colvos Passage"
+    },
+    {
+      "placename": "Tacoma Narrows (N of bridge)",
+      "primary": "PUG1527",
+      "primary_name": "The Narrows, 0.3 miles North of Bridge",
+      "shallowest_bin": 1,
+      "shallowest_depth_ft": 23,
+      "additional": [
+        "PUG1524",
+        "PUG1526",
+        "PUG1528"
+      ],
+      "type": "H",
+      "NOAA_short_name": "Tacoma Narrows"
+    },
+    {
+      "placename": "Hale Passage (E end, Fox Island)",
+      "primary": "PUG1529",
+      "primary_name": "Hale Passage, East end",
+      "shallowest_bin": 1,
+      "shallowest_depth_ft": 11,
+      "additional": [
+        "PUG1530"
+      ],
+      "type": "H",
+      "NOAA_short_name": "Hale Passage"
+    },
+    {
+      "placename": "Pitt Passage",
+      "primary": "PUG1536",
+      "primary_name": "Pitt Passage, NE of Pitt Island",
+      "shallowest_bin": 1,
+      "shallowest_depth_ft": 7,
+      "type": "H",
+      "NOAA_short_name": "Pitt Passage"
+    },
+    {
+      "placename": "Balch Passage",
+      "primary": "PUG1535",
+      "primary_name": "Balch Passage, NE of Eagle Island",
+      "shallowest_bin": 1,
+      "shallowest_depth_ft": 11,
+      "type": "H",
+      "NOAA_short_name": "Balch Passage"
+    },
+    {
+      "placename": "Drayton Passage",
+      "primary": "PUG1537",
+      "primary_name": "Drayton Passage",
+      "shallowest_bin": 5,
+      "shallowest_depth_ft": 19,
+      "_warning": "Do NOT confuse with PCT2301 Drayton Harbor near Blaine.",
+      "type": "H",
+      "NOAA_short_name": "Drayton Passage"
+    },
+    {
+      "placename": "Dana Passage",
+      "primary": "PUG1539",
+      "primary_name": "Dana Passage",
+      "shallowest_bin": 1,
+      "shallowest_depth_ft": 16,
+      "type": "H",
+      "NOAA_short_name": "Dana Passage"
+    },
+    {
+      "placename": "Pickering Passage (mid)",
+      "primary": "PUG1547",
+      "primary_name": "Pickering Passage, off Graham Point",
+      "shallowest_bin": 1,
+      "shallowest_depth_ft": 10,
+      "additional": [
+        "PUG1546",
+        "PUG1548"
+      ],
+      "type": "H",
+      "NOAA_short_name": "Pickering Passage"
+    },
+    {
+      "placename": "Peale Passage (S end)",
+      "primary": "PUG1541",
+      "primary_name": "Peale Passage, South end",
+      "shallowest_bin": 1,
+      "shallowest_depth_ft": 9,
+      "additional": [
+        "PUG1542"
+      ],
+      "type": "H",
+      "NOAA_short_name": "Peale Passage"
+    },
+    {
+      "placename": "Squaxin Passage",
+      "primary": "PUG1543",
+      "primary_name": "Squaxin Passage, North of Hunter Point",
+      "shallowest_bin": 1,
+      "shallowest_depth_ft": 5,
+      "type": "H",
+      "NOAA_short_name": "Squaxin Passage"
+    },
+    {
+      "placename": "Hammersley Inlet (Libby Pt)",
+      "primary": "PUG1545",
+      "primary_name": "Libby Point, Hammersley Inlet",
+      "shallowest_bin": 1,
+      "shallowest_depth_ft": 5,
+      "additional": [
+        "PCT1896"
+      ],
+      "type": "H",
+      "NOAA_short_name": "Hammersley Inlet"
+    },
+    {
+      "placename": "Cattle Pass / San Juan Channel S",
+      "primary": "PUG1703",
+      "primary_name": "San Juan Channel, south entrance",
+      "shallowest_bin": 13,
+      "shallowest_depth_ft": 75,
+      "additional": [
+        "PUG1742",
+        "PCT1416"
+      ],
+      "type": "H",
+      "NOAA_short_name": "San Juan Channel"
+    },
+    {
+      "placename": "Spieden Channel",
+      "primary": "PUG1719",
+      "primary_name": "Spieden Channel, north of Limestone Point",
+      "shallowest_bin": 7,
+      "shallowest_depth_ft": 47,
+      "type": "H",
+      "NOAA_short_name": "Spieden Channel"
+    }
+  ]
+}

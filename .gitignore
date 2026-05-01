@@ -18,3 +18,7 @@ env/
 
 # Data / large files (not source)
 *.pdf
+
+# NOAA pipeline raw cache and timestamped anomaly reports
+us_data/raw/
+us_data/anomalies_*.md
