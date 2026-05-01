@@ -34,7 +34,7 @@ export const scrubberMs = computed(
   () => windowStartMs.value + THUMB_FRACTION * WINDOW_MS,
 );
 
-export const selectedStationId = signal<number | null>(null);
+export const selectedStationId = signal<string | null>(null);
 
 /** Scrubber range derived from the loaded data; null while loading. */
 export const scrubberRange = computed(() => {

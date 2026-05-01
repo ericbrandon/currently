@@ -21,6 +21,8 @@ import type {
   Extreme,
   LoadedData,
   Manifest,
+  NoaaCurrentPrimaryFile,
+  NoaaTidePrimaryFile,
   StationMeta,
   TidePrimaryFile,
   TidePrimaryStation,
@@ -48,6 +50,26 @@ const CURRENT_REF_ALIASES: Record<string, string> = {
 
 const MANIFEST_URL = "data/manifest.json";
 
+/** Namespaced station-id helpers. Two namespaces in play:
+ *
+ *   chs:<index_no>            CHS stations (numeric index_no)
+ *   noaa:<noaa_id>            NOAA tide stations (e.g. "noaa:9447130")
+ *   noaa:<noaa_id>:<bin>      NOAA current stations (e.g. "noaa:PUG1701:18")
+ *
+ * Namespacing keeps the two ID worlds disjoint without minting synthetic
+ * numbers, and the prefix tells the rest of the app which feed the
+ * station came from at a glance. */
+export const chsId = (indexNo: number) => `chs:${indexNo}`;
+export const noaaTideId = (noaaId: string) => `noaa:${noaaId}`;
+export const noaaCurrentId = (noaaId: string, bin: number | null) =>
+  bin === null ? `noaa:${noaaId}` : `noaa:${noaaId}:${bin}`;
+
+/** Y-axis bound padding for NOAA tide charts. NOAA hilo predictions don't
+ *  carry mean/large-tide reference heights, so we derive bounds from the
+ *  observed range with a small pad so the highest/lowest extreme of the
+ *  year doesn't sit flush against the chart edge. */
+const NOAA_TIDE_BOUND_PAD_M = 0.3;
+
 export async function fetchManifest(): Promise<Manifest> {
   const r = await fetch(MANIFEST_URL, { cache: "no-cache" });
   if (!r.ok) throw new Error(`manifest fetch failed: ${r.status}`);
@@ -70,68 +92,43 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
     throw new Error("manifest contains no years");
   }
 
+  const fetchSlot = async <T,>(path: string | undefined, label: string): Promise<T | null> => {
+    if (!path) return null;
+    const r = await fetch(`data/${path}`);
+    if (!r.ok) throw new Error(`${label} fetch failed: ${path} (${r.status})`);
+    return (await r.json()) as T;
+  };
+
   const [
     tidePrimaryFiles,
     tideSecondaryFiles,
     currentPrimaryFiles,
     currentSecondaryFiles,
+    noaaTidePrimaryFiles,
+    noaaCurrentPrimaryFiles,
   ] = await Promise.all([
-    Promise.all(
-      yearEntries.map(async (y) => {
-        if (!y.tidal_primary) return null;
-        const r = await fetch(`data/${y.tidal_primary}`);
-        if (!r.ok) {
-          throw new Error(`tide primary fetch failed: ${y.tidal_primary} (${r.status})`);
-        }
-        return (await r.json()) as TidePrimaryFile;
-      }),
-    ),
-    Promise.all(
-      yearEntries.map(async (y) => {
-        if (!y.tidal_secondary) return null;
-        const r = await fetch(`data/${y.tidal_secondary}`);
-        if (!r.ok) {
-          throw new Error(`tide secondary fetch failed: ${y.tidal_secondary} (${r.status})`);
-        }
-        return (await r.json()) as TideSecondaryFile;
-      }),
-    ),
-    Promise.all(
-      yearEntries.map(async (y) => {
-        if (!y.current_primary) return null;
-        const r = await fetch(`data/${y.current_primary}`);
-        if (!r.ok) {
-          throw new Error(`current primary fetch failed: ${y.current_primary} (${r.status})`);
-        }
-        return (await r.json()) as CurrentPrimaryFile;
-      }),
-    ),
-    Promise.all(
-      yearEntries.map(async (y) => {
-        if (!y.current_secondary) return null;
-        const r = await fetch(`data/${y.current_secondary}`);
-        if (!r.ok) {
-          throw new Error(`current secondary fetch failed: ${y.current_secondary} (${r.status})`);
-        }
-        return (await r.json()) as CurrentSecondaryFile;
-      }),
-    ),
+    Promise.all(yearEntries.map((y) => fetchSlot<TidePrimaryFile>(y.tidal_primary, "tide primary"))),
+    Promise.all(yearEntries.map((y) => fetchSlot<TideSecondaryFile>(y.tidal_secondary, "tide secondary"))),
+    Promise.all(yearEntries.map((y) => fetchSlot<CurrentPrimaryFile>(y.current_primary, "current primary"))),
+    Promise.all(yearEntries.map((y) => fetchSlot<CurrentSecondaryFile>(y.current_secondary, "current secondary"))),
+    Promise.all(yearEntries.map((y) => fetchSlot<NoaaTidePrimaryFile>(y.noaa_tidal_primary, "noaa tide primary"))),
+    Promise.all(yearEntries.map((y) => fetchSlot<NoaaCurrentPrimaryFile>(y.noaa_current_primary, "noaa current primary"))),
   ]);
 
-  const stationsById = new Map<number, StationMeta>();
-  const tideExtremesByStation = new Map<number, Extreme[][]>();
-  const currentExtremesByStation = new Map<number, Extreme[][]>();
+  const stationsById = new Map<string, StationMeta>();
+  const tideExtremesByStation = new Map<string, Extreme[][]>();
+  const currentExtremesByStation = new Map<string, Extreme[][]>();
 
   const pushTo = (
-    bucket: Map<number, Extreme[][]>,
-    id: number,
+    bucket: Map<string, Extreme[][]>,
+    id: string,
     ext: Extreme[],
   ) => {
     const list = bucket.get(id);
     if (list) list.push(ext);
     else bucket.set(id, [ext]);
   };
-  const pushExtremes = (id: number, ext: Extreme[]) => pushTo(tideExtremesByStation, id, ext);
+  const pushExtremes = (id: string, ext: Extreme[]) => pushTo(tideExtremesByStation, id, ext);
 
   yearEntries.forEach((_y, i) => {
     const tideFile = tidePrimaryFiles[i];
@@ -155,8 +152,10 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
 
       // Latest-year-wins for metadata. Iterating in ascending year order
       // means each assignment overwrites with a later year's data.
-      stationsById.set(s.index_no, {
-        station_id: s.index_no,
+      const id = chsId(s.index_no);
+      stationsById.set(id, {
+        station_id: id,
+        source: "chs",
         name: s.name,
         kind: "tide-primary",
         latitude: s.latitude,
@@ -164,7 +163,7 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
         tide_lhhw: s.higher_high_water_large_tide,
         tide_lllw: s.lower_low_water_large_tide,
       });
-      pushExtremes(s.index_no, ext);
+      pushExtremes(id, ext);
     }
 
     const secFile = tideSecondaryFiles[i];
@@ -181,8 +180,10 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
 
         // At large tide, secondaryTideExtremes degenerates to ref.X_large + sec.X_large_diff:
         // dh = dhMean + (hLarge - hMean) * slope = dhMean + (dhLarge - dhMean) = dhLarge.
-        stationsById.set(sec.index_no, {
-          station_id: sec.index_no,
+        const id = chsId(sec.index_no);
+        stationsById.set(id, {
+          station_id: id,
+          source: "chs",
           name: sec.name,
           kind: "tide-secondary",
           latitude: sec.latitude,
@@ -190,7 +191,7 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
           tide_lhhw: ref.station.higher_high_water_large_tide + sec.higher_high_water_large_tide_diff,
           tide_lllw: ref.station.lower_low_water_large_tide + sec.lower_low_water_large_tide_diff,
         });
-        pushExtremes(sec.index_no, ext);
+        pushExtremes(id, ext);
       }
     }
 
@@ -215,8 +216,10 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
           Math.abs(c.max_flood_knots),
           Math.abs(c.max_ebb_knots),
         );
-        stationsById.set(c.index_no, {
-          station_id: c.index_no,
+        const id = chsId(c.index_no);
+        stationsById.set(id, {
+          station_id: id,
+          source: "chs",
           name: c.name,
           kind: "current-primary",
           latitude: c.latitude,
@@ -225,7 +228,7 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
           ebb_dir: c.ebb_direction_true,
           current_max_knots: maxMag,
         });
-        pushTo(currentExtremesByStation, c.index_no, ext);
+        pushTo(currentExtremesByStation, id, ext);
         curRefByName.set(c.name, { station: c, classified: classifyCurrentEvents(c) });
       }
     }
@@ -285,8 +288,10 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
           }
         }
 
-        stationsById.set(sec.index_no, {
-          station_id: sec.index_no,
+        const id = chsId(sec.index_no);
+        stationsById.set(id, {
+          station_id: id,
+          source: "chs",
           name: sec.name,
           kind: "current-secondary",
           latitude: sec.latitude,
@@ -297,15 +302,94 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
         });
 
         const ext = secondaryCurrentExtremes(sec, refClassified);
-        if (ext.length > 0) pushTo(currentExtremesByStation, sec.index_no, ext);
+        if (ext.length > 0) pushTo(currentExtremesByStation, id, ext);
+      }
+    }
+
+    // ---- NOAA tide stations -----------------------------------------
+    // NOAA combines what CHS splits into primary/secondary, so every
+    // station lands in tideExtremesByStation as kind="tide-primary".
+    // The US_secondary boolean is preserved on StationMeta as a UI
+    // zoom-visibility hint only.
+    const noaaTideFile = noaaTidePrimaryFiles[i];
+    if (noaaTideFile) {
+      for (const s of noaaTideFile.stations) {
+        if (s.latitude === null || s.longitude === null) {
+          console.warn(`NOAA tide station ${s.noaa_id} ${s.name} has no lat/lon — skipping`);
+          continue;
+        }
+        const ext = tideExtremes(s);
+        // Y-axis bound: NOAA hilo predictions don't carry mean/large-tide
+        // reference heights, so derive from the year's observed extremes
+        // and pad slightly so peaks aren't flush with the chart edge.
+        let lhhw: number | undefined;
+        let lllw: number | undefined;
+        if (ext.length > 0) {
+          let lo = Infinity;
+          let hi = -Infinity;
+          for (const e of ext) {
+            if (e.v < lo) lo = e.v;
+            if (e.v > hi) hi = e.v;
+          }
+          lhhw = hi + NOAA_TIDE_BOUND_PAD_M;
+          lllw = lo - NOAA_TIDE_BOUND_PAD_M;
+        }
+        const id = noaaTideId(s.noaa_id);
+        stationsById.set(id, {
+          station_id: id,
+          source: "noaa",
+          name: s.name,
+          display_name: s.NOAA_station_name,
+          kind: "tide-primary",
+          latitude: s.latitude,
+          longitude: s.longitude,
+          tide_lhhw: lhhw,
+          tide_lllw: lllw,
+          noaa_id: s.noaa_id,
+          us_secondary: s.US_secondary,
+        });
+        pushExtremes(id, ext);
+      }
+    }
+
+    // ---- NOAA current stations --------------------------------------
+    const noaaCurFile = noaaCurrentPrimaryFiles[i];
+    if (noaaCurFile) {
+      for (const c of noaaCurFile.stations) {
+        if (c.latitude === null || c.longitude === null) {
+          console.warn(`NOAA current station ${c.noaa_id} ${c.name} has no lat/lon — skipping`);
+          continue;
+        }
+        const ext = currentExtremes(c);
+        const maxMag = Math.max(
+          Math.abs(c.max_flood_knots ?? 0),
+          Math.abs(c.max_ebb_knots ?? 0),
+        );
+        const id = noaaCurrentId(c.noaa_id, c.noaa_bin);
+        stationsById.set(id, {
+          station_id: id,
+          source: "noaa",
+          name: c.name,
+          display_name: c.NOAA_station_name,
+          kind: "current-primary",
+          latitude: c.latitude,
+          longitude: c.longitude,
+          flood_dir: c.flood_direction_true,
+          ebb_dir: c.ebb_direction_true,
+          current_max_knots: maxMag > 0 ? maxMag : undefined,
+          noaa_id: c.noaa_id,
+          noaa_bin: c.noaa_bin,
+          us_secondary: c.US_secondary,
+        });
+        pushTo(currentExtremesByStation, id, ext);
       }
     }
   });
 
   const flattenPerYear = (
-    bucket: Map<number, Extreme[][]>,
-  ): Map<number, Extreme[]> => {
-    const out = new Map<number, Extreme[]>();
+    bucket: Map<string, Extreme[][]>,
+  ): Map<string, Extreme[]> => {
+    const out = new Map<string, Extreme[]>();
     for (const [id, perYear] of bucket) {
       out.set(
         id,

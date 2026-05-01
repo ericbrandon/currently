@@ -59,7 +59,7 @@ export function CurrentPanel() {
 }
 
 type ContentProps = {
-  meta: { name: string };
+  meta: { name: string; display_name?: string };
   extremes: { t: number; v: number; weak?: boolean }[];
 };
 
@@ -122,7 +122,7 @@ function CurrentPanelContent({ meta, extremes }: ContentProps) {
       ref={panelRef}
       {...gestureHandlers}
     >
-      <div class="station-panel-header">{meta.name}</div>
+      <div class="station-panel-header">{meta.display_name ?? meta.name}</div>
       <div class="station-panel-timeline">
         {days.map((d) => (
           <div

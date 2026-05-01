@@ -246,7 +246,7 @@ export function Scrubber() {
     ? loadedData.value.stationsById.get(sel) ?? null
     : null;
   const hasChart = selMeta !== null;
-  const stationName = selMeta?.name ?? null;
+  const stationName = selMeta?.display_name ?? selMeta?.name ?? null;
   const isCurrentSel =
     selMeta?.kind === "current-primary" || selMeta?.kind === "current-secondary";
   const isTideSel =

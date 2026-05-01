@@ -80,9 +80,9 @@ function updateMarkerEl(
 
 export class TideStationLayer {
   private map: MlMap;
-  private markers: Map<number, maplibregl.Marker> = new Map();
-  private elements: Map<number, HTMLElement> = new Map();
-  private extremesById: Map<number, Extreme[]>;
+  private markers: Map<string, maplibregl.Marker> = new Map();
+  private elements: Map<string, HTMLElement> = new Map();
+  private extremesById: Map<string, Extreme[]>;
 
   constructor(map: MlMap, data: LoadedData) {
     this.map = map;
@@ -90,7 +90,14 @@ export class TideStationLayer {
 
     for (const meta of data.stationsById.values()) {
       if (meta.kind !== "tide-primary" && meta.kind !== "tide-secondary") continue;
-      const kindClass = meta.kind === "tide-secondary" ? "secondary" : "primary";
+      // Visual secondaries (hidden at low zoom): CHS tide-secondary, plus
+      // NOAA tide stations flagged US_secondary (NOAA "Subordinate"). NOAA
+      // doesn't split primary/secondary structurally — every NOAA station
+      // lands as kind="tide-primary" — so the source-of-truth for visual
+      // de-emphasis is `us_secondary`.
+      const isVisualSecondary =
+        meta.kind === "tide-secondary" || meta.us_secondary === true;
+      const kindClass = isVisualSecondary ? "secondary" : "primary";
       const el = createMarkerEl(meta.name, kindClass);
       const id = meta.station_id;
       el.addEventListener("click", (e) => {

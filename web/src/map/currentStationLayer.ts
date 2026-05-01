@@ -191,10 +191,10 @@ function updateMarkerEl(
 
 export class CurrentStationLayer {
   private map: MlMap;
-  private markers: Map<number, maplibregl.Marker> = new Map();
-  private elements: Map<number, HTMLElement> = new Map();
-  private metaById: Map<number, StationMeta>;
-  private extremesById: Map<number, Extreme[]>;
+  private markers: Map<string, maplibregl.Marker> = new Map();
+  private elements: Map<string, HTMLElement> = new Map();
+  private metaById: Map<string, StationMeta>;
+  private extremesById: Map<string, Extreme[]>;
 
   constructor(map: MlMap, data: LoadedData) {
     this.map = map;
@@ -203,7 +203,11 @@ export class CurrentStationLayer {
 
     for (const meta of data.stationsById.values()) {
       if (meta.kind !== "current-primary" && meta.kind !== "current-secondary") continue;
-      const kindClass = meta.kind === "current-secondary" ? "secondary" : "primary";
+      // Same secondary-as-visual-de-emphasis rule as the tide layer:
+      // CHS current-secondary or NOAA stations flagged US_secondary.
+      const isVisualSecondary =
+        meta.kind === "current-secondary" || meta.us_secondary === true;
+      const kindClass = isVisualSecondary ? "secondary" : "primary";
       const el = createMarkerEl(meta.name, kindClass);
       const id = meta.station_id;
       el.addEventListener("click", (e) => {

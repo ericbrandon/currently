@@ -10,12 +10,6 @@
 # notes/us_data_processing.md.
 #
 # Usage: ./process_combined.sh [--year YYYY]
-#
-# TODO: NOAA JSON is not yet ingested into the manifest. build_manifest.py
-# currently only knows about the four CHS kinds (tidal_primary,
-# tidal_secondary, current_primary, current_secondary). Extending it to
-# carry the NOAA primary files alongside requires a manifest schema
-# decision (separate per-feed slots vs. merged) — left for a follow-up.
 
 set -euo pipefail
 

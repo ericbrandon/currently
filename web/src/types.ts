@@ -14,6 +14,12 @@ export type ManifestYearEntry = {
   tidal_secondary?: string;
   current_primary?: string;
   current_secondary?: string;
+  // NOAA US stations (per us_data/convert_to_tct.py). NOAA combines what
+  // CHS splits into primary/secondary, so we just have one tide file and
+  // one current file; the US_secondary flag inside each station is a
+  // zoom-visibility hint, not a different prediction model.
+  noaa_tidal_primary?: string;
+  noaa_current_primary?: string;
   first_extreme_utc: string | null;
   last_extreme_utc: string | null;
 };
@@ -180,6 +186,59 @@ export type CurrentSecondaryFile = {
 };
 
 // ---------------------------------------------------------------
+// NOAA US station JSON shapes (from us_data/convert_to_tct.py).
+//
+// NOAA fans out one prediction file per station for the whole year, so
+// every station is "primary-shaped" — no time/height-difference rows like
+// CHS Table 3/4. The `US_secondary` boolean is a UI zoom hint only (NOAA
+// labels these "Subordinate" stations), not a different prediction model.
+// ---------------------------------------------------------------
+
+export type NoaaTidePrimaryStation = {
+  name: string;                  // short — used for the marker label pill
+  NOAA_station_name: string;     // long — used for chart/table panel headers
+  NOAA_short_name: string | null;
+  timezone?: string;
+  utc_offset: number;
+  year: number;
+  noaa_id: string;
+  latitude: number | null;
+  longitude: number | null;
+  US_secondary: boolean;
+  days: TideDay[];
+};
+
+export type NoaaTidePrimaryFile = {
+  year: number;
+  stations: NoaaTidePrimaryStation[];
+};
+
+export type NoaaCurrentPrimaryStation = {
+  name: string;
+  NOAA_station_name: string;
+  NOAA_short_name: string | null;
+  timezone?: string;
+  utc_offset: number;
+  year: number;
+  flood_direction_true: number | null;
+  ebb_direction_true: number | null;
+  noaa_id: string;
+  noaa_bin: number | null;
+  latitude: number | null;
+  longitude: number | null;
+  // Either may be null for stations with no max events in the year.
+  max_flood_knots: number | null;
+  max_ebb_knots: number | null;
+  US_secondary: boolean;
+  days: CurrentDay[];
+};
+
+export type NoaaCurrentPrimaryFile = {
+  year: number;
+  stations: NoaaCurrentPrimaryStation[];
+};
+
+// ---------------------------------------------------------------
 // Internal flat representation used by the interpolator
 // ---------------------------------------------------------------
 
@@ -199,17 +258,31 @@ export type StationKind =
   | "current-primary"
   | "current-secondary";
 
+export type StationSource = "chs" | "noaa";
+
 export type StationMeta = {
-  station_id: number;          // CHS index_no, stable across years
+  // Namespaced canonical key — `chs:${index_no}` for CHS, `noaa:${noaa_id}`
+  // for NOAA tide stations, `noaa:${noaa_id}:${noaa_bin}` for NOAA currents.
+  // NOAA tide IDs are numeric strings ("9447130") and current IDs are
+  // alphanumeric ("PUG1701"), so a flat numeric ID space wouldn't work.
+  station_id: string;
+  source: StationSource;
+  // The short name used on the map marker pill. For NOAA, this is
+  // `NOAA_short_name` (or the sanitized long name as a fallback).
   name: string;
+  // The longer, more descriptive name used in chart and panel headers.
+  // Undefined for CHS stations (which only publish one name); the panel
+  // and chart fall back to `name` in that case.
+  display_name?: string;
   kind: StationKind;
   latitude: number;
   longitude: number;
-  // Tide stations only — large-tide reference heights in metres, used as
-  // fixed Y-axis bounds for the tide chart so it doesn't rescale while the
-  // user pans the timeline. For primaries these come straight from Table 2;
-  // for secondaries they're derived by applying the large-tide diffs to the
-  // reference primary's values.
+  // Tide stations only — Y-axis bounds for the tide chart so it doesn't
+  // rescale while the user pans. For CHS primaries these are Table 2's
+  // large-tide reference heights; for CHS secondaries they're derived by
+  // applying the large-tide diffs. For NOAA stations the loader derives
+  // them from the year's observed min/max with a small pad, since NOAA's
+  // hilo predictions don't carry mean/large-tide reference heights.
   tide_lhhw?: number;
   tide_lllw?: number;
   // Current stations only — true bearings (degrees) for the rotated
@@ -218,13 +291,17 @@ export type StationMeta = {
   flood_dir?: number | null;
   ebb_dir?: number | null;
   current_max_knots?: number;
+  // NOAA-only metadata, surfaced for debugging and zoom-level visibility.
+  noaa_id?: string;
+  noaa_bin?: number | null;
+  us_secondary?: boolean;
 };
 
 export type LoadedData = {
   years: number[];
   scrubberRangeMs: { min: number; max: number };
-  stationsById: Map<number, StationMeta>;
+  stationsById: Map<string, StationMeta>;
   // Per-station merged Extreme[], sorted by t ascending.
-  tideExtremesById: Map<number, Extreme[]>;
-  currentExtremesById: Map<number, Extreme[]>;
+  tideExtremesById: Map<string, Extreme[]>;
+  currentExtremesById: Map<string, Extreme[]>;
 };

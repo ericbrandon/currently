@@ -25,10 +25,24 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
-# The four file kinds we recognise. The first element is the parser's
-# filename stem (e.g. "tidal_primary" → "{year}_tct_tidal_primary_stations.json")
-# and also the destination stem and the manifest key.
-KINDS = ["tidal_primary", "tidal_secondary", "current_primary", "current_secondary"]
+# File kinds we recognise. Each kind's `stem` is both the destination
+# filename stem (e.g. "noaa_tidal_primary.{hash}.json") and the manifest
+# key. Its `source_template` formats the parser's output filename at the
+# repo root for that year.
+@dataclass(frozen=True)
+class Kind:
+    stem: str
+    source_template: str
+
+KINDS: list[Kind] = [
+    Kind("tidal_primary",        "{year}_tct_tidal_primary_stations.json"),
+    Kind("tidal_secondary",      "{year}_tct_tidal_secondary_stations.json"),
+    Kind("current_primary",      "{year}_tct_current_primary_stations.json"),
+    Kind("current_secondary",    "{year}_tct_current_secondary_stations.json"),
+    Kind("noaa_tidal_primary",   "{year}_noaa_tidal_primary_stations.json"),
+    Kind("noaa_current_primary", "{year}_noaa_current_primary_stations.json"),
+]
+KIND_STEMS = {k.stem for k in KINDS}
 
 HASHED_FILENAME_RE = re.compile(r"^(?P<stem>[a-z_]+)\.(?P<hash>[0-9a-f]{8})\.json$")
 
@@ -58,19 +72,19 @@ def ingest(source: Path, data_dir: Path, year: int) -> None:
 
     found_any = False
     for kind in KINDS:
-        src = source / f"{year}_tct_{kind}_stations.json"
+        src = source / kind.source_template.format(year=year)
         if not src.exists():
             continue
         found_any = True
         h = content_hash(src)
-        target_name = f"{kind}.{h}.json"
+        target_name = f"{kind.stem}.{h}.json"
         target = dest_dir / target_name
 
         if not target.exists():
             shutil.copyfile(src, target)
             print(f"  + {target.relative_to(data_dir)}")
 
-        for sibling in dest_dir.glob(f"{kind}.*.json"):
+        for sibling in dest_dir.glob(f"{kind.stem}.*.json"):
             if sibling.name != target_name:
                 sibling.unlink()
                 print(f"  - {sibling.relative_to(data_dir)}")
@@ -153,7 +167,7 @@ def scan_data_dir(data_dir: Path) -> list[YearEntry]:
             if not m:
                 continue
             stem = m.group("stem")
-            if stem not in KINDS:
+            if stem not in KIND_STEMS:
                 continue
             files[stem] = str(entry.relative_to(data_dir)).replace("\\", "/")
             ef, el = extreme_iso_range(entry)

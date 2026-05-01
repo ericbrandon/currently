@@ -58,7 +58,7 @@ export function TidePanel() {
 }
 
 type ContentProps = {
-  meta: { name: string };
+  meta: { name: string; display_name?: string };
   extremes: { t: number; v: number }[];
 };
 
@@ -107,7 +107,7 @@ function TidePanelContent({ meta, extremes }: ContentProps) {
       ref={panelRef}
       {...gestureHandlers}
     >
-      <div class="station-panel-header">{meta.name}</div>
+      <div class="station-panel-header">{meta.display_name ?? meta.name}</div>
       <div class="station-panel-timeline">
         {/* Day-boundary divider lines. */}
         {days.map((d) => (

@@ -65,7 +65,8 @@ def group_days(events: list[dict], wkday_table: list[str]) -> list[dict]:
     return out
 
 
-def convert_tide_station(raw: dict, pick: dict, year: int) -> dict:
+def convert_tide_station(raw: dict, pick: dict, year: int,
+                         lat: float | None, lng: float | None) -> dict:
     """raw is the NOAA datagetter response; pick is the entry from stations_tides.json."""
     flat = []
     for p in raw.get("predictions", []):
@@ -85,6 +86,8 @@ def convert_tide_station(raw: dict, pick: dict, year: int) -> dict:
         "utc_offset": UTC_OFFSET,
         "year": year,
         "noaa_id": pick["id"],
+        "latitude": lat,
+        "longitude": lng,
         "US_secondary": pick.get("type") == "S",
         "days": days,
     }
@@ -173,9 +176,12 @@ def main():
         raw = json.loads(raw_path.read_text())
         # Override pick-name with catalog name if available (more authoritative).
         canonical_pick = dict(pick)
-        if sid in tide_catalog:
-            canonical_pick["name"] = tide_catalog[sid]["name"]
-        tide_out.append(convert_tide_station(raw, canonical_pick, args.year))
+        cat = tide_catalog.get(sid)
+        if cat:
+            canonical_pick["name"] = cat["name"]
+        lat = cat.get("lat") if cat else None
+        lng = cat.get("lng") if cat else None
+        tide_out.append(convert_tide_station(raw, canonical_pick, args.year, lat, lng))
 
     # Currents: dedupe by (id, bin).
     seen_current = set()
