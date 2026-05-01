@@ -26,6 +26,8 @@ import math
 import urllib.request
 from pathlib import Path
 
+# coord_overrides.json lives at the repo root (one level up from canada_data/).
+REPO_ROOT = Path(__file__).resolve().parent.parent
 KINDS = ["tidal_primary", "tidal_secondary", "current_primary", "current_secondary"]
 IWLS_URL = "https://api-iwls.dfo-mpo.gc.ca/api/v1/stations"
 
@@ -68,7 +70,7 @@ def main() -> None:
                     help="Year whose parsed JSONs to use as the station roster")
     ap.add_argument("--source", type=Path, default=Path("."),
                     help="Directory holding the parser output JSONs (default: cwd)")
-    ap.add_argument("--overrides", type=Path, default=Path("coord_overrides.json"),
+    ap.add_argument("--overrides", type=Path, default=REPO_ROOT / "coord_overrides.json",
                     help="Override file to append to (default: ./coord_overrides.json)")
     args = ap.parse_args()
 

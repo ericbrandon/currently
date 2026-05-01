@@ -53,6 +53,8 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+# coord_overrides.json lives at the repo root (one level up from canada_data/).
+REPO_ROOT = Path(__file__).resolve().parent.parent
 KINDS = ["tidal_primary", "tidal_secondary", "current_primary", "current_secondary"]
 API_URL = "https://geogratis.gc.ca/services/geoname/en/geonames.geojson"
 BC_PROVINCE_CODE = "59"
@@ -207,7 +209,7 @@ def main() -> None:
                     help="Year whose parsed JSONs to use as the station roster")
     ap.add_argument("--source", type=Path, default=Path("."),
                     help="Directory holding the parser output JSONs (default: cwd)")
-    ap.add_argument("--overrides", type=Path, default=Path("coord_overrides.json"),
+    ap.add_argument("--overrides", type=Path, default=REPO_ROOT / "coord_overrides.json",
                     help="Override file to append to (default: ./coord_overrides.json)")
     ap.add_argument("--dry-run", action="store_true",
                     help="Print proposed overrides; do not write the file.")

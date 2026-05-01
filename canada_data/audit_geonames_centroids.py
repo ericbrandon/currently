@@ -17,6 +17,9 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parent
+
 KINDS = ["tidal_primary", "tidal_secondary", "current_primary", "current_secondary"]
 API = "https://geogratis.gc.ca/services/geoname/en/geonames.geojson"
 WATER = {"CHAN", "BAY", "RAP", "SEAF", "MAR"}
@@ -87,9 +90,10 @@ def best_water_polygon(features, lat, lon):
 
 
 def main():
-    overrides = json.loads(Path("coord_overrides.json").read_text())
+    overrides_path = REPO_ROOT / "coord_overrides.json"
+    overrides = json.loads(overrides_path.read_text())
     # geonames-seeded keys come after the _block_geonames_seeded marker
-    raw = Path("coord_overrides.json").read_text().splitlines()
+    raw = overrides_path.read_text().splitlines()
     in_block = False
     seeded_keys = set()
     for line in raw:
@@ -109,7 +113,7 @@ def main():
     # Build idx -> (kind, name) map from parser JSONs
     idx_meta = {}
     for kind in KINDS:
-        path = Path(f"2026_tct_{kind}_stations.json")
+        path = REPO_ROOT / f"2026_tct_{kind}_stations.json"
         if not path.exists():
             continue
         for s in json.loads(path.read_text())["stations"]:

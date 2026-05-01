@@ -25,6 +25,10 @@ import json
 import math
 from pathlib import Path
 
+# Repo root — this script lives here; coord_overrides.json sits beside it.
+# The CHS station inventory CSV stays in canada_data/ (Canadian source).
+REPO_ROOT = Path(__file__).resolve().parent
+
 # Match build_manifest.py's KINDS list — the four parser output JSONs.
 KINDS = ["tidal_primary", "tidal_secondary", "current_primary", "current_secondary"]
 
@@ -167,10 +171,10 @@ def main() -> None:
     ap.add_argument("--source", type=Path, default=Path("."),
                     help="Directory holding the parser output JSONs (default: cwd)")
     ap.add_argument("--csv", type=Path,
-                    default=Path("tide and water level station.csv"),
-                    help="CHS station inventory CSV (default: ./tide and water level station.csv)")
+                    default=REPO_ROOT / "canada_data" / "tide and water level station.csv",
+                    help="CHS station inventory CSV (default: canada_data/tide and water level station.csv)")
     ap.add_argument("--overrides", type=Path,
-                    default=Path("coord_overrides.json"),
+                    default=REPO_ROOT / "coord_overrides.json",
                     help="Manual override file (default: ./coord_overrides.json)")
     args = ap.parse_args()
 

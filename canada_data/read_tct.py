@@ -4,8 +4,12 @@ import os
 import re
 import sys
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 
 import pdfplumber
+
+# canada_data/ — where this script and its source PDFs live.
+SCRIPT_DIR = Path(__file__).resolve().parent
 
 COLUMN_SPLIT_X = 315.0
 INDENT_THRESHOLD_X = 80.0
@@ -1545,8 +1549,10 @@ def main() -> int:
     )
     parser.add_argument("--year", type=int, required=True,
                         help="Year of the TCT volumes to process (e.g. 2026)")
-    parser.add_argument("--directory", default=".",
-                        help="Directory to scan for TCT PDFs (default: current dir)")
+    parser.add_argument("--directory", default=str(SCRIPT_DIR),
+                        help="Directory to scan for TCT PDFs (default: canada_data/)")
+    parser.add_argument("--out-dir", default=".",
+                        help="Where to write {year}_tct_*_stations.json (default: cwd)")
     parser.add_argument("-v", "--verbose", action="store_true",
                         help="Pretty-print all primary tide stations to stdout")
     args = parser.parse_args()
@@ -1597,13 +1603,13 @@ def main() -> int:
          f"{len(all_current)} current station(s), "
          f"{len(all_secondary_currents)} secondary current(s) processed")
 
-    output_path = write_primary_stations_json(all_stations, args.year, args.directory)
+    output_path = write_primary_stations_json(all_stations, args.year, args.out_dir)
     _log(f"    wrote {output_path}")
-    secondary_path = write_secondary_ports_json(all_secondary, args.year, args.directory)
+    secondary_path = write_secondary_ports_json(all_secondary, args.year, args.out_dir)
     _log(f"    wrote {secondary_path}")
-    current_path = write_current_stations_json(all_current, args.year, args.directory)
+    current_path = write_current_stations_json(all_current, args.year, args.out_dir)
     _log(f"    wrote {current_path}")
-    secondary_current_path = write_secondary_currents_json(all_secondary_currents, args.year, args.directory)
+    secondary_current_path = write_secondary_currents_json(all_secondary_currents, args.year, args.out_dir)
     _log(f"    wrote {secondary_current_path}")
 
     if args.verbose:

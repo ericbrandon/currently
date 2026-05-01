@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
-# Process Canadian Tide & Current Tables PDFs into structured data.
-# Usage: ./process_tct.sh [--year YYYY] [-v|--verbose]
+# Parse the Canadian Tide & Current Tables PDFs into structured station JSON.
+# Usage: ./canada_data/process_canadian.sh [--year YYYY] [-v|--verbose]
 #
 # --year defaults to 2026. Pass --year 2027 (etc.) when processing a
 # newer PDF set. See notes/tables_processing.md.
+#
+# Reads PDFs from canada_data/. Emits {year}_tct_*_stations.json at the
+# repo root. Run ./process_combined.sh afterwards to refine coords and
+# publish into web/public/data/.
 
 set -euo pipefail
 
@@ -25,12 +29,12 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         -h|--help)
-            sed -n '2,5p' "$0"
+            sed -n '2,10p' "$0"
             exit 0
             ;;
         *)
             echo "unknown argument: $1" >&2
-            echo "usage: ./process_tct.sh [--year YYYY] [-v|--verbose]" >&2
+            echo "usage: ./canada_data/process_canadian.sh [--year YYYY] [-v|--verbose]" >&2
             exit 1
             ;;
     esac
@@ -41,9 +45,10 @@ if [[ ! "$YEAR" =~ ^[0-9]{4}$ ]]; then
     exit 1
 fi
 
-cd "$(dirname "$0")"
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$REPO_ROOT"
 
-PYTHON="venv/bin/python"
+PYTHON="$REPO_ROOT/venv/bin/python"
 
 if [[ ! -x "$PYTHON" ]]; then
     echo "venv/ not found; creating it and installing dependencies..." >&2
@@ -53,15 +58,9 @@ if [[ ! -x "$PYTHON" ]]; then
     echo "venv/ ready." >&2
 fi
 
-echo "=== process_tct.sh: year=$YEAR ==="
+echo "=== process_canadian.sh: year=$YEAR ==="
 
-# Step 1: parse PDFs into structured station data
-"$PYTHON" read_tct.py --year "$YEAR" "${extra_args[@]+"${extra_args[@]}"}"
-
-# Step 2: refine station lat/lons from the CHS open-data inventory CSV
-# and any manual coord_overrides.json — see notes/tables_processing.md.
-"$PYTHON" apply_coord_overrides.py --year "$YEAR"
-
-# Step 3: copy parser outputs into web/public/data/{year}/ with
-# content-hashed names, then regenerate the client-side manifest.
-"$PYTHON" build_manifest.py --year "$YEAR"
+# Parse PDFs into structured station data.
+# read_tct.py defaults --directory to canada_data/ (script-relative) and
+# --out-dir to '.' (= repo root, since we cd'd there above).
+"$PYTHON" canada_data/read_tct.py --year "$YEAR" "${extra_args[@]+"${extra_args[@]}"}"

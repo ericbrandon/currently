@@ -10,6 +10,7 @@ import json
 import math
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 import pdfplumber
 from read_tct import (
     parse_toc,
@@ -21,10 +22,14 @@ from read_tct import (
     _format_time_diff,
 )
 
+# canada_data/ holds the PDFs; their JSON outputs live at the repo root.
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parent
+
 VOLS = {
-    5: "chs-shc-tct-tmc-vol5-2026-41311243.pdf",
-    6: "chs-shc-tct-tmc-vol6-2026-41311267.pdf",
-    7: "chs-shc-tct-tmc-vol7-2026-41311280.pdf",
+    5: str(SCRIPT_DIR / "chs-shc-tct-tmc-vol5-2026-41311243.pdf"),
+    6: str(SCRIPT_DIR / "chs-shc-tct-tmc-vol6-2026-41311267.pdf"),
+    7: str(SCRIPT_DIR / "chs-shc-tct-tmc-vol7-2026-41311280.pdf"),
 }
 
 VOL_INDEX_RANGES = {5: (7000, 8000), 6: (8000, 8800), 7: (8800, 10000)}
@@ -133,7 +138,7 @@ def parse_table2_pdf(pdf, toc, offset):
 
 
 def check_tables_1_2(diffs):
-    primary = json.load(open("2026_tct_tidal_primary_stations.json"))["stations"]
+    primary = json.load(open(REPO_ROOT / "2026_tct_tidal_primary_stations.json"))["stations"]
     by_idx = {s["index_no"]: s for s in primary}
     t1_total = t1_ok = t2_total = t2_ok = 0
     for vol, fname in VOLS.items():
@@ -241,7 +246,7 @@ def parse_table3_pdf(pdf, toc, offset):
 
 
 def check_table3(diffs):
-    secondaries = json.load(open("2026_tct_tidal_secondary_stations.json"))["stations"]
+    secondaries = json.load(open(REPO_ROOT / "2026_tct_tidal_secondary_stations.json"))["stations"]
     by_idx = {s["index_no"]: s for s in secondaries}
     total = ok = 0
     for vol, fname in VOLS.items():
@@ -442,8 +447,8 @@ def parse_table4_pdf(pdf, toc, offset):
 
 
 def check_table4(diffs):
-    cur_primary = json.load(open("2026_tct_current_primary_stations.json"))["stations"]
-    cur_secondary = json.load(open("2026_tct_current_secondary_stations.json"))["stations"]
+    cur_primary = json.load(open(REPO_ROOT / "2026_tct_current_primary_stations.json"))["stations"]
+    cur_secondary = json.load(open(REPO_ROOT / "2026_tct_current_secondary_stations.json"))["stations"]
     primary_by_idx = {s["index_no"]: s for s in cur_primary}
     secondary_by_idx = {s["index_no"]: s for s in cur_secondary}
     p_total = p_ok = s_total = s_ok = 0
