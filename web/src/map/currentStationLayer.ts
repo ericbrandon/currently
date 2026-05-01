@@ -195,6 +195,9 @@ export class CurrentStationLayer {
   private elements: Map<string, HTMLElement> = new Map();
   private metaById: Map<string, StationMeta>;
   private extremesById: Map<string, Extreme[]>;
+  // Cached [lng, lat] per id for the per-frame off-screen cull. See
+  // TideStationLayer for the same pattern and rationale.
+  private coordsById: Map<string, [number, number]> = new Map();
 
   constructor(map: MlMap, data: LoadedData) {
     this.map = map;
@@ -219,6 +222,7 @@ export class CurrentStationLayer {
         .setLngLat([meta.longitude, meta.latitude]);
       this.markers.set(id, marker);
       this.elements.set(id, el);
+      this.coordsById.set(id, [meta.longitude, meta.latitude]);
     }
   }
 
@@ -246,7 +250,11 @@ export class CurrentStationLayer {
   };
 
   updateAt(t: number): void {
+    // Off-screen cull — see TideStationLayer.updateAt.
+    const bounds = this.map.getBounds();
     for (const [id, el] of this.elements) {
+      const c = this.coordsById.get(id);
+      if (c && !bounds.contains(c)) continue;
       const ext = this.extremesById.get(id);
       const meta = this.metaById.get(id);
       if (!ext || !meta) continue;

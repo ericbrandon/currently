@@ -109,6 +109,16 @@ export function App() {
         userLocationFollowing.value = false;
       }
     });
+
+    // Refresh newly-revealed markers after a pan/zoom. The layers' updateAt
+    // skips off-screen markers, so a marker that was off-screen at the last
+    // scrub frame and has now panned in would otherwise show stale text
+    // until the next scrub event.
+    map.on("moveend", () => {
+      const t = scrubberMs.value;
+      if (showTides.value) layer.updateAt(t);
+      if (showCurrents.value) currentLayer.updateAt(t);
+    });
   }, [loadedData.value]);
 
   // Track the scrubber's height in a CSS variable so the TidePanel's
