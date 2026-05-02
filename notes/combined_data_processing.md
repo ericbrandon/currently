@@ -33,9 +33,11 @@ End-to-end ordering for a fresh year:
 4. process_combined.sh      → apply_coord_overrides.py rewrites the CHS
                               files in place with refined coords (sourcing
                               from canada_data/'s CSV + ./coord_overrides.json),
-                              then build_manifest.py copies into
-                              web/public/data/{year}/ with content-hashed
-                              filenames and rebuilds manifest.json
+                              then build_manifest.py strips each parser
+                              output to publish-only fields, serialises it
+                              compactly, content-hashes the bytes, writes
+                              into web/public/data/{year}/, and rebuilds
+                              manifest.json
 ```
 
 This placement is deliberate:
@@ -215,12 +217,67 @@ The 2026 pass produced 9 flagged stations on the first run plus 1 more once the 
 
 After `apply_coord_overrides.py` finishes, `build_manifest.py` is the second step in `process_combined.sh`. Two modes:
 
-1. **Ingest mode** (when `--year` is given): copies the parser's output JSONs from `--source` into `web/public/data/{year}/`, renaming them with a content hash, and removes any stale hashed siblings of the same kind. Then rebuilds the manifest.
+1. **Ingest mode** (when `--year` is given): reads each parser-output JSON from `--source`, strips it to the fields the webapp actually reads, serialises the result compactly, content-hashes the published bytes, writes the hashed file into `web/public/data/{year}/`, and removes any stale hashed siblings of the same kind. Then rebuilds the manifest.
 2. **Rescan mode** (when `--year` is omitted): only rebuilds the manifest by scanning the existing data tree. Useful after manual file moves.
 
-Both modes are idempotent: re-running with the same inputs yields no diff. `process_combined.sh` invokes ingest mode for the year being processed.
+Both modes are idempotent: re-running with the same inputs yields no diff (the strip is deterministic, so identical source content produces identical published bytes and therefore an identical hash). `process_combined.sh` invokes ingest mode for the year being processed.
 
-The manifest at `web/public/data/manifest.json` lists each year's content-hashed file paths plus the first/last UTC extreme times. Together with the `apply_coord_overrides.py` content-hashing, this gives the cache-invalidation story noted in "Pipeline integration" above: long-lived immutable cache on hashed files, no-cache on `manifest.json`.
+The manifest at `web/public/data/manifest.json` lists each year's content-hashed file paths plus the first/last UTC extreme times. Together with the content-hashed filenames, this gives the cache-invalidation story noted in "Pipeline integration" above: long-lived immutable cache on hashed files, no-cache on `manifest.json`.
+
+### Publish-time stripping
+
+The parser outputs at the repo root preserve every field the source documents (CHS PDFs, NOAA mdapi catalog) carry — useful for ad-hoc analyses, the seeders, and human inspection. But the published artifact in `web/public/data/{year}/` is what every browser downloads, parses, and holds in memory. Trimming it to only fields the webapp actually reads is a clean, conservative win on download size, parse time, and runtime heap.
+
+Three reductions stack:
+
+1. **Field allowlists per kind.** The `_PUBLISH_KEEP` table at the top of `build_manifest.py` maps each kind (`tidal_primary`, `tidal_secondary`, `current_primary`, `current_secondary`, `noaa_tidal_primary`, `noaa_current_primary`) to two sets of field names: one for the station object, one for each per-day object. Anything outside the sets is dropped. The allowlists were established by `grep`ing every JSON field name across `web/src/` and keeping only what the loader, interpolator, or UI references. Examples of fields that get dropped: `timezone`, `tide_type`, `reference_name`, `mean_tide_range`, `large_tide_range`, `mean_water_level`, `lowest_recorded_low_water`, `highest_recorded_high_water`, `area_number`, `area_name`, `geographic_zone`, `format_note`, `name_annotation`, `has_footnote`, `NOAA_short_name`, and per-day `weekday`. If a future UI feature needs one of these, add the field name to the appropriate allowlist and re-run the pipeline; the loader's TypeScript types will still need to expose it.
+
+2. **Compact JSON serialisation.** Parser-output JSONs at the repo root are written with `indent=2` for human readability; the published files use `json.dumps(..., separators=(",", ":"))` — no indent, no key spacing. The published files are never human-edited, and gzip on top of compact JSON beats gzip on indented JSON by a meaningful margin (parse time also drops because the byte stream is shorter).
+
+3. **Omit-when-default for high-frequency values.** A separate per-event pass drops fields whose value matches an overwhelming default. Today the only rule is on currents:
+
+   - `weak_variable: false` is omitted from every event where it's `false` (~99% of all current events across CHS and NOAA combined).
+
+   The webapp's `CurrentEvent` type marks `weak_variable` as optional, and the interpolator (`interp/extremes.ts`, `interp/secondaryCurrents.ts`) treats a missing field as `false`. So a published event for a normal max reads `{"time":"04:21","kind":"max","knots":-3.4}` instead of `{"time":"04:21","kind":"max","knots":-3.4,"weak_variable":false}`. Truly weak/variable events still serialise the field as `true`.
+
+   Other candidates for this kind of defaulting were measured (see `analyze_field_frequency.py` at the repo root) and found small enough not to bother with — most fields with skewed distributions live in `current_secondary`, which is only ~24 KB total. The entire moderate-defaults pass would have saved ~3 KB. Adding more defaulting rules later is straightforward: extend `_strip_event_defaults` (or add a `_strip_station_defaults` peer) and update the loader's TypeScript type to mark the field optional.
+
+### Loader-side contract
+
+Any field that the publish step omits (or omits-when-default) must be recoverable by the loader. Today that means:
+
+- Optional fields in `web/src/types.ts` for anything that's been allow-listed out of every published kind (e.g. dropping `timezone` made nothing optional because the field was already not in any `*Station` interface in use).
+- Optional fields in `web/src/types.ts` for anything in the omit-when-default set, with a comment pointing at `_strip_event_defaults` so the contract is documented in both directions.
+
+If you add a field to `_PUBLISH_KEEP`, no loader change is needed — the loader was already reading something compatible. If you add a field to `_strip_event_defaults`, the loader must also start treating that field as optional.
+
+### Audit script: `analyze_field_frequency.py`
+
+`analyze_field_frequency.py` (at the repo root) scans every parser-output JSON for a year and reports the value-frequency distribution per field, at three nesting levels (station, day, reading/event). Run it before adding new omit-when-default rules:
+
+```
+$ venv/bin/python analyze_field_frequency.py --year 2026
+```
+
+Fields whose top value's share is ≥95% are flagged with `★`, ≥80% with `○`. Use the report to confirm a candidate default is actually as skewed as you think before encoding it into `_strip_event_defaults`.
+
+### Byte savings (2026)
+
+For reference, the combined effect of the three reductions on the 2026 data:
+
+| Kind | Pre-strip raw | Post-strip raw | Savings |
+|---|---|---|---|
+| `tidal_primary` | 3.9 MB | 1.2 MB | 70% |
+| `tidal_secondary` | 191 KB | 93 KB | 60% |
+| `current_primary` | 10.3 MB | 2.9 MB | 80% |
+| `current_secondary` | 24 KB | 14 KB | 50% |
+| `noaa_tidal_primary` | 5.7 MB | 1.9 MB | 70% |
+| `noaa_current_primary` | 11.8 MB | 3.3 MB | 80% |
+| **Total** | **32.0 MB** | **9.4 MB** | **70%** |
+
+After gzip the win is smaller in percentage terms (gzip already compressed away most of the repeated key names) but still meaningful: the bundle the browser actually downloads is now ~1.1 MB total, vs. ~3 MB before.
+
+For runtime memory savings beyond what the publish step achieves — the loader's in-memory `Extreme[]` objects, which dwarf the parsed JSON — see [runtime_heap.md](runtime_heap.md).
 
 ## Limitations and known gotchas
 

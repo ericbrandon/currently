@@ -108,7 +108,10 @@ export type CurrentEvent = {
   time: string;
   kind: "slack" | "max";
   knots: number;
-  weak_variable: boolean;
+  // Omit-when-default: published JSON omits this field whenever it's
+  // false (~99% of events). A missing field is equivalent to false.
+  // See build_manifest.py:_strip_event_defaults.
+  weak_variable?: boolean;
 };
 
 export type CurrentDay = {

@@ -59,7 +59,7 @@ export function classifyCurrentEvents(
   for (const d of s.days) {
     for (const e of d.events) {
       const isMax = e.kind === "max";
-      const isWeak = isMax && e.weak_variable;
+      const isWeak = isMax && e.weak_variable === true;
       raw.push({
         t: stationTimeToUtcMs(s.year, d.month, d.day, e.time, s.utc_offset),
         v: isWeak ? 0 : e.kind === "slack" ? 0 : e.knots,
