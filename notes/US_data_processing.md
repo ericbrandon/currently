@@ -38,14 +38,12 @@ These are the plain-english placenames we want stations for. We'll resolve them 
 
 21. Hood Canal — Entrance / Foulweather Bluff
 22. Hood Canal — Bridge
-23. Hood Canal — South Point
-24. Hood Canal — Bangor
-25. Hood Canal — Hazel Point
+23. Hood Canal — Bangor
 
 ### San Juan Islands — currents (honorable mentions)
 
-26. Cattle Pass (south end of San Juan Channel)
-27. Spieden Channel
+24. Cattle Pass (south end of San Juan Channel)
+25. Spieden Channel
 
 ### Tides
 
@@ -124,7 +122,7 @@ In our population (WA-region):
 | All WA tide stations | 162 | 56 (R) | 106 (S) | — |
 | All PNW current stations | 461 rows / 212 unique IDs | 379 (H) | 61 (S) | 21 (W) |
 | Our tide picks (38 entries) | — | 7 (R) | 31 (S) | — |
-| Our current picks (32 entries, 31 stations) | — | 31 (H) | 0 (S) | 0 (W) |
+| Our current picks (30 entries, 29 stations) | — | 29 (H) | 0 (S) | 0 (W) |
 
 Our 7 primary tide stations: Seattle, Everett, Bremerton, Tacoma Commencement Bay, Hood Canal–Union, Port Townsend, Foulweather Bluff. All other tide picks are subordinates referencing one of these (Seattle is the dominant reference for everything in Puget Sound proper, ~26 of our subordinate picks).
 
@@ -161,9 +159,7 @@ Match scripts (re-runnable): [`us_data/match_currents.py`](../us_data/match_curr
 | Port Townsend Canal | `PUG1614` | Port Townsend Canal | 1 (5 ft) |
 | Hood Canal — Entrance / Foulweather Bluff | `PUG1608` | Hood Canal Entrance, Foulweather Bluff | 35 (32 ft) |
 | Hood Canal — Bridge | `PUG1603` | Hood Canal Bridge | 20 (22 ft) |
-| Hood Canal — South Point | `PUG1602` | South Point | 48 (24 ft) |
 | Hood Canal — Bangor | `ks0201` | Bangor, Hood Canal LB B | 2 (14 ft) |
-| Hood Canal — Hazel Point | `PUG1601` | Hazel Point | 21 (23 ft) |
 | Possession Sound / Saratoga | `PUG1605` | Possession Sound Entrance | 20 (59 ft) |
 | Agate Passage (S end) | `PUG1501` | Agate Passage, south end | 1 (9 ft) |
 | Rich Passage — E end | `PUG1513` | Rich Passage, East end | 1 (11 ft) |
@@ -262,7 +258,7 @@ There is **no** `*_secondary_stations.json` for NOAA. NOAA's API computes full p
 ./us_data/process_us.sh --year 2027 --refresh  # re-download even if cached
 ```
 
-A clean 2026 run downloads ~66 calls (35 tide stations + 31 currents), takes ~60 s of API time, and writes ~17 MB of converted output.
+A clean 2026 run downloads ~64 calls (35 tide stations + 29 currents), takes ~60 s of API time, and writes ~17 MB of converted output.
 
 ### When the anomaly checker fires
 

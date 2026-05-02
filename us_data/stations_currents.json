@@ -113,15 +113,6 @@
       "NOAA_short_name": "Hood Canal Bridge"
     },
     {
-      "placename": "Hood Canal — South Point",
-      "primary": "PUG1602",
-      "primary_name": "South Point",
-      "shallowest_bin": 48,
-      "shallowest_depth_ft": 24,
-      "type": "H",
-      "NOAA_short_name": "South Point"
-    },
-    {
       "placename": "Hood Canal — Bangor",
       "primary": "ks0201",
       "primary_name": "Bangor, Hood Canal LB B",
@@ -129,15 +120,6 @@
       "shallowest_depth_ft": 14,
       "type": "H",
       "NOAA_short_name": "Bangor"
-    },
-    {
-      "placename": "Hood Canal — Hazel Point",
-      "primary": "PUG1601",
-      "primary_name": "Hazel Point",
-      "shallowest_bin": 21,
-      "shallowest_depth_ft": 23,
-      "type": "H",
-      "NOAA_short_name": "Hazel Point"
     },
     {
       "placename": "Possession Sound / Saratoga",
