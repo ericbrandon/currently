@@ -32,11 +32,20 @@ These are the plain-english placenames we want stations for. We'll resolve them 
 17. Peale Passage
 18. Squaxin Passage
 19. Hammersley Inlet (incl. Libby Point entrance)
+20. Port Washington Narrows / Dyes Inlet entrance (Bremerton)
+
+### Hood Canal — currents
+
+21. Hood Canal — Entrance / Foulweather Bluff
+22. Hood Canal — Bridge
+23. Hood Canal — South Point
+24. Hood Canal — Bangor
+25. Hood Canal — Hazel Point
 
 ### San Juan Islands — currents (honorable mentions)
 
-20. Cattle Pass (south end of San Juan Channel)
-21. Spieden Channel
+26. Cattle Pass (south end of San Juan Channel)
+27. Spieden Channel
 
 ### Tides
 
@@ -74,21 +83,23 @@ Hood Canal:
 
 25. Hood Canal — Seabeck / Dabob entrance area
 26. Hood Canal — Union / Great Bend
+27. Hood Canal — Quilcene / Dabob Bay
+28. Hood Canal — Pleasant Harbor
 
 Port Townsend / Admiralty / Hood Canal entrance:
 
-27. Port Townsend
-28. Port Ludlow
-29. Port Hadlock / Port Townsend Bay south end
-30. Mystery Bay / Marrowstone Island
-31. Fort Flagler / Kilisut Harbor area
-32. Hadlock / Oak Bay / Mats Mats Bay cluster
+29. Port Townsend
+30. Port Ludlow
+31. Port Hadlock / Port Townsend Bay south end
+32. Mystery Bay / Marrowstone Island
+33. Fort Flagler / Kilisut Harbor area
+34. Hadlock / Oak Bay / Mats Mats Bay cluster
 
 North Sound / San Juans gateway:
 
-33. Oak Harbor / Saratoga Passage
-34. La Conner / Swinomish Channel
-35. Anacortes / Cap Sante / Guemes Channel
+35. Oak Harbor / Saratoga Passage
+36. La Conner / Swinomish Channel
+37. Anacortes / Cap Sante / Guemes Channel
 
 ## Primary vs. secondary stations (NOAA model)
 
@@ -112,8 +123,8 @@ In our population (WA-region):
 |---|---|---|---|---|
 | All WA tide stations | 162 | 56 (R) | 106 (S) | — |
 | All PNW current stations | 461 rows / 212 unique IDs | 379 (H) | 61 (S) | 21 (W) |
-| Our tide picks (36 entries) | — | 7 (R) | 29 (S) | — |
-| Our current picks (26 entries, 25 stations) | — | 25 (H) | 0 (S) | 0 (W) |
+| Our tide picks (38 entries) | — | 7 (R) | 31 (S) | — |
+| Our current picks (32 entries, 31 stations) | — | 31 (H) | 0 (S) | 0 (W) |
 
 Our 7 primary tide stations: Seattle, Everett, Bremerton, Tacoma Commencement Bay, Hood Canal–Union, Port Townsend, Foulweather Bluff. All other tide picks are subordinates referencing one of these (Seattle is the dominant reference for everything in Puget Sound proper, ~26 of our subordinate picks).
 
@@ -148,10 +159,16 @@ Match scripts (re-runnable): [`us_data/match_currents.py`](../us_data/match_curr
 | Admiralty Inlet — Point Wilson | `PUG1623` | Point Wilson, 0.6 mi. NE of | 14 (17 ft) |
 | Admiralty Inlet — Marrowstone Pt | `PUG1619` | Marrowstone Point, 0.8 mi. NE of | 9 (29 ft) |
 | Port Townsend Canal | `PUG1614` | Port Townsend Canal | 1 (5 ft) |
+| Hood Canal — Entrance / Foulweather Bluff | `PUG1608` | Hood Canal Entrance, Foulweather Bluff | 35 (32 ft) |
+| Hood Canal — Bridge | `PUG1603` | Hood Canal Bridge | 20 (22 ft) |
+| Hood Canal — South Point | `PUG1602` | South Point | 48 (24 ft) |
+| Hood Canal — Bangor | `ks0201` | Bangor, Hood Canal LB B | 2 (14 ft) |
+| Hood Canal — Hazel Point | `PUG1601` | Hazel Point | 21 (23 ft) |
 | Possession Sound / Saratoga | `PUG1605` | Possession Sound Entrance | 20 (59 ft) |
 | Agate Passage (S end) | `PUG1501` | Agate Passage, south end | 1 (9 ft) |
 | Rich Passage — E end | `PUG1513` | Rich Passage, East end | 1 (11 ft) |
 | Rich Passage — W end | `PUG1514` | Rich Passage, West end | 1 (12 ft) |
+| Port Washington Narrows / Dyes Inlet | `PUG1510` | Port Washington Narrows, Warren Ave. Bridge | 6 (4 ft) |
 | Colvos Passage | `PUG1518` | Anderson Point, East of, Colvos Passage | 10 (35 ft) |
 | Tacoma Narrows | `PUG1527` | The Narrows, 0.3 mi N of Bridge | 1 (23 ft) |
 | Hale Passage (E end, Fox I.) | `PUG1529` | Hale Passage, East end | 1 (11 ft) |
@@ -194,6 +211,8 @@ Match scripts (re-runnable): [`us_data/match_currents.py`](../us_data/match_curr
 | Penrose Point / Lakebay | `9446500` | Home, Von Geldern Cove (no Penrose station) | S |
 | McMicken Island / Harstine | `9446583` | McMicken Island, Case Inlet | S |
 | Hope Island / Squaxin Island | `9446666` | Arcadia, Totten Inlet (no Hope/Squaxin station) | S |
+| Hood Canal — Quilcene / Dabob Bay | `9445272` | Quilcene, Quilcene Bay, Dabob Bay | S |
+| Hood Canal — Pleasant Harbor | `9445293` | Pleasant Harbor | S |
 | Hood Canal — Seabeck / Dabob | `9445303` | Seabeck, Seabeck Bay | S |
 | Hood Canal — Union / Great Bend | `9445478` | Union | R |
 | Port Townsend | `9444900` | Port Townsend | R |
@@ -243,7 +262,7 @@ There is **no** `*_secondary_stations.json` for NOAA. NOAA's API computes full p
 ./us_data/process_us.sh --year 2027 --refresh  # re-download even if cached
 ```
 
-A clean 2026 run downloads ~58 calls (33 tide stations + 25 currents), takes ~60 s of API time, and writes ~17 MB of converted output.
+A clean 2026 run downloads ~66 calls (35 tide stations + 31 currents), takes ~60 s of API time, and writes ~17 MB of converted output.
 
 ### When the anomaly checker fires
 

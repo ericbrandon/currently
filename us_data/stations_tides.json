@@ -204,14 +204,33 @@
       "NOAA_short_name": "Totten Inlet"
     },
     {
+      "placename": "Hood Canal \u2014 Quilcene / Dabob Bay",
+      "id": "9445272",
+      "name": "Quilcene, Quilcene Bay, Dabob Bay",
+      "type": "S",
+      "additional": [
+        "9445246",
+        "9445269"
+      ],
+      "reference_id": "9447130",
+      "NOAA_short_name": "Quilcene Bay"
+    },
+    {
+      "placename": "Hood Canal \u2014 Pleasant Harbor",
+      "id": "9445293",
+      "name": "Pleasant Harbor",
+      "type": "S",
+      "reference_id": "9447130",
+      "NOAA_short_name": "Pleasant Harbor"
+    },
+    {
       "placename": "Hood Canal \u2014 Seabeck / Dabob",
       "id": "9445303",
       "name": "Seabeck, Seabeck Bay",
       "type": "S",
       "additional": [
         "9445246",
-        "9445269",
-        "9445272"
+        "9445269"
       ],
       "reference_id": "9447130",
       "NOAA_short_name": "Seabeck Bay"
