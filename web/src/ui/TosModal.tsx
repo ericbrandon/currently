@@ -40,7 +40,7 @@ export function TosModal() {
       <div class="tos-modal">
         <h2 id="tos-title" class="tos-title">Terms of Use</h2>
         <div class="tos-scroll">
-          <p class="tos-last-updated"><strong>Last updated: April 28, 2026</strong></p>
+          <p class="tos-last-updated"><strong>Last updated: May 1, 2026</strong></p>
 
           <p>
             By using this site, you agree to the following terms. If you do not
@@ -52,7 +52,8 @@ export function TosModal() {
             This is an <strong>experimental hobby project</strong>, provided
             free of charge with no commercial purpose. It is not affiliated
             with, endorsed by, or sponsored by the Canadian Hydrographic
-            Service (CHS), Fisheries and Oceans Canada, or any government
+            Service (CHS), Fisheries and Oceans Canada, the U.S. National
+            Oceanic and Atmospheric Administration (NOAA), or any government
             agency.
           </p>
 

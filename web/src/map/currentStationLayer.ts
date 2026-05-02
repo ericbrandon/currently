@@ -39,7 +39,7 @@ const ARROW_POINTS = "30,4 50,26 38,26 38,54 22,54 22,26 10,26";
 const SVG_TEMPLATE = `
 <svg class="current-arrow" viewBox="0 0 60 60" width="60" height="60" preserveAspectRatio="xMidYMid meet">
   <polygon class="shape shape-arrow" points="${ARROW_POINTS}" />
-  <circle  class="shape shape-slack" cx="30" cy="30" r="16" />
+  <circle  class="shape shape-slack" cx="30" cy="30" r="23" />
 </svg>`;
 
 /** Reference magnitude used to scale the arrow size. At |v| ≥ this, the

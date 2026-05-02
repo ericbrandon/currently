@@ -86,7 +86,7 @@ effect(() => {
 // Terms-of-Use gate. Acceptance is recorded in localStorage under a
 // versioned key — bump TOS_VERSION any time the terms change materially
 // so existing users are re-prompted (see notes/TOS.md §6).
-export const TOS_VERSION = "v1";
+export const TOS_VERSION = "v1.1";
 const TOS_STORAGE_KEY = `tos-accepted-${TOS_VERSION}`;
 
 function readTosAccepted(): boolean {
