@@ -1,7 +1,8 @@
 // "About this site" modal triggered by the (i) button in the Controls
 // panel. Holds the contact line and the visible attributions we owe
-// upstream data providers (basemap + CHS / OGL-Canada — see notes/TOS.md
-// §3). Dismissible via close button, backdrop click, or Escape.
+// upstream data providers (basemap + CHS / OGL-Canada + NOAA CO-OPS —
+// see notes/TOS.md §3). Dismissible via close button, backdrop click,
+// or Escape.
 
 import { useEffect } from "preact/hooks";
 import { infoModalOpen } from "../state/store";
@@ -96,7 +97,7 @@ export function InfoModal() {
 
           <h3>Tide &amp; current data</h3>
           <p>
-            Contains information licensed under the{" "}
+            Canadian waters: contains information licensed under the{" "}
             <a
               href="https://open.canada.ca/en/open-government-licence-canada"
               target="_blank"
@@ -106,6 +107,19 @@ export function InfoModal() {
             </a>
             . Tide and current data © Canadian Hydrographic Service,
             Fisheries and Oceans Canada.
+          </p>
+          <p>
+            Puget Sound: tide and current data courtesy of the{" "}
+            <a
+              href="https://tidesandcurrents.noaa.gov/"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              NOAA Center for Operational Oceanographic Products and
+              Services (CO-OPS)
+            </a>
+            , National Ocean Service. U.S. Government data, not subject
+            to copyright.
           </p>
         </div>
       </div>
