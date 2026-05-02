@@ -246,12 +246,12 @@ html, body, #app {
 }
 
 .scrubber-now {
-  background: #0c4a6e;
+  background: #dc2626;
   color: white;
-  border-color: #0c4a6e;
+  border-color: #dc2626;
 }
 .scrubber-now:active {
-  background: #082f49;
+  background: #b91c1c;
 }
 
 /* ------------------------------------------------------------------
