@@ -254,6 +254,38 @@ function flattenPerYear(
 
 The dominant win is heap memory. Per-frame CPU is already fast enough after the off-screen cull and segment cache; this optimisation doesn't change the per-frame story meaningfully, just the resting memory cost.
 
+## What you'll actually notice
+
+The numbers above are real, but most of them aren't perceptible to a human using the app. Translating each row of the table into a user-experience claim:
+
+### Per-frame scrub work — imperceptible
+
+The hot path is already fast after the cull + segment cache. Per visible marker per frame: a bounds check, two `Map` lookups, a cache-hit segment lookup (1–2 comparisons), the cosine math, a DOM mutation. For ~200 visible markers at 60 fps, total JS work per frame is well under 1 ms. Switching `extremes[i].t` → `series.ts[i]` shaves perhaps 10–20% off the array-read cost (typed arrays are cache-friendly and skip V8's hidden-class lookups), but that's saving fractions of a millisecond on a sub-millisecond pass. Below human perception.
+
+### Cold binary search — imperceptible
+
+The cache-miss path runs ~11 lookups + comparisons. Goes from ~110 ns to ~60 ns. You'd never see it.
+
+### Initial load construction — small, real
+
+This is the only frame-rate-adjacent win. Today the loader allocates ~710,000 small `Extreme` objects at startup. That's a lot of object creation and a lot of pressure on V8's young-generation GC. Typed arrays allocate ~410 buffers instead, with the same total bytes. Probably **50–150 ms faster** on the construction phase post-parse, on a mid-tier phone. Network and parse aren't affected — those already finished. So this trims off the very tail of the cold-load timeline rather than improving the perceived first-paint.
+
+### GC pauses during long scrub sessions — already fine
+
+The extreme arrays are long-lived (allocated once at load, never freed). They sit in the old generation and don't get touched by minor GCs. Per-frame allocation today is small (a `LngLatBounds` per pan, basically nothing else). Major-GC triggers don't happen during scrub today, so reducing the resident set won't change perceived stutter.
+
+### iOS / Android tab eviction resistance — the real win
+
+This is what justifies the work. Mobile Safari (and Chrome on Android, similar story) evicts background tabs when memory pressure rises. A ~40 MB heap puts the app closer to that threshold than ~10 MB does, especially on older devices with 3–4 GB total RAM. The user-visible symptom isn't a stutter — it's that they switch apps, come back ten minutes later, and the page reloads from cache instead of resuming where they left off. Disruptive but not a "performance" issue you'd ever see while actively using the app.
+
+### Future-year scalability
+
+Today's heap (~40 MB) covers one year. Adding 2027 roughly doubles the extremes count to ~1.4 M events; the heap grows to ~80 MB. With typed arrays, that same expansion is 10 MB → 20 MB. The bigger the year horizon, the larger the relative payoff and the more the eviction-resistance argument matters.
+
+### Bottom line
+
+If today's app feels smooth on your test devices, the typed-array refactor will not move the perceived-smoothness needle. Its job is to buy memory headroom — for additional years, for more stations, for surviving multitasking on older phones. The frame-rate work is already done by the cull, the segment cache, and the movestart hook.
+
 ## Risk and rollback
 
 The change is mechanical but wide. Risk profile:
@@ -268,14 +300,15 @@ Rollback path: the change is one PR, lands behind the existing public API names 
 
 ## When to do this — and when not to
 
-**Do it when:**
-- You've added another year of data and the app is sluggish on a phone.
+**Do it when any of these is true:**
+- You've added 2027 (or further years) and DevTools' Performance tab shows the post-load construction phase taking ≥500 ms on a mid-tier phone.
+- Users start reporting that the page reloads after multitasking on iPhones (the iOS-eviction symptom from the previous section).
 - DevTools' Memory snapshot shows `Array` and `Object` together accounting for >50% of the heap and the dominant retainers are `tideExtremesById` / `currentExtremesById`.
-- You're already touching the interpolator code for another reason and the cost is amortised.
+- You're already touching the interpolator code for another reason and the migration cost is amortised.
 
 **Skip it when:**
-- The app feels fine on a mid-tier phone after the publish-time strip and off-screen cull. Memory pressure isn't symptomatic; iOS Safari will tolerate a ~50 MB heap without complaint as long as it's not still growing.
-- You're in the middle of a feature push and the migration's blast radius across 8+ files isn't worth the risk for a non-user-visible win.
+- None of the above is true. iOS Safari will tolerate a ~50 MB heap without complaint as long as it's not still growing, and most users won't multitask aggressively enough to evict the tab.
+- You're in the middle of a feature push and the migration's blast radius across 6–8 files isn't worth the risk for a non-user-visible win.
 
 The publish-time strip was chosen as the first memory-side change precisely because it's narrow (one Python file plus one TypeScript field made optional) and doesn't change the loader's public contract. This proposal is the next-easiest tier of win, not the easiest. Defer until measurement says it's needed.
 
