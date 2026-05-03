@@ -11,7 +11,7 @@ import { useEffect, useRef } from "preact/hooks";
 import type { RefObject } from "preact";
 import {
   panWindowTo,
-  selectedStationId,
+  tableOpen,
   windowStartMs,
   WINDOW_MS,
   THUMB_FRACTION,
@@ -155,7 +155,10 @@ export function usePanelGestures(
     if (d.mode === "swipe") {
       const dx = e.clientX - d.startX;
       if (dx <= SWIPE_DISMISS_DX_PX || d.velocityXPxPerMs <= SWIPE_DISMISS_VELOCITY_PX_PER_MS) {
-        selectedStationId.value = null;
+        // Left-flick on the table dismisses the table only; the chart
+        // stays open. Use the chevron, the map, or the chart's own
+        // swipe-down to also close the chart.
+        tableOpen.value = false;
       }
     }
   }

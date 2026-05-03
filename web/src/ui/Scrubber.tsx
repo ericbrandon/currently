@@ -277,8 +277,15 @@ export function Scrubber() {
       {hasChart && (
         <button
           class="chart-close"
-          aria-label="Close chart"
-          onClick={() => { selectedStationId.value = null; }}
+          aria-label={tableOpen.value ? "Close table" : "Close chart"}
+          onClick={() => {
+            // Two-step dismissal: collapse the table first if it's open,
+            // then close the chart on a second tap. Swipe-down on the
+            // chart and tapping the map still close the chart in one
+            // step (handled in handlePointerEnd / map click).
+            if (tableOpen.value) tableOpen.value = false;
+            else selectedStationId.value = null;
+          }}
         >
           <svg viewBox="0 0 24 16" aria-hidden="true">
             <path d="M4 3 L12 9 L20 3" />

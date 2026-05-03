@@ -8,9 +8,12 @@
 //   - `windowStartMs` is the absolute UTC ms at the left edge of the
 //     visible scrubber window. The Scrubber mutates it (via panWindowTo)
 //     in response to user input.
-//   - `THUMB_FRACTION` is a constant: 0.2, placing the thumb three hours
-//     from the left edge with twelve hours of forecast space to the right
-//     — useful for boaters planning a trip.
+//   - `THUMB_FRACTION` is a constant decided at module load: 3/15
+//     (3 h past, 12 h future) on standard viewports, 4/15 (4 h past,
+//     11 h future) on narrow viewports (< 500 px) so the date/time
+//     pill centred above the thumb has room on the left edge instead
+//     of clipping. Not reactive to resize — phones don't usually
+//     change width, and the iPad's 595 px doesn't cross the threshold.
 //   - `scrubberMs` is computed from those and is what the rest of the
 //     app reads.
 
@@ -23,7 +26,8 @@ export const loadedData = signal<LoadedData | null>(null);
 // Scrubber constants.
 export const STEP_MS = 15 * 60 * 1000;                 // visual tick spacing
 export const WINDOW_MS = 15 * 60 * 60 * 1000;          // 15-hour visible window
-export const THUMB_FRACTION = 3 / 15;                  // 3 h past, 12 h future
+export const THUMB_FRACTION =
+  typeof window !== "undefined" && window.innerWidth < 500 ? 4 / 15 : 3 / 15;
 
 export const windowStartMs = signal<number>(
   Date.now() - THUMB_FRACTION * WINDOW_MS,
