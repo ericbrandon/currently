@@ -4,6 +4,55 @@ This document tracks UI/UX changes to the *Currently* webapp as they're made. Th
 
 When a decision here contradicts `app_implementation.md`, this file wins for the latest entry — `app_implementation.md` should be updated to match if the change is durable.
 
+## 2026-05-03 — Two-step chart dismiss; left-swipe on table dismisses table only
+
+Two related changes that align dismissal gestures with their natural granularity.
+
+**Chevron two-step.** Tapping the downward chevron at the top of the chart panel previously closed the chart in one tap, even when the table was open underneath. Users expected the more recently-opened thing (the table) to be what closed first. Now in [`Scrubber.tsx`](../web/src/ui/Scrubber.tsx): if `tableOpen.value` is true, the first tap of the chevron sets `tableOpen.value = false`; only when the table is already closed does the next tap clear `selectedStationId`. The button's `aria-label` flips between "Close table" and "Close chart" so screen readers track the same two-step. Map-tap and the chart-area swipe-down gesture (both already in place) are unchanged — they still clear the station in one step.
+
+**Left-swipe on table.** Previously the panel-gesture handler in [`panelGestures.ts`](../web/src/ui/panelGestures.ts) cleared `selectedStationId` on a left flick, which closed the chart along with the table. Now it sets `tableOpen.value = false` only — the chart stays open. Other dismissal paths (chevron two-step, map tap, chart-area swipe-down) are untouched.
+
+Together the rule is: tapping or swiping *the table* dismisses the table; tapping the map / chart-area swipe-down / multi-tap-the-chevron dismisses the station entirely.
+
+**iOS hover stickiness fix.** Hover styles on `.chart-close` and `.table-open` were rgba-with-low-alpha — fine on desktop, but iOS Safari sticks `:hover` after a tap, leaving the chevron looking translucent for a beat after the first dismiss tap of the new two-step. Wrapped both `:hover` rules in `@media (hover: hover)` in [`index.css`](../web/src/index.css) so they only activate on devices that actually hover.
+
+## 2026-05-03 — Always-visible date/time pill above the thumb; removed from title; mobile-responsive layout
+
+Old: the scrubber's title row showed a `formatScrubber(ms)` text label ("Sat, May 2 at 13:25") next to the station-name pill. Tide and current charts each rendered a separate "13:25  2.9 kt" pill above the thumb when a station was selected. Two readouts of "now under the thumb", redundant content (both showed time), and inconsistent format (only one had a date).
+
+New: title shows the station-name pill alone. The date/time pill lives directly above the blue thumb at all times, and the thumb-vline always drops from pill to dot — same metaphor whether or not a chart is open:
+
+- **No chart**: a small `.scrubber-thumb-pill-area` slot in [`Scrubber.tsx`](../web/src/ui/Scrubber.tsx) (above the timeline track inside `scrubber-main`) hosts a blue pill with `formatThumb(ms)` ("Sat, May 2 13:25").
+- **Tide / current chart**: the existing chart-thumb pill at top of the chart now reads `formatThumb(ms)` followed by the value ("Sat, May 2 13:25  2.9 kt") — same vline, deeper content.
+
+A new compact `formatThumb` in [`util/time.ts`](../web/src/util/time.ts) joins date and time with a single space; en-CA's default joiner inserts "at" between the two formatted parts, which felt too chatty for a pill. Pill font bumped 13 → 14 px after side-by-side.
+
+**Narrow-viewport adjustments** (decided once at module load — phones don't change width, and an iPad at zoom-induced 595 px doesn't cross either threshold):
+
+1. **Below 600 px**: the chart-mode pill stacks into two rows — date/time on top, value below — via `display: flex; flex-direction: column` in the existing `@media (max-width: 600px)` block in [`index.css`](../web/src/index.css). The `{" "}` text node between time and value spans was removed from JSX so flex column doesn't generate an empty middle row from the whitespace. Value row is also bumped to `font-weight: 700` and `opacity: 1` to match the time row, since the inline form's typographic hierarchy (bold time + lighter value) doesn't read as well stacked.
+
+2. **Below 500 px**: `THUMB_FRACTION` becomes `4/15` instead of `3/15`, shifting the thumb from 20% to ~26.7% of the track. Decided in [`store.ts`](../web/src/state/store.ts) at module load via `window.innerWidth < 500 ? 4/15 : 3/15`. Without this, the centred pill would clip off the left edge on phones (an iPhone 12 Pro at 390 px gives only ~78 px of left-side budget at 20%, less than half the stacked pill's width). Cost: 4 h of past + 11 h of future instead of 3 h + 12 h. Not reactive to resize — keeping it static avoids `windowStartMs` recalibration on every viewport change.
+
+One iPad surprise worth noting: the test iPad Mini 7 reported `window.innerWidth: 595` despite a 744 px native CSS viewport. Cause: Settings → Safari → Page Zoom at 125% (744 / 1.25 ≈ 595). The 600 px breakpoint was firing legitimately at that zoom — left intact, since users at zoomed iPad still benefit from the stacked pill.
+
+## 2026-05-03 — Now-lock: cadence reduced to wall-clock minute; current-marker transitions suppressed; smaller red dot
+
+Refinements on top of the initial now-lock implementation (entry below). Three issues with the 1 Hz tick:
+
+1. **Visible per-second pulse on every current marker.** Current-marker SVG transforms have `transition: transform 120ms ease-out` so they glide smoothly while the user scrubs. Each lock-tick changed the transform → fired a fresh 120 ms transition → 880 ms of nothing → repeat. Read as a "breathing" pulse on every current arrow once a second.
+
+2. **Wasted idle CPU.** A locked tab ran the full chain (`setInterval` → `windowStartMs` mutate → `scrubberMs` recompute → effect → rAF → `updateAt(t)` for both layers → DOM transforms on every in-view marker) once per second, for current values that change minute-to-minute.
+
+3. **Red lock-dot was 1 px too big.** Cosmetic.
+
+Three fixes:
+
+- **Lock cadence reduced to 1/min, aligned to wall-clock minute boundary.** Replaced `setInterval(1000)` with a self-rescheduling `setTimeout` in [`store.ts`](../web/src/state/store.ts) that fires at the next minute boundary (`60_000 - (Date.now() % 60_000)` ms from now). Result: idle work drops ~60×, and the visible `HH:MM` pill flips in lockstep with the wall clock instead of lagging by up to a minute (which a plain `setInterval(60_000)` would do, since the first tick would land 60 s after the lock engagement, not at the next minute boundary).
+
+- **Current-marker transitions suppressed while locked.** A `.now-locked` class is toggled on the map container by an effect in [`app.tsx`](../web/src/app.tsx) reading `nowLocked.value`. CSS in [`index.css`](../web/src/index.css) overrides `transition: none` on `.current-arrow`, `.current-value`, and `.current-marker.name-tracking .current-name` only when that class is present. Pan/zoom uses MapLibre's own marker positioning (not the SVG transforms we suppress), so disabling them mid-lock has no effect on map gestures. Per-tick changes are now small instant snaps once a minute — preferred over a 120 ms "jerk" through ~60 s of marker change. (Alternative considered: rAF-pace `windowStartMs` so the existing 120 ms transition smooths sub-pixel steps. Rejected because it's the opposite direction from the per-minute idle-work goal.)
+
+- **Lock-dot 8 → 7 px** in `.scrubber-thumb.is-locked::after`.
+
 ## 2026-05-03 — Now-lock: blue thumb pins to "now"; timeline slides under it
 
 Old "Now" behaviour: tap snapped `windowStartMs` so real-world now sat under the thumb, but the red now-dot then drifted right while the blue thumb stayed put — within a minute or two the user was looking at past time and didn't realise it.

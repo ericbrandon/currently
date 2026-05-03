@@ -300,9 +300,22 @@ export const scrubberMs   = signal<number>(Date.now());
 export const selectedStationId = signal<number | null>(null);
 export const visibleBounds = signal<LngLatBounds | null>(null);
 
-// Top-right control toggles (see §10.6). Defaults: tides/currents/panels
-// on, useFeet true (the BC boating audience overwhelmingly thinks in feet).
-export const showTides     = signal<boolean>(true);
+// Now-lock (§10.2): while true, an effect reschedules `windowStartMs` at
+// each wall-clock minute so real-world "now" stays under the thumb. Any
+// user-initiated pan clears it via `panWindowTo`.
+export const nowLocked = signal<boolean>(false);
+
+// Per-selection table visibility (§10.4). The 5-day side panel only
+// renders when this is true; opening it is an explicit gesture (the
+// "Table" handle at the top of the chart). Resets to false whenever
+// `selectedStationId` changes.
+export const tableOpen = signal<boolean>(false);
+
+// Top-right control toggles (see §10.5). Defaults reflect the BC
+// boating audience: currents are the primary use case (on), tides are
+// useful but secondary and crowd the map by default (off). Feet over
+// metres for the same audience.
+export const showTides     = signal<boolean>(false);
 export const showCurrents  = signal<boolean>(true);
 export const showPanels    = signal<boolean>(true);
 export const useFeet       = signal<boolean>(true);
@@ -361,7 +374,9 @@ Steps:
 - Time label: `Intl.DateTimeFormat("en-CA", { timeZone: "America/Vancouver", … })` — shows e.g. `Sun, Apr 27 · 14:30 PDT`. Browser handles BC's permanent UTC-7 from Nov 1 2026 automatically.
 - **Coalesce input events to rAF**: store latest value in a ref; on each `requestAnimationFrame`, if changed, write it to the signal. Prevents 120-Hz touch event storms from triggering 120 map re-renders.
 - Keyboard: arrow keys = ±15 min, Shift+arrow = ±1 h. Native `<input type=range>` supports this for free.
-- **Station name pill (when a station is selected)**: the scrubber's top label row shows the selected station's name in a small dark-blue pill immediately to the left of the time, in the same font size/weight as the time. Rendered in the `Scrubber` component (not in the chart) so the chart can be a clean plot.
+- **Title row**: when a station is selected, shows the station's name in a small dark-blue pill. Nothing else lives in the title row — the displayed time/date moved to the thumb-pill (next bullet).
+- **Always-visible thumb pill (date/time, plus value in chart mode)**: a dark-blue pill sits directly above the blue thumb, with a vertical line dropping from the pill to the dot. With no station selected the pill shows `formatThumb(ms)` ("Sat, May 2 13:25"); with a tide or current chart mounted the pill is rendered by the chart with the same date/time prefix plus the interpolated value ("Sat, May 2 13:25  2.9 kt"). The line and pill arrangement is the same metaphor in both modes — chart mode just makes the pill content richer.
+- **THUMB_FRACTION** is a constant decided once at module load: `3/15` (3 h past, 12 h future) on standard viewports, `4/15` (4 h past, 11 h future) when `window.innerWidth < 500`. The narrow-viewport shift gives the centred thumb-pill enough left-side budget to avoid clipping on phones, where 20% of viewport-width is less than half the pill width. Not reactive to resize — phones don't change width and the iPad's zoom-induced 595 px doesn't cross the threshold.
 
 ### 10.3 Tide chart
 
@@ -371,7 +386,7 @@ When the user taps a tide station, `TideChart` (`src/ui/TideChart.tsx`) renders 
 - **Curve**: a hand-rolled SVG `<path>`, sampled every 3 minutes via `valueAt`. Fill below the curve is light blue at 55% opacity. Stroke is a 2-px dark-blue line with `vector-effect: non-scaling-stroke` so the SVG can stretch to fit any viewport without distorting the line weight. uPlot wasn't worth the dependency for one curve drawn under the scrubber.
 - **Y-axis**: *fixed* per station — bounds come from the station's large-tide HHW and LLW (Table 2 reference heights for primaries; for secondaries, derived at load time as `ref.X_large + sec.X_large_diff`, which is what the secondary-tide formula degenerates to at large tide). These are stored on `StationMeta.tide_lhhw` / `tide_lllw`. A fixed scale prevents the curve from re-zooming as the user pans the timeline, which was visually disorienting. A 0.6 m floor still applies for any degenerate station whose reference range collapses; values exceeding the reference range still render and just sit slightly into the padding zones. The bounds map to chart rows 22%–88%, reserving the top 22% for the thumb readout + HW labels and the bottom 12% for LW labels.
 - **HW / LW labels**: each published extreme inside the window gets a small white pill containing `HH:MM · X.X m`. HW labels sit just above the peak (anchored at the peak point and pushed up via `translate(-50%, -100%)`); LW labels sit just below the valley (`translate(-50%, 0)`). HW vs LW classification reuses `classifyHiLow()` from `src/interp/secondaryTides.ts`.
-- **Thumb vertical line + readout**: a 2-px vertical line passes through the thumb dot. The line is rendered at the `scrubber-main` level (parent of both the chart and the timeline track) so it spans both — top of the chart down through the chart, then through the upper half of the track, ending at the dot's centre. Stacking: line at `z-index: 1` (above curve, above timeline ticks), thumb dot at `z-index: 2` (above line). Above the line's top sits a dark-blue pill with the chosen instant's exact time and interpolated tide value.
+- **Thumb vertical line + readout**: a 2-px vertical line passes through the thumb dot. The line is rendered at the `scrubber-main` level (parent of both the chart and the timeline track) so it spans both — top of the chart down through the chart, then through the upper half of the track, ending at the dot's centre. Stacking: line at `z-index: 1` (above curve, above timeline ticks), thumb dot at `z-index: 2` (above line). Above the line's top sits a dark-blue pill with `formatThumb(ms)` (the chosen instant's date+time) followed by the interpolated tide value. On viewports ≤ 600 px the pill stacks into two rows — date+time on top, value below — so the centred pill doesn't clip off the left edge on phones.
 - **Memoisation**: the curve path and label list are memoised on `(extremes, windowStartMs)`. Dragging the thumb (which only changes `thumbFraction`) re-runs the cheap top-level render but reuses the cached path and labels.
 - **Dismiss**: there is no close button. Tapping the map (the selected marker, an empty area, or anywhere a non-selected marker would have been) deselects via the interactions in §6.5; the chart unmounts and the bottom strip collapses back to ~120 px.
 - **Empty state**: if the visible window contains no extremes for the station (e.g., scrubber outside the data range), the chart shows a centered "No tide data for this time window" message.
@@ -389,14 +404,17 @@ When the user taps a tide station, `TidePanel` (`src/ui/TidePanel.tsx`) overlays
 - **Events (right column)**: every published HW/LW that falls inside the 5-day range gets one row, positioned absolutely at `top: pos(t)%` where `pos(t) = (t − panelStart) / 120 h × 100`. Each row is a small white pill with the time, an HW or LW badge (dark-blue or cream), and the height in metres. The white pill background masks the day-divider lines wherever an event sits on top of one. A z-index hierarchy keeps day labels and events (z:2) above dividers (z:1) and the bar (z:3) above everything.
 - **Highlighted bar**: a translucent yellow band whose top and height match the chart's visible window exactly — the bar's top corresponds to the leftmost time on the timeline track (`windowStartMs`), the bottom to the rightmost (`windowStartMs + WINDOW_MS`). Clamped to the panel's 5-day range and hidden entirely when the chart's window doesn't overlap (e.g., the user has scrubbed back to yesterday). Background is `rgba(254, 240, 138, 0.32)` — translucent enough to read text underneath, opaque enough to read as a band. **No CSS borders** on the bar: translucent borders on a frequently-repositioned absolute element leave compositor trails in Chromium, and the fill alone is enough.
 - **What moves the bar**: only window movements — dragging the thumb to the left or right edge of the timeline (which engages the auto-pan loop, see §10.2) or pressing "Now". Normal thumb dragging in the middle of the track does *not* shift the bar, because it doesn't shift the chart's content either.
-- **Dismiss**: tapping anywhere on the panel calls `selectedStationId.value = null`, which unmounts both the panel and the chart simultaneously. Important on iPhone 12 Pro where the panel covers the full map width and there's no map area to fall through to; harmless on desktop, where map clicks already deselect (§6.5).
+- **Dismiss**:
+  - **Tap anywhere on the panel** calls `selectedStationId.value = null`, which unmounts the panel, the chart, and clears the selection in one step. Important on iPhone 12 Pro where the panel covers the full map width and there's no map area to fall through to; harmless on desktop, where map clicks already deselect (§6.5).
+  - **Left-flick on the panel** sets `tableOpen.value = false` only — the chart stays open. Lets the user collapse the side reference without losing their station context. Implemented in [`panelGestures.ts`](../web/src/ui/panelGestures.ts).
+  - **Chevron at the top of the chart** does a two-step dismiss: first tap closes the table (when open), second tap closes the chart. The chevron's `aria-label` flips between "Close table" and "Close chart" in lockstep.
 
 ### 10.5 Controls
 
 `Controls` (`src/ui/Controls.tsx`) is a vertical strip pinned to the top-right corner of the viewport, always visible above the map. `z-index: 3` — deliberately *below* both the `TidePanel` (z:4) and the scrubber (z:5), so on iPhone-width viewports where the panel covers the full map width, the panel overlays the controls cleanly instead of having them float on top of it. The four labelled toggles are uniform 96 × 36 px on desktop, 84 × 32 px at ≤600 px viewport width. The location button (§10.7) is a square 36 × 36 (32 × 32 mobile) icon-only box right-aligned to the column.
 
-- **Tides** (`showTides`) — when off, every tide marker is hidden via a `.hide-tides` class toggled on the map container, and the per-frame interpolation effect in `app.tsx` short-circuits so no work happens while markers are invisible. Flipping off also clears `selectedStationId`, so a user who had a station selected at the time exits chart + panel mode along with the markers (rather than being left with a chart for an invisible station). Flipping back on re-triggers a marker update so values are correct immediately.
-- **Currents** (`showCurrents`) — signal exists but is intentionally unwired in v1. Reserved for the future current overlay (§7.2).
+- **Tides** (`showTides`, default off) — when off, every tide marker is hidden via a `.hide-tides` class toggled on the map container, and the per-frame interpolation effect in `app.tsx` short-circuits so no work happens while markers are invisible. If a tide station was selected when the user flipped it off, `selectedStationId` is also cleared (so the chart + panel disappear rather than dangling on an invisible marker); a current selection is left alone. Flipping back on re-triggers a marker update so values are correct immediately.
+- **Currents** (`showCurrents`, default on) — same hide/short-circuit pattern as Tides, via a `.hide-currents` class. If a current station was selected, that selection is also cleared on flip-off. Currents are on by default because the BC boating audience this app targets uses them as the primary surface; tides are a complement.
 - **5 Day Panels** (`showPanels`) — when off, `TidePanel` (§10.4) early-returns even when a station is selected. Selection still expands the scrubber's chart; only the side panel is gated.
 - **Feet / Meters** (`useFeet`) — binary unit toggle, not on/off. Reuses the same on/off styling: Feet renders filled (the on style), Meters renders white-on-grey (the off style). The default is **Feet**, since the BC boating audience overwhelmingly thinks in feet.
 - **Location** — three-state square below the others; behaviour described in §10.7.
