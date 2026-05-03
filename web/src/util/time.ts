@@ -25,6 +25,28 @@ export function formatScrubber(ms: number): string {
   return longFormatter.format(new Date(ms));
 }
 
+// Thumb-pill format. Compact date + time, used inside the small pill that
+// sits above the timeline thumb (and chart thumb-readouts). en-CA's
+// default joiner inserts an "at" between date and time, which feels too
+// chatty for a pill — we format the date and time separately and join
+// with a space.
+const thumbDateFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: TZ,
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+});
+const thumbTimeFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: TZ,
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+export function formatThumb(ms: number): string {
+  const d = new Date(ms);
+  return `${thumbDateFormatter.format(d)} ${thumbTimeFormatter.format(d)}`;
+}
+
 const dateOnlyFormatter = new Intl.DateTimeFormat("en-CA", {
   timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit",
 });

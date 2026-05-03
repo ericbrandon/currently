@@ -111,13 +111,6 @@ html, body, #app {
   max-width: 60vw;
 }
 
-.scrubber-time {
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  font-size: 1rem;
-  color: #0f172a;
-}
-
 .scrubber-warn {
   font-size: 0.8rem;
   color: #b91c1c;
@@ -146,6 +139,35 @@ html, body, #app {
   min-width: 0;
   position: relative;
   height: 72px;
+}
+
+/* When no station is selected (no chart in scrubber-main), this slot
+   sits above the track and hosts the date/time pill that floats above
+   the thumb. Height matches the thumb-vline's `top: 22px` plus a small
+   gap so the line drops just below the pill. In chart mode the chart
+   itself provides this slot via its own thumb-label. */
+.scrubber-thumb-pill-area {
+  flex: 0 0 auto;
+  min-width: 0;
+  position: relative;
+  height: 24px;
+}
+
+.scrubber-thumb-pill-label {
+  position: absolute;
+  top: 2px;
+  transform: translateX(-50%);
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  background: #0c4a6e;
+  color: #ffffff;
+  padding: 2px 7px;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+  z-index: 4;
 }
 
 /* Horizontal axis line: drawn through the centre of the tick zone. */
@@ -617,7 +639,7 @@ html, body, #app {
   position: absolute;
   top: 2px;
   transform: translateX(-50%);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -717,7 +739,7 @@ html, body, #app {
   position: absolute;
   top: 2px;
   transform: translateX(-50%);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -1415,5 +1437,23 @@ html, body, #app {
   .control-box.info svg {
     width: 18px;
     height: 18px;
+  }
+  /* Chart thumb pills (date/time/value) clip off the left edge at narrow
+     widths because they sit at THUMB_FRACTION (20%) and centre via
+     translateX(-50%): below ~500px viewport, half the pill width exceeds
+     the 20% offset. Stack value below date+time so each row is short
+     enough to fit. */
+  .tide-chart-thumb-label,
+  .current-chart-thumb-label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1.15;
+  }
+  .tide-chart-thumb-label .tide-chart-extreme-val,
+  .current-chart-thumb-label .current-chart-extreme-val {
+    margin-left: 0;
+    font-weight: 700;
+    opacity: 1;
   }
 }

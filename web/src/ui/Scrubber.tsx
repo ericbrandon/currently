@@ -23,7 +23,7 @@ import {
   STEP_MS,
   THUMB_FRACTION,
 } from "../state/store";
-import { formatScrubber } from "../util/time";
+import { formatThumb } from "../util/time";
 import { TideChart } from "./TideChart";
 import { CurrentChart } from "./CurrentChart";
 
@@ -271,7 +271,6 @@ export function Scrubber() {
       <div class="scrubber-label">
         <div class="scrubber-label-left">
           {stationName && <span class="scrubber-station-name">{stationName}</span>}
-          <span class="scrubber-time">{formatScrubber(ms)}</span>
         </div>
         {outOfRange && <span class="scrubber-warn">no data for this time</span>}
       </div>
@@ -304,6 +303,16 @@ export function Scrubber() {
         <div class="scrubber-main">
           {isTideSel && <TideChart />}
           {isCurrentSel && <CurrentChart />}
+          {!hasChart && (
+            <div class="scrubber-thumb-pill-area">
+              <div
+                class="scrubber-thumb-pill-label"
+                style={{ left: `${THUMB_FRACTION * 100}%` }}
+              >
+                {formatThumb(ms)}
+              </div>
+            </div>
+          )}
           <div class="scrubber-track" ref={trackRef}>
             <div class="scrubber-axis" />
             {ticks.map((t, i) => (
@@ -346,12 +355,10 @@ export function Scrubber() {
               style={{ left: `${THUMB_FRACTION * 100}%` }}
             />
           </div>
-          {hasChart && (
-            <div
-              class="scrubber-thumb-vline"
-              style={{ left: `${THUMB_FRACTION * 100}%` }}
-            />
-          )}
+          <div
+            class="scrubber-thumb-vline"
+            style={{ left: `${THUMB_FRACTION * 100}%` }}
+          />
         </div>
         <button class="scrubber-btn scrubber-now" onClick={nowClick}>Now</button>
       </div>

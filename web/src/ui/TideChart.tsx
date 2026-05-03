@@ -38,6 +38,7 @@ import {
 import { valueAt } from "../interp/valueAt";
 import { classifyHiLow } from "../interp/secondaryTides";
 import { formatTideHeight } from "../util/units";
+import { formatThumb } from "../util/time";
 
 const SAMPLE_INTERVAL_MS = 3 * 60 * 1000;
 const MIN_RANGE_M = 0.6;
@@ -168,8 +169,7 @@ export function TideChart() {
       ))}
       {thumbValue !== null && (
         <div class="tide-chart-thumb-label" style={{ left: `${thumbX}%` }}>
-          <span class="tide-chart-extreme-time">{fmtTime(ms)}</span>
-          {" "}
+          <span class="tide-chart-extreme-time">{formatThumb(ms)}</span>
           <span class="tide-chart-extreme-val">{formatTideHeight(thumbValue)}</span>
         </div>
       )}

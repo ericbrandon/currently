@@ -25,6 +25,7 @@ import {
 } from "../state/store";
 import { currentValueAt } from "../interp/valueAt";
 import { formatCurrentSpeed } from "../util/units";
+import { formatThumb } from "../util/time";
 
 const SAMPLE_INTERVAL_MS = 3 * 60 * 1000;
 const MIN_BOUND_KT = 0.5;
@@ -196,8 +197,7 @@ export function CurrentChart() {
       ))}
       {thumbValue !== null && (
         <div class="current-chart-thumb-label" style={{ left: `${thumbX}%` }}>
-          <span class="current-chart-extreme-time">{fmtTime(ms)}</span>
-          {" "}
+          <span class="current-chart-extreme-time">{formatThumb(ms)}</span>
           <span class="current-chart-extreme-val">
             {formatCurrentSpeed(Math.abs(thumbValue))}
           </span>
