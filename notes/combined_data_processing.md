@@ -18,7 +18,7 @@ For a webapp that pins a marker on a map, this is enough error to put many coast
 The pipeline is split across two shell scripts at the repo root:
 
 - **`canada_data/process_canadian.sh --year YEAR`** — runs `canada_data/read_tct.py` to parse the PDFs (sourced from `canada_data/`) into `{year}_tct_*_stations.json` at the repo root. Source-specific; produces nothing else. (Details in [canada_data_processing.md](canada_data_processing.md).)
-- **`process_combined.sh --year YEAR`** (at the repo root) — runs `apply_coord_overrides.py` then `build_manifest.py`. Designed to consume both the Canadian outputs (above) and the NOAA outputs (`{year}_noaa_*_stations.json` from `us_data/process_us.sh`) and publish the year's data into `web/public/data/`. NOAA→manifest ingestion is not yet wired through `build_manifest.py` — see the TODO at the top of `process_combined.sh`.
+- **`process_combined.sh --year YEAR`** (at the repo root) — runs `apply_coord_overrides.py` then `build_manifest.py`. Consumes both the Canadian outputs (above) and the NOAA outputs (`{year}_noaa_*_stations.json` from `us_data/process_us.sh`) and publishes the year's data into `web/public/data/`. `apply_coord_overrides.py` is Canadian-only (NOAA's mdapi already returns precise coords); `build_manifest.py` ingests both feeds — `noaa_tidal_primary` and `noaa_current_primary` are registered kinds with their own `_PUBLISH_KEEP` allowlists and get the same publish-time stripping as the CHS kinds.
 
 End-to-end ordering for a fresh year:
 

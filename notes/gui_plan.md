@@ -4,6 +4,16 @@ This document tracks UI/UX changes to the *Currently* webapp as they're made. Th
 
 When a decision here contradicts `app_implementation.md`, this file wins for the latest entry — `app_implementation.md` should be updated to match if the change is durable.
 
+## 2026-05-03 — Now-lock: blue thumb pins to "now"; timeline slides under it
+
+Old "Now" behaviour: tap snapped `windowStartMs` so real-world now sat under the thumb, but the red now-dot then drifted right while the blue thumb stayed put — within a minute or two the user was looking at past time and didn't realise it.
+
+New: tap "Now" sets a `nowLocked` signal. While locked, a 1-second `setInterval` in [`store.ts`](../web/src/state/store.ts) shifts `windowStartMs` so `Date.now() - THUMB_FRACTION * WINDOW_MS` stays the left edge — the blue thumb is fixed at THUMB_FRACTION on the track, so as wall time advances the timeline slides leftward under it. The red now-dot is hidden while locked (it'd be obscured by the thumb anyway, and the 1-min vs 1-s update cadence mismatch would otherwise let it creep visibly out from behind the thumb between minute ticks).
+
+Lock indicator: `.scrubber-thumb.is-locked::after` paints an 8 px red dot in the centre of the blue thumb. The metaphor is literal — the red now-dot is captured inside the thumb. Earlier iteration used a red border + soft red glow, but the fading-edge red ring read as a warning/error state; a centred red dot has none of that and reuses the same visual vocabulary the unlocked now-dot already established.
+
+Lock release: `panWindowTo` now sets `nowLocked = false` as a side-effect, so any user-initiated pan — scrubber drag, scrubber wheel, panel drag, panel wheel — clears the lock automatically. The lock-effect's own writes call a private `setWindowStartClamped` instead, so they don't release themselves. The 1-second cadence is fine cost-wise (mid-pixel sub-frame movement; markers re-update via the existing rAF coalescer).
+
 ## 2026-04-28 — Track the arrowhead with the name pill when the arrow points down
 
 When the marker box grew 25% (60→75 px), the name pill stayed anchored at `top: 100% + 2 px` — fine in CSS terms but 15 px farther from the marker centre in absolute terms. For arrows pointing south, that put the name pill noticeably below the visible arrowhead, especially at low speeds where the arrow scales down and its tip retreats from the box edge.

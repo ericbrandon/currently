@@ -18,7 +18,7 @@ import {
   loadedData,
   tableOpen,
   panWindowTo,
-  recenterAt,
+  nowLocked,
   WINDOW_MS,
   STEP_MS,
   THUMB_FRACTION,
@@ -125,8 +125,13 @@ export function Scrubber() {
     const id = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(id);
   }, []);
+  const locked = nowLocked.value;
   const nowFraction = (now - start) / WINDOW_MS;
-  const showNowDot = nowFraction >= 0 && nowFraction <= 1;
+  // While locked the now-dot sits under the thumb; the thumb's own
+  // red border stands in for it, and a sub-pixel drift between the
+  // 1-min `now` state and 1-s `windowStartMs` updates would otherwise
+  // make the red dot creep visibly out from behind the thumb.
+  const showNowDot = !locked && nowFraction >= 0 && nowFraction <= 1;
 
   const ticks = buildTicks(start);
   const outOfRange = !!range && (ms < range.min || ms > range.max);
@@ -234,7 +239,9 @@ export function Scrubber() {
   }, [range]);
 
   function nowClick() {
-    recenterAt(Date.now());
+    // The lock effect snaps windowStartMs to "now" immediately and keeps
+    // it pinned every second until any user pan calls panWindowTo.
+    nowLocked.value = true;
   }
 
   if (!range) {
@@ -335,7 +342,7 @@ export function Scrubber() {
               />
             )}
             <div
-              class="scrubber-thumb"
+              class={`scrubber-thumb${locked ? " is-locked" : ""}`}
               style={{ left: `${THUMB_FRACTION * 100}%` }}
             />
           </div>

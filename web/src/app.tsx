@@ -24,6 +24,7 @@ import {
   userLocationFollowing,
   tosAccepted,
   infoModalOpen,
+  nowLocked,
 } from "./state/store";
 import { fetchManifest, loadAllYears } from "./data/loader";
 import { createMap } from "./map/map";
@@ -278,6 +279,7 @@ export function App() {
       if (!map) return;
       map.getContainer().classList.toggle("hide-tides", hideTides);
       map.getContainer().classList.toggle("hide-currents", hideCurrents);
+      map.getContainer().classList.toggle("now-locked", nowLocked.value);
       const sel = selectedStationId.value;
       if (sel !== null) {
         const meta = loadedData.value?.stationsById.get(sel);

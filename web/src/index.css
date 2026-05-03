@@ -208,6 +208,18 @@ html, body, #app {
   pointer-events: none;
   z-index: 2;
 }
+.scrubber-thumb.is-locked::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  margin-left: -3.5px;
+  margin-top: -3.5px;
+  border-radius: 50%;
+  background: #dc2626;
+}
 
 .scrubber-now-dot {
   position: absolute;
@@ -505,6 +517,17 @@ html, body, #app {
 /* Hide every current marker when the user toggles the "Currents" control off. */
 .hide-currents .current-marker {
   display: none;
+}
+
+/* While the scrubber is locked to "now", the timeline ticks once per second
+   and each tick re-applies the current marker's transforms. The 120ms
+   transitions above would otherwise produce a visible pulse on every tick.
+   Per-tick changes are sub-pixel for low-flow stations and small for the
+   rest, so snapping is acceptable. */
+.now-locked .current-marker .current-arrow,
+.now-locked .current-marker .current-value,
+.now-locked .current-marker.name-tracking .current-name {
+  transition: none;
 }
 
 /* ------------------------------------------------------------------

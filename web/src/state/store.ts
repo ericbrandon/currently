@@ -42,10 +42,7 @@ export const scrubberRange = computed(() => {
   return v ? v.scrubberRangeMs : null;
 });
 
-/** Set windowStartMs, clamping so the thumb's instant stays inside the
- *  loaded data range. Range may be null while loading; in that case the
- *  caller's value passes through unclamped. */
-export function panWindowTo(t: number): void {
+function setWindowStartClamped(t: number): void {
   const r = scrubberRange.value;
   if (r) {
     const min = r.min - THUMB_FRACTION * WINDOW_MS;
@@ -56,10 +53,48 @@ export function panWindowTo(t: number): void {
   windowStartMs.value = t;
 }
 
+/** Set windowStartMs, clamping so the thumb's instant stays inside the
+ *  loaded data range, and clear the now-lock — any user-initiated pan
+ *  ends the lock. Range may be null while loading; in that case the
+ *  caller's value passes through unclamped. */
+export function panWindowTo(t: number): void {
+  setWindowStartClamped(t);
+  nowLocked.value = false;
+}
+
 /** Place the instant `t` exactly under the thumb. */
 export function recenterAt(t: number): void {
   panWindowTo(t - THUMB_FRACTION * WINDOW_MS);
 }
+
+// "Now" lock: while true, the timeline advances once per wall-clock
+// minute so real-world "now" stays under the thumb (the red now-dot is
+// then visually obscured by the blue thumb). Engaged by the Now button;
+// cleared by any call to panWindowTo (i.e. any user pan on the scrubber
+// or panel).
+//
+// Ticking is aligned to the next minute boundary (rather than 60 s after
+// engagement) so the displayed HH:MM in the scrubber updates in sync
+// with the wall clock instead of lagging by up to a minute.
+export const nowLocked = signal<boolean>(false);
+
+let nowLockTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleNextNowLockTick(): void {
+  const msUntilNextMinute = 60_000 - (Date.now() % 60_000);
+  nowLockTimer = setTimeout(() => {
+    setWindowStartClamped(Date.now() - THUMB_FRACTION * WINDOW_MS);
+    if (nowLocked.value) scheduleNextNowLockTick();
+  }, msUntilNextMinute);
+}
+effect(() => {
+  if (nowLocked.value) {
+    setWindowStartClamped(Date.now() - THUMB_FRACTION * WINDOW_MS);
+    if (nowLockTimer === null) scheduleNextNowLockTick();
+  } else if (nowLockTimer !== null) {
+    clearTimeout(nowLockTimer);
+    nowLockTimer = null;
+  }
+});
 
 // User-facing toggles surfaced via the Controls panel in the top-right.
 //   - showTides: render and update tide-station markers (off → markers
