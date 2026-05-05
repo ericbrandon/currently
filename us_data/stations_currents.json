@@ -291,17 +291,16 @@
       "NOAA_short_name": "Hammersley Inlet"
     },
     {
-      "placename": "Cattle Pass / San Juan Channel S",
-      "primary": "PUG1703",
-      "primary_name": "San Juan Channel, south entrance",
-      "shallowest_bin": 13,
-      "shallowest_depth_ft": 75,
+      "placename": "Cattle Point / San Juan Channel S",
+      "primary": "PUG1742",
+      "primary_name": "Cattle Point, 1.2 nm SE of",
+      "shallowest_bin": 21,
+      "shallowest_depth_ft": 39,
       "additional": [
-        "PUG1742",
         "PCT1416"
       ],
       "type": "H",
-      "NOAA_short_name": "San Juan Channel"
+      "NOAA_short_name": "Cattle Point"
     },
     {
       "placename": "Spieden Channel",
@@ -311,6 +310,186 @@
       "shallowest_depth_ft": 47,
       "type": "H",
       "NOAA_short_name": "Spieden Channel"
+    },
+    {
+      "placename": "Thatcher Pass",
+      "primary": "PUG1733",
+      "primary_name": "Thatcher Pass",
+      "shallowest_bin": 22,
+      "shallowest_depth_ft": 28,
+      "type": "H",
+      "NOAA_short_name": "Thatcher Pass"
+    },
+    {
+      "placename": "Peavine Pass",
+      "primary": "PUG1704",
+      "primary_name": "Peavine Pass, west entrance",
+      "shallowest_bin": 13,
+      "shallowest_depth_ft": 9,
+      "type": "H",
+      "NOAA_short_name": "Peavine Pass"
+    },
+    {
+      "placename": "Obstruction Pass",
+      "primary": "PUG1705",
+      "primary_name": "Obstruction Pass, north of Obstruction Island",
+      "shallowest_bin": 15,
+      "shallowest_depth_ft": 8,
+      "type": "H",
+      "NOAA_short_name": "Obstruction Pass"
+    },
+    {
+      "placename": "Wasp Passage",
+      "primary": "PUG1721",
+      "primary_name": "Wasp Passage narrows",
+      "shallowest_bin": 17,
+      "shallowest_depth_ft": 11,
+      "type": "H",
+      "NOAA_short_name": "Wasp Passage"
+    },
+    {
+      "placename": "Harney Channel",
+      "primary": "PUG1722",
+      "primary_name": "Harney Channel, north of Point Hudson",
+      "shallowest_bin": 27,
+      "shallowest_depth_ft": 13,
+      "type": "H",
+      "NOAA_short_name": "Harney Channel"
+    },
+    {
+      "placename": "Upright Channel",
+      "primary": "PUG1723",
+      "primary_name": "Upright Channel narrows",
+      "shallowest_bin": 18,
+      "shallowest_depth_ft": 24,
+      "type": "H",
+      "NOAA_short_name": "Upright Channel"
+    },
+    {
+      "placename": "Turn Point / Boundary Pass",
+      "primary": "PUG1717",
+      "primary_name": "Turn Point, Boundary Pass",
+      "shallowest_bin": 35,
+      "shallowest_depth_ft": 116,
+      "type": "H",
+      "NOAA_short_name": "Turn Point"
+    },
+    {
+      "placename": "Kellett Bluff / Haro Strait",
+      "primary": "PUG1718",
+      "primary_name": "Haro Strait, 1.2 nm west of Kellett Bluff",
+      "shallowest_bin": 36,
+      "shallowest_depth_ft": 66,
+      "type": "H",
+      "NOAA_short_name": "Kellett Bluff"
+    },
+    {
+      "placename": "Lime Kiln / South Haro Strait",
+      "primary": "PUG1724",
+      "primary_name": "South Haro Strait, south of Lime Kiln Light",
+      "shallowest_bin": 31,
+      "shallowest_depth_ft": 107,
+      "type": "H",
+      "NOAA_short_name": "Lime Kiln"
+    },
+    {
+      "placename": "President Channel",
+      "primary": "PUG1715",
+      "primary_name": "President Channel, East of Point Disney",
+      "shallowest_bin": 38,
+      "shallowest_depth_ft": 69,
+      "type": "H",
+      "NOAA_short_name": "President Channel"
+    },
+    {
+      "placename": "Lopez Pass",
+      "primary": "PUG1730",
+      "primary_name": "Lopez Pass",
+      "shallowest_bin": 17,
+      "shallowest_depth_ft": 15,
+      "type": "H",
+      "NOAA_short_name": "Lopez Pass"
+    },
+    {
+      "placename": "Burrows Pass",
+      "primary": "PUG1738",
+      "primary_name": "Burrows Pass",
+      "shallowest_bin": 27,
+      "shallowest_depth_ft": 15,
+      "type": "H",
+      "NOAA_short_name": "Burrows Pass"
+    },
+    {
+      "placename": "Belle Rock / Rosario Strait",
+      "primary": "PUG1729",
+      "primary_name": "Belle Rock Light, east of",
+      "shallowest_bin": 21,
+      "shallowest_depth_ft": 23,
+      "type": "H",
+      "NOAA_short_name": "Belle Rock"
+    },
+    {
+      "placename": "Patos Island",
+      "primary": "PUG1713",
+      "primary_name": "Patos Island, south of Toe Point",
+      "shallowest_bin": 25,
+      "shallowest_depth_ft": 14,
+      "type": "H",
+      "NOAA_short_name": "Patos Island"
+    },
+    {
+      "placename": "Matia Island",
+      "primary": "PUG1711",
+      "primary_name": "Matia Island, west of",
+      "shallowest_bin": 26,
+      "shallowest_depth_ft": 47,
+      "type": "H",
+      "NOAA_short_name": "Matia Island"
+    },
+    {
+      "placename": "Peapod Rocks / Rosario Strait mid",
+      "primary": "PUG1706",
+      "primary_name": "Peapod Rocks Light, 1.2 nm south of",
+      "shallowest_bin": 11,
+      "shallowest_depth_ft": 39,
+      "type": "H",
+      "NOAA_short_name": "Peapod Rocks"
+    },
+    {
+      "placename": "Race Rocks (US side)",
+      "primary": "PUG1640",
+      "primary_name": "Race Rocks, 4.5 mi. S of",
+      "shallowest_bin": 18,
+      "shallowest_depth_ft": 60,
+      "type": "H",
+      "NOAA_short_name": "Race Rocks (US)"
+    },
+    {
+      "placename": "Ediz Hook / Port Angeles",
+      "primary": "PUG1638",
+      "primary_name": "Ediz Hook Light, 1.2 miles N of",
+      "shallowest_bin": 22,
+      "shallowest_depth_ft": 36,
+      "type": "H",
+      "NOAA_short_name": "Ediz Hook"
+    },
+    {
+      "placename": "Dungeness Spit / New Dungeness",
+      "primary": "PUG1635",
+      "primary_name": "New Dungeness Light, 2.8 mi. NNW of",
+      "shallowest_bin": 58,
+      "shallowest_depth_ft": 52,
+      "type": "H",
+      "NOAA_short_name": "Dungeness Spit"
+    },
+    {
+      "placename": "Smith Island / mid-strait east",
+      "primary": "PUG1632",
+      "primary_name": "Smith Island, 5.5 mi. WNW of",
+      "shallowest_bin": 41,
+      "shallowest_depth_ft": 43,
+      "type": "H",
+      "NOAA_short_name": "Smith Island"
     }
   ]
 }

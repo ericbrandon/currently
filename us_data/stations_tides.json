@@ -335,6 +335,149 @@
       "type": "S",
       "reference_id": "9444900",
       "NOAA_short_name": "Guemes Channel"
+    },
+    {
+      "placename": "Roche Harbor / San Juan Island NW",
+      "id": "9449834",
+      "name": "Roche Harbor, San Juan Island",
+      "type": "S",
+      "reference_id": "9444900",
+      "NOAA_short_name": "Roche Harbor"
+    },
+    {
+      "placename": "Orcas Landing / Orcas Island",
+      "id": "9449798",
+      "name": "Orcas, Orcas Island",
+      "type": "S",
+      "reference_id": "9444900",
+      "NOAA_short_name": "Orcas Landing"
+    },
+    {
+      "placename": "Rosario / East Sound",
+      "id": "9449771",
+      "name": "Rosario, East Sound, Orcas Island",
+      "type": "R",
+      "NOAA_short_name": "Rosario"
+    },
+    {
+      "placename": "Sucia Island / Echo Bay",
+      "id": "9449712",
+      "name": "Echo Bay, Sucia Islands",
+      "type": "S",
+      "reference_id": "9444900",
+      "NOAA_short_name": "Sucia Island"
+    },
+    {
+      "placename": "Patos Island",
+      "id": "9449704",
+      "name": "Patos Island Wharf",
+      "type": "S",
+      "reference_id": "9444900",
+      "NOAA_short_name": "Patos Island"
+    },
+    {
+      "placename": "Waldron Island",
+      "id": "9449746",
+      "name": "WALDRON ISLAND, PUGET SOUND",
+      "type": "R",
+      "NOAA_short_name": "Waldron Island"
+    },
+    {
+      "placename": "Mosquito Pass / Hanbury Point",
+      "id": "9449828",
+      "name": "Hanbury Point, Mosquito Pass, San Juan I.",
+      "type": "R",
+      "NOAA_short_name": "Mosquito Pass"
+    },
+    {
+      "placename": "Kanaka Bay / San Juan Island W",
+      "id": "9449856",
+      "name": "Kanaka Bay, San Juan Island",
+      "type": "R",
+      "NOAA_short_name": "Kanaka Bay"
+    },
+    {
+      "placename": "Blind Bay / Shaw Island",
+      "id": "9449904",
+      "name": "Shaw Island, Ferry Terminal, Harney Channel",
+      "type": "S",
+      "reference_id": "9444900",
+      "NOAA_short_name": "Blind Bay"
+    },
+    {
+      "placename": "Upright Head / Lopez Island",
+      "id": "9449911",
+      "name": "Upright Head, Lopez Island",
+      "type": "R",
+      "NOAA_short_name": "Upright Head"
+    },
+    {
+      "placename": "Thatcher Pass / Armitage Island",
+      "id": "9449932",
+      "name": "Armitage Island, Thatcher Pass",
+      "type": "R",
+      "NOAA_short_name": "Thatcher Pass"
+    },
+    {
+      "placename": "Richardson / Lopez Island S",
+      "id": "9449982",
+      "name": "Richardson, Lopez Island",
+      "type": "R",
+      "NOAA_short_name": "Richardson"
+    },
+    {
+      "placename": "Aleck Bay / Lopez Island S",
+      "id": "9449994",
+      "name": "Aleck Bay, Lopez Island",
+      "type": "S",
+      "reference_id": "9444900",
+      "NOAA_short_name": "Aleck Bay"
+    },
+    {
+      "placename": "Strawberry Bay / Cypress Island",
+      "id": "9448876",
+      "name": "Strawberry Bay, Cypress Island",
+      "type": "S",
+      "reference_id": "9444900",
+      "NOAA_short_name": "Strawberry Bay"
+    },
+    {
+      "placename": "Telegraph Bay / Decatur Island",
+      "id": "9449988",
+      "name": "TELEGRAPH BAY, PUGET SOUND",
+      "type": "R",
+      "NOAA_short_name": "Telegraph Bay"
+    },
+    {
+      "placename": "Sekiu / Clallam Bay",
+      "id": "9443361",
+      "name": "Sekiu, Clallam Bay",
+      "type": "R",
+      "NOAA_short_name": "Sekiu"
+    },
+    {
+      "placename": "Dungeness / Dungeness Spit",
+      "id": "9444471",
+      "name": "Dungeness",
+      "type": "S",
+      "reference_id": "9444900",
+      "NOAA_short_name": "Dungeness"
+    },
+    {
+      "placename": "Sequim Bay / John Wayne Marina",
+      "id": "9444555",
+      "name": "Sequim Bay entrance",
+      "type": "S",
+      "reference_id": "9444900",
+      "NOAA_short_name": "Sequim Bay"
+    },
+    {
+      "placename": "Discovery Bay / Gardiner",
+      "id": "9444705",
+      "name": "Gardiner, Discovery Bay",
+      "type": "S",
+      "reference_id": "9444900",
+      "NOAA_short_name": "Discovery Bay"
     }
   ]
 }
