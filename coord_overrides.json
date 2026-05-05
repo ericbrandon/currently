@@ -2,6 +2,8 @@
   "_format": "Map of CHS index_no (string) to [longitude, latitude] in WGS84. A null value means 'I have verified the PDF coord is correct; stop flagging this station as a CSV-vs-PDF disagreement.' Keys starting with '_' are treated as comments.",
   "_source_url_csv": "https://open.canada.ca/data/en/dataset/87b08750-4180-4d31-9414-a9470eba9b42/resource/f7f11a47-718c-4eff-a716-d68448914b40",
   "_source_url_per_station": "https://tides.gc.ca/en/stations/<5-digit zero-padded index_no>",
+  "_block_suppressed": "Stations dropped from the parser output entirely (any of the four kinds — primary/secondary, tide/current). Used when a CHS station is now covered by a higher-quality data source on the other side of the border (NOAA harmonic primaries) and would otherwise duplicate a marker on the map. apply_coord_overrides.py reads `_suppress_index_nos` and filters before applying coord overrides; CHS stations referenced by a suppressed primary would lose their reference, so only suppress entries that are not used as a `reference_primary` / `reference_name` by any other station.",
+  "_suppress_index_nos": [7050, 7060, 7215, 7570, 8512],
   "7120": [
     -123.370828,
     48.424363
@@ -853,10 +855,6 @@
   "9958": [
     -133.000833,
     54.191944
-  ],
-  "7245": [
-    -123.240207,
-    48.606893
   ],
   "7251": [
     -123.271111,

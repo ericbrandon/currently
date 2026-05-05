@@ -105,16 +105,41 @@ def load_overrides(path: Path) -> dict[int, tuple[float, float] | None]:
     return out
 
 
+def load_suppressed(path: Path) -> set[int]:
+    """Read the optional `_suppress_index_nos` list from the overrides file.
+    Stations with these index_nos are dropped from the parser output entirely
+    — used when a CHS station is now covered by another data source (e.g. a
+    NOAA US station) and would otherwise duplicate a marker on the map."""
+    if not path.exists():
+        return set()
+    raw = json.loads(path.read_text())
+    items = raw.get("_suppress_index_nos") or []
+    out: set[int] = set()
+    for v in items:
+        try:
+            out.add(int(v))
+        except (TypeError, ValueError):
+            print(f"  WARN: ignoring malformed _suppress_index_nos entry {v!r}")
+    return out
+
+
 def process_file(
     path: Path,
     csv_data: dict[int, tuple[float, float, int]],
     overrides: dict[int, tuple[float, float] | None],
-) -> tuple[int, int, int, int, list[tuple[int, str, float, int]]]:
-    """Returns (n_stations, n_override, n_csv, n_kept, big_diffs).
+    suppressed: set[int],
+) -> tuple[int, int, int, int, int, list[tuple[int, str, float, int]]]:
+    """Returns (n_stations, n_suppressed, n_override, n_csv, n_kept, big_diffs).
     big_diffs: (idx, name, offset_m, csv_decimals) for stations where CSV
     and PDF disagree enough to be suspicious. Two thresholds — see the
     module-level constants."""
     doc = json.loads(path.read_text())
+
+    # Pre-pass: drop stations whose index_no is in the suppression list.
+    before = doc.get("stations", [])
+    doc["stations"] = [s for s in before if s.get("index_no") not in suppressed]
+    n_suppressed = len(before) - len(doc["stations"])
+
     n_override = n_csv = n_kept = 0
     big_diffs: list[tuple[int, str, float, int]] = []
 
@@ -162,7 +187,7 @@ def process_file(
 
     # Stable, indented re-serialisation matching read_tct.py's style.
     path.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n")
-    return len(doc.get("stations", [])), n_override, n_csv, n_kept, big_diffs
+    return len(doc.get("stations", [])), n_suppressed, n_override, n_csv, n_kept, big_diffs
 
 
 def main() -> None:
@@ -185,9 +210,11 @@ def main() -> None:
 
     csv_data = load_csv(args.csv)
     overrides = load_overrides(args.overrides)
-    print(f"Loaded {len(csv_data)} CSV stations, {len(overrides)} manual overrides")
+    suppressed = load_suppressed(args.overrides)
+    print(f"Loaded {len(csv_data)} CSV stations, {len(overrides)} manual overrides, "
+          f"{len(suppressed)} suppressed index_no(s)")
 
-    totals = {"stations": 0, "override": 0, "csv": 0, "kept": 0}
+    totals = {"stations": 0, "suppressed": 0, "override": 0, "csv": 0, "kept": 0}
     all_big_diffs: list[tuple[str, int, str, float, int]] = []
 
     for kind in KINDS:
@@ -195,10 +222,12 @@ def main() -> None:
         if not path.exists():
             print(f"  {kind}: (no input file at {path})")
             continue
-        n, no, nc, nk, big = process_file(path, csv_data, overrides)
+        n, ns, no, nc, nk, big = process_file(path, csv_data, overrides, suppressed)
         print(f"  {kind:18s}: {n:4d} stations | "
-              f"{no:3d} via overrides | {nc:3d} via CSV | {nk:3d} kept from PDF")
+              f"{ns:3d} suppressed | {no:3d} via overrides | "
+              f"{nc:3d} via CSV | {nk:3d} kept from PDF")
         totals["stations"] += n
+        totals["suppressed"] += ns
         totals["override"] += no
         totals["csv"] += nc
         totals["kept"] += nk
@@ -206,6 +235,7 @@ def main() -> None:
             all_big_diffs.append((kind, idx, name, off, dec))
 
     print(f"\nTotal: {totals['stations']} stations | "
+          f"{totals['suppressed']} suppressed | "
           f"{totals['override']} overridden | {totals['csv']} refined from CSV | "
           f"{totals['kept']} unchanged")
 

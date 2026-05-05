@@ -35,6 +35,30 @@ The fix is the build-time refinement step in `process_combined.sh`, fed by the `
 
 The runtime apply logic (precedence, thresholds, flagging) lives in [combined_data_processing.md](combined_data_processing.md).
 
+## Suppressing CHS stations covered by NOAA
+
+The CHS chartbook bundles a small number of US tide stations (Neah Bay, Port Angeles, Crescent Bay, Bellingham, Blaine, Friday Harbor) as cross-border secondary computations off BC primaries. When `us_data/stations_tides.json` adds the NOAA harmonic-primary or NOAA-subordinate version of the same gauge, both versions render and the map gets duplicate pins on top of each other.
+
+`coord_overrides.json` carries a `_suppress_index_nos` array of CHS `index_no`s that should be dropped from the parser output entirely. `apply_coord_overrides.py` runs a pre-pass that filters those stations out before the per-station coord-precedence walk runs — they never make it into the published JSON, never reach the loader, and never produce a marker.
+
+Mechanism details (where `_suppress_index_nos` is read, ordering vs. coord overrides, summary output) live in [combined_data_processing.md](combined_data_processing.md#suppressing-stations).
+
+Constraint: only suppress stations that aren't used as a `reference_primary` (currents) or `reference_name` (tides) by another station in the four parser-output JSONs. Suppressing a referenced primary leaves any secondary pointing at it without a reference; the loader logs a console warning and the secondary degrades to "no value" rendering. Grep the parser-output JSONs before adding an entry to confirm nothing depends on the station you're dropping.
+
+Current 2026 entries (all secondary tide stations whose CHS computation is offset off a BC primary, now replaced 1:1 by a NOAA pick in `us_data/stations_tides.json`):
+
+| CHS index | CHS name | NOAA replacement |
+|---|---|---|
+| 7050 | CRESCENT BAY | 9443826 (subordinate, ref Port Townsend) |
+| 7060 | PORT ANGELES | 9444090 (harmonic primary) |
+| 7215 | BELLINGHAM | 9449211 (subordinate, ref Port Townsend) |
+| 7570 | BLAINE | 9449679 (harmonic primary) |
+| 8512 | NEAH BAY | 9443090 (harmonic primary) |
+
+Friday Harbor (CHS index 7240) is **not** suppressed — there's no equivalent NOAA pick yet and removing it would leave the San Juan Channel without a tide marker.
+
+Adding more suppressions later: append the `index_no` to `_suppress_index_nos`, add the corresponding NOAA station to `us_data/stations_tides.json`, then run `./us_data/process_us.sh` and `./process_combined.sh`. The CHS coord override (if any) for the suppressed index can stay or go — the suppression pre-pass runs first, so any leftover override entry is simply unused.
+
 ## The PDF parser: `read_tct.py`
 
 `read_tct.py` is what `process_canadian.sh` runs. It scans `canada_data/` for the year's TCT PDFs (filtered by filename containing "tct" and the year, with a `vol(\d)` suffix), parses each volume's table of contents, then extracts:

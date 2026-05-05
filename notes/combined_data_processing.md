@@ -57,7 +57,9 @@ apply_coord_overrides.py --year YEAR
     [--overrides PATH]        # manual overrides (default: ./coord_overrides.json — at repo root)
 ```
 
-For each station in each of the four `{year}_tct_*_stations.json` files, the script picks new coordinates by walking the precedence list:
+Before the per-station precedence walk runs, a **suppression pre-pass** drops any station whose `index_no` appears in `_suppress_index_nos` at the top of `coord_overrides.json` — see "Suppressing stations" below.
+
+For each station in each of the four `{year}_tct_*_stations.json` files that survives the pre-pass, the script picks new coordinates by walking the precedence list:
 
 1. **Manual override present?** Use it (or, if the override value is `null`, keep the PDF coord and suppress any CSV-disagreement warning — see "Override file format" below).
 2. **CSV has this station, with ≥ 3 decimal places on both lat and lon, and the CSV coord is within 2 km of the PDF coord?** Use it.
@@ -145,6 +147,34 @@ Ten stations were curated by hand from `tides.gc.ca/en/stations/<id>` after the 
 The remaining entries in `coord_overrides.json` come from the two seeders and are not hand-curated:
 - **`_block_iwls_seeded`** (~88 entries): primary tide and primary current stations, sourced from the IWLS API.
 - **`_block_geonames_seeded`** (~140 entries): a mix of secondary tide and secondary current stations whose name matches a water-class CGNDB feature (BAY, CHAN, RAP, SEAF, MAR). Stations whose CGNDB match is land-class only (CAPE, ISL, TOWN, UNP, etc.) don't get seeded — they fall through to CSV refinement or PDF coord.
+
+## Suppressing stations
+
+Some CHS stations are now better-served by a NOAA station on the US side (the chartbook publishes Neah Bay, Port Angeles, Crescent Bay, Bellingham, Blaine, Friday Harbor as cross-border secondary computations off BC primaries; NOAA publishes harmonic-primary or NOAA-subordinate versions of the same gauges). When both render, the map gets stacked duplicate pins. To pick one and drop the other, `coord_overrides.json` carries an array key:
+
+```json
+"_suppress_index_nos": [7050, 7060, 7215, 7570, 8512]
+```
+
+`apply_coord_overrides.py`'s `load_suppressed()` parses this list at startup and `process_file()` runs a one-line filter before the per-station coord walk:
+
+```python
+doc["stations"] = [s for s in before if s.get("index_no") not in suppressed]
+```
+
+Suppressed stations never reach `build_manifest.py`, never appear in the published JSON, and never produce a marker. The pre-run summary line counts them on a per-kind basis:
+
+```
+tidal_secondary :  263 stations |   5 suppressed | 194 via overrides | ...
+```
+
+The parser-output JSONs at the repo root (`{year}_tct_*_stations.json`) are *also* rewritten in place with the suppressed stations removed — `apply_coord_overrides.py` always writes its filtered result back over the input. So after a run, the suppressed stations are gone from both the published artifact and the parser output. To bring them back, either remove the `index_no` from `_suppress_index_nos` *and* re-run `read_tct.py` (which regenerates the parser JSONs from the PDF), or use `git restore` on the parser output files.
+
+**Constraint — don't suppress a referenced primary.** Secondary stations name a primary in `reference_primary` (currents) or `reference_name` (tides). Suppressing the referenced primary leaves any dependent secondary without a reference; the loader logs a console warning and the secondary degrades to "no value" rendering. Before adding an `index_no` to `_suppress_index_nos`, grep the four parser-output JSONs to confirm no `reference_primary` / `reference_name` field names the station you're dropping.
+
+**Operational note — `_suppress_index_nos` is read, but coord-override entries for suppressed indices are not.** The suppression pre-pass runs first; the coord-precedence walk only sees the surviving stations. If you later want a suppressed station re-included, the leftover coord-override entry (if any) keeps working — you just need to remove the index from `_suppress_index_nos` and regenerate the parser output.
+
+The Canadian-side rationale and current 2026 entries are catalogued in [canada_data_processing.md — Suppressing CHS stations covered by NOAA](canada_data_processing.md#suppressing-chs-stations-covered-by-noaa).
 
 ## Resolving flagged stations (annual runbook)
 

@@ -456,15 +456,6 @@
       "NOAA_short_name": "Peapod Rocks"
     },
     {
-      "placename": "Race Rocks (US side)",
-      "primary": "PUG1640",
-      "primary_name": "Race Rocks, 4.5 mi. S of",
-      "shallowest_bin": 18,
-      "shallowest_depth_ft": 60,
-      "type": "H",
-      "NOAA_short_name": "Race Rocks (US)"
-    },
-    {
       "placename": "Ediz Hook / Port Angeles",
       "primary": "PUG1638",
       "primary_name": "Ediz Hook Light, 1.2 miles N of",

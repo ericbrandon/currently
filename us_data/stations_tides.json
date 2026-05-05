@@ -478,6 +478,43 @@
       "type": "S",
       "reference_id": "9444900",
       "NOAA_short_name": "Discovery Bay"
+    },
+    {
+      "placename": "Neah Bay",
+      "id": "9443090",
+      "name": "NEAH BAY",
+      "type": "R",
+      "NOAA_short_name": "Neah Bay"
+    },
+    {
+      "placename": "Port Angeles",
+      "id": "9444090",
+      "name": "Port Angeles",
+      "type": "R",
+      "NOAA_short_name": "Port Angeles"
+    },
+    {
+      "placename": "Crescent Bay",
+      "id": "9443826",
+      "name": "Crescent Bay",
+      "type": "S",
+      "reference_id": "9444900",
+      "NOAA_short_name": "Crescent Bay"
+    },
+    {
+      "placename": "Bellingham",
+      "id": "9449211",
+      "name": "Bellingham",
+      "type": "S",
+      "reference_id": "9444900",
+      "NOAA_short_name": "Bellingham"
+    },
+    {
+      "placename": "Blaine",
+      "id": "9449679",
+      "name": "Blaine, Semiahmoo Bay",
+      "type": "R",
+      "NOAA_short_name": "Blaine"
     }
   ]
 }
