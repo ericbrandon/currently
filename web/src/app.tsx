@@ -27,7 +27,7 @@ import {
   nowLocked,
 } from "./state/store";
 import { fetchManifest, loadAllYears } from "./data/loader";
-import { createMap } from "./map/map";
+import { createMap, getSavedMapView, attachMapViewPersistence } from "./map/map";
 import { TideStationLayer } from "./map/stationLayer";
 import { CurrentStationLayer } from "./map/currentStationLayer";
 import { UserLocationMarker } from "./map/userLocationMarker";
@@ -75,9 +75,17 @@ export function App() {
     const data = loadedData.value;
     if (!data || !mapContainer.current || mapRef.current) return;
 
-    // Initial view: centered on Sidney, BC (Saanich Peninsula).
-    const map = createMap(mapContainer.current, [-123.3989, 48.6512], 9);
+    // Initial view: restored from the last session if available, else
+    // centered on Sidney, BC (Saanich Peninsula). Persistence is wired
+    // up immediately so subsequent pans/zooms are captured.
+    const saved = getSavedMapView();
+    const map = createMap(
+      mapContainer.current,
+      saved?.center ?? [-123.3989, 48.6512],
+      saved?.zoom ?? 9,
+    );
     mapRef.current = map;
+    attachMapViewPersistence(map);
 
     const layer = new TideStationLayer(map, data);
     layerRef.current = layer;

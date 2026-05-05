@@ -30,3 +30,43 @@ export function createMap(
   return map;
 }
 
+// Camera-view persistence. Reading is synchronous so the caller can use
+// the saved view as initial state for createMap; persistence is hooked
+// up afterwards via a moveend listener that captures every pan and zoom
+// (including programmatic flyTo from station selection / location follow).
+const MAP_VIEW_KEY = "pref-map-view";
+
+export type SavedMapView = { center: [number, number]; zoom: number };
+
+export function getSavedMapView(): SavedMapView | null {
+  try {
+    const raw = localStorage.getItem(MAP_VIEW_KEY);
+    if (!raw) return null;
+    const v = JSON.parse(raw);
+    if (
+      typeof v?.lng === "number" &&
+      typeof v?.lat === "number" &&
+      typeof v?.zoom === "number"
+    ) {
+      return { center: [v.lng, v.lat], zoom: v.zoom };
+    }
+  } catch {
+    // Malformed JSON or storage disabled — fall back to the default view.
+  }
+  return null;
+}
+
+export function attachMapViewPersistence(map: MlMap): void {
+  map.on("moveend", () => {
+    try {
+      const c = map.getCenter();
+      localStorage.setItem(
+        MAP_VIEW_KEY,
+        JSON.stringify({ lng: c.lng, lat: c.lat, zoom: map.getZoom() }),
+      );
+    } catch {
+      // Storage disabled — drop the write.
+    }
+  });
+}
+

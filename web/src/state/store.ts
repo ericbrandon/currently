@@ -101,14 +101,35 @@ effect(() => {
 });
 
 // User-facing toggles surfaced via the Controls panel in the top-right.
+// Persisted across sessions in localStorage so the user's last choice
+// sticks on reload.
 //   - showTides: render and update tide-station markers (off → markers
 //     hidden via a class on the map container; per-frame interpolation
 //     is also skipped to save CPU).
 //   - showCurrents: same, for current-station markers.
 //   - useFeet: format every tide height in feet instead of metres.
-export const showTides = signal<boolean>(false);
-export const showCurrents = signal<boolean>(true);
-export const useFeet = signal<boolean>(true);
+function persistedBoolean(key: string, defaultValue: boolean) {
+  let initial = defaultValue;
+  try {
+    const v = localStorage.getItem(key);
+    if (v === "0" || v === "1") initial = v === "1";
+  } catch {
+    // Private mode / storage disabled — fall through with the default.
+  }
+  const s = signal<boolean>(initial);
+  effect(() => {
+    try {
+      localStorage.setItem(key, s.value ? "1" : "0");
+    } catch {
+      // Same — we silently drop the write.
+    }
+  });
+  return s;
+}
+
+export const showTides = persistedBoolean("pref-show-tides", false);
+export const showCurrents = persistedBoolean("pref-show-currents", true);
+export const useFeet = persistedBoolean("pref-use-feet", true);
 
 // Per-selection table visibility. The table (TidePanel / CurrentPanel)
 // only opens when the user explicitly taps the "Table" handle on the
