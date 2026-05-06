@@ -26,8 +26,7 @@ End-to-end ordering for a fresh year:
 1. canada_data/process_canadian.sh
                             → canada_data/read_tct.py emits
                               {year}_tct_*_stations.json at the repo root
-2. (optional) seeders       → canada_data/seed_iwls_overrides.py,
-                              canada_data/seed_geonames_overrides.py
+2. (optional) IWLS seeder   → canada_data/seed_iwls_overrides.py
                               (one-shot; against the parser-output JSONs)
 3. us_data/process_us.sh    → emits {year}_noaa_*_stations.json at the repo root
 4. process_combined.sh      → apply_coord_overrides.py rewrites the CHS
@@ -67,12 +66,11 @@ For each station in each of the four `{year}_tct_*_stations.json` files that sur
 
 ### Data sources, in precedence order
 
-1. **`coord_overrides.json`** at the repo root — the persistent override file. Lives at root rather than inside `canada_data/` so the same file can grow to hold US-side overrides too if/when NOAA stations need them. Holds three kinds of entries:
+1. **`coord_overrides.json`** at the repo root — the persistent override file. Lives at root rather than inside `canada_data/` so the same file can grow to hold US-side overrides too if/when NOAA stations need them. Holds two kinds of entries:
    - **Manual** entries, hand-curated from `https://tides.gc.ca/en/stations/<id>` for stations that no automated source covers (e.g. VICTORIA HARBOUR is missing from the CSV) or where the automated source is wrong.
    - **IWLS-seeded** entries, produced in bulk by `canada_data/seed_iwls_overrides.py` from the CHS IWLS API. These are not edited by hand; the seeder rewrites them on demand.
-   - **Geonames-seeded** entries, produced in bulk by `canada_data/seed_geonames_overrides.py` from the Canadian Geographical Names Database. The backstop for stations missing from both CSV and IWLS — predominantly secondary current stations and a chunk of secondary tide stations whose names match named features (bays, channels, points) at sub-km precision.
 
-   (Seeder mechanics, API URLs, and CGNDB rejection rules are in [canada_data_processing.md](canada_data_processing.md).)
+   (Seeder mechanics in [canada_data_processing.md](canada_data_processing.md). A previous geonames-centroid layer was removed — see "Why we don't have a geonames-centroid fallback any more" in the same file.)
 
 2. **CHS station inventory CSV** in `canada_data/`, default filename `tide and water level station.csv`. (See [canada_data_processing.md](canada_data_processing.md) for the open-data download URL and refresh cadence.) The CSV lists ~1,750 stations across Canada, keyed by the same `STATION_NUMBER` that the PDF tables use as `index_no`. Roughly two-thirds of Pacific-region stations are published with **3 or more decimal places** (≤110 m horizontal precision); some are publised at 4–6 decimals (≤10 m). It is **not** a strict superset of the PDF: about a tenth of the stations we get from the PDF are absent from the CSV (notably VICTORIA HARBOUR, index 7120). The CSV also covers tide/water-level stations only — current stations are not in it.
 
@@ -94,21 +92,19 @@ The second condition catches PDF typos that the first would miss. SHOAL BAY (ind
 
 The script writes each JSON back in place using the same `json.dumps(..., indent=2)` style as the parser, so a re-run with no input changes produces a no-op diff. It prints a per-file summary and a single sorted list of flagged stations.
 
-Typical output (2026 data, with both seeders run and the manual overrides committed):
+Typical output (2026 data, with the IWLS seeder run, manual overrides committed, and 5 stations suppressed):
 
 ```
-Loaded 1750 CSV stations, 153 manual overrides
-  tidal_primary     :   23 stations |  17 via overrides |   6 via CSV |   0 kept from PDF
-  tidal_secondary   :  268 stations | 192 via overrides |  62 via CSV |  14 kept from PDF
-  current_primary   :   22 stations |  22 via overrides |   0 via CSV |   0 kept from PDF
-  current_secondary :   39 stations |  28 via overrides |   0 via CSV |  11 kept from PDF
+Loaded 1750 CSV stations, 305 manual overrides, 5 suppressed index_no(s)
+  tidal_primary     :   23 stations |   0 suppressed |  23 via overrides |   0 via CSV |   0 kept from PDF
+  tidal_secondary   :  263 stations |   5 suppressed | 257 via overrides |   2 via CSV |   4 kept from PDF
+  current_primary   :   22 stations |   0 suppressed |  22 via overrides |   0 via CSV |   0 kept from PDF
+  current_secondary :   39 stations |   0 suppressed |   3 via overrides |   0 via CSV |  36 kept from PDF
 
-Total: 352 stations | 259 overridden | 68 refined from CSV | 25 unchanged
+Total: 347 stations | 5 suppressed | 305 overridden | 2 refined from CSV | 40 unchanged
 ```
 
-The headline shifts: **all 23 primary tide stations and all 22 primary current stations are refined**, and 25 of 352 stations are left on raw PDF coords. Most are US stations included for cross-border tidal context (BELLINGHAM, FRIDAY HARBOR, etc.) plus a handful of BC stations named after a cape, island, or settlement where no water-class CGNDB feature exists at the same name (BEAR POINT, CAMP POINT, PULTENEY POINT, MASTERMAN ISLANDS, BROWNING ISLANDS for currents; CARDALE POINT, GEORGINA POINT, JESSIE POINT, etc. for tides), and a few whose CGNDB feature is a river represented by a LineString.
-
-Note that the override count is much lower than in earlier passes because the water-only filter now rejects land-class CGNDB matches universally. ~74 tide stations that were previously geonames-seeded to a CAPE / TOWN / UNP / ISL / BCH coord now either fall through to CSV refinement (≥3 decimal precision, ~63 of them) or to raw PDF coords if CSV is also missing or low-precision.
+**All primaries are refined**, and **40 of 347 stations are left on raw PDF coords**. The 4 tide-secondary fall-throughs are stations IWLS doesn't have and the CSV is too low-precision (or wildly disagrees) for. The 36 current-secondary fall-throughs are the offset-based prediction stations IWLS doesn't cover at all — most of these will render at the PDF integer-arcminute coord (~1.1 km error). A few have manual overrides where the PDF coord renders visibly off (SANSUM NARROWS, OKISOLLO CHANNEL, BELIZE INLET).
 
 ## The overrides file format
 
@@ -122,9 +118,18 @@ Keys whose name starts with `_` are treated as comments and ignored, so the file
 When you find a station that's still rendering in the wrong place after this step, or one that the script flagged at the bottom of its run:
 
 1. Look it up by `STATION_NUMBER` on https://tides.gc.ca/en/stations/&lt;5-digit zero-padded id&gt; (the official per-station detail page lists lat/lon to 3+ decimals for almost every station).
-2. Add an entry keyed by its `index_no`. Use `[lon, lat]`, not `[lat, lon]`.
+2. Add an entry keyed by its `index_no`. Use `[lon, lat]`, not `[lat, lon]`. See [Where to add or edit entries](#where-to-add-or-edit-entries) below for which block to put it in.
 3. If you've verified the PDF was right and the CSV is the wrong one, use `null` instead of a coord — that suppresses the warning without changing the data.
 4. Re-run `./process_combined.sh`. The build will pick up the new coord, write a fresh hashed JSON into `web/public/data/{year}/`, and the manifest will get a new ETag/content hash so the browser fetches the update on next page load. (No need to re-run `./canada_data/process_canadian.sh` — the parser output hasn't changed.)
+
+### Where to add or edit entries
+
+The `_block_*` keys are JSON comments, not a permission system — `apply_coord_overrides.py` treats every entry equivalently regardless of which block it's in. But the seeders DO care which block an entry sits in, so two rules apply:
+
+1. **Add manual edits to the top three blocks** (`_block_pdf_wrong_replaced_with_chs_official`, `_block_pdf_correct_csv_wrong`, or `_block_us_cross_border`). Never directly into `_block_iwls_seeded` — the next IWLS seeder run will refresh entries it owns against the upstream API and silently overwrite your edit.
+2. **To override a seeded entry, move it — don't duplicate it.** If a station is currently in `_block_iwls_seeded` and you want a different coord, delete its entry from there and add a new one in a manual block at the top. The seeders skip entries in the manual blocks (treating them as "already curated"), so once moved, your value sticks across reruns.
+
+A station's `index_no` should appear in exactly one block. If the same key appears more than once in the file, JSON parsing keeps only the last occurrence — easy footgun if you copy-paste rather than move.
 
 ### Manual overrides (2026)
 
@@ -144,9 +149,8 @@ Ten stations were curated by hand from `tides.gc.ca/en/stations/<id>` after the 
 | 9570 | HUNGER HARBOUR | PDF off by ~2.0 km. CSV correct. |
 | 9775 | PACOFI BAY | PDF off by ~2.0 km. CSV correct. |
 
-The remaining entries in `coord_overrides.json` come from the two seeders and are not hand-curated:
-- **`_block_iwls_seeded`** (~88 entries): primary tide and primary current stations, sourced from the IWLS API.
-- **`_block_geonames_seeded`** (~140 entries): a mix of secondary tide and secondary current stations whose name matches a water-class CGNDB feature (BAY, CHAN, RAP, SEAF, MAR). Stations whose CGNDB match is land-class only (CAPE, ISL, TOWN, UNP, etc.) don't get seeded — they fall through to CSV refinement or PDF coord.
+The remaining entries in `coord_overrides.json` come from the IWLS seeder and are not hand-curated:
+- **`_block_iwls_seeded`** (~290 entries): every BC parser station that IWLS covers — primaries, secondaries, both tide and current. Sourced from the IWLS API; the seeder rewrites the block end-to-end on each run.
 
 ## Suppressing stations
 
@@ -229,7 +233,7 @@ The 2026 pass produced 9 flagged stations on the first run plus 1 more once the 
 
    Coordinates go in **`[longitude, latitude]`** order (GeoJSON convention) — easy to flip and break. Longitudes in BC are negative.
 
-   **Where to put the entry.** New manual entries belong in the top portion of `coord_overrides.json`, near the existing manual blocks (under `_block_pdf_wrong_replaced_with_chs_official` or `_block_pdf_correct_csv_wrong`, whichever fits). Don't interleave them with the IWLS-seeded block at the bottom — that block is regenerated by the seeder and human edits there are easy to lose track of. (Functionally, position doesn't matter; the script treats all entries equally.)
+   **Where to put the entry.** Add it to one of the manual blocks at the top — see [Where to add or edit entries](#where-to-add-or-edit-entries) for the rules and rationale.
 
 4. **Re-run** `apply_coord_overrides.py --year YEAR` (or the full pipeline). Verify the flagged-stations section is empty. If a new station appears that wasn't in the original list — almost certainly a low-precision-but-grossly-wrong case the gross threshold caught — repeat steps 2–3 for it.
 
@@ -311,8 +315,7 @@ For runtime memory savings beyond what the publish step achieves — the loader'
 
 ## Limitations and known gotchas
 
-- **A handful of stations remain unrefined.** As of 2026, 25 of 352 stations fall through every source. Most are US stations included for cross-border context (BELLINGHAM, FRIDAY HARBOR, NEAH BAY, etc.) which BC-only sources don't cover. The rest are BC stations whose name doesn't match a usable water-class CGNDB feature — compound names like SAMUEL I. NORTH SHORE, river-based names whose CGNDB entry is a LineString (DAVIS RIVER, KWINITSA RIVER), BOUNDARY PASSAGE which straddles the international boundary, current stations named after a cape/island (BEAR POINT, CAMP POINT, PULTENEY POINT, MASTERMAN ISLANDS, BROWNING ISLANDS), or tide stations named after a CAPE / TOWN / ISL whose only CGNDB match is land-class. Add manual overrides from a marine chart or the relevant national hydrographic service (NOAA for US stations) for any visually-misplaced ones.
-- **CGNDB centroids drift on long features.** The geonames seeder takes the polygon centroid for features without a published rep-point, but for long channels (TRINCOMALI, SUNDERLAND) the centroid is mid-channel while the gauge sits at one end — a worse coord than the rounded PDF. The seeder's 5 km polygon-offset threshold rejects these so they stay on PDF coords; if the PDF coord then renders visibly wrong on the map, add a manual override from a marine chart.
+- **40 stations remain on raw PDF coords (~1.1 km error at BC latitudes).** Most are BC current secondaries, since IWLS doesn't cover them — they're offset-based predictions with no physical gauge for IWLS to publish a position for. A few tide-secondary stragglers IWLS doesn't have either. For these the ~1.1 km integer-arcminute error is acceptable for the marker landing inside the right body of water; if a specific station renders visibly off (e.g. on land), add a manual override from a marine chart.
 - **The CSV is occasionally wrong.** It's a separate dataset maintained on a different cadence than the printed tables. The 2 km offset ceiling catches gross disagreements; subtler errors can slip through. The script's flagged list at the end of each run is the right place to look first when investigating.
 - **Some CSV rows have lower precision than ours.** Pacific stations span 0–6 decimal places. The 3-decimal floor stops us from regressing.
 - **CSV file path / freshness.** The CSV is in `canada_data/`; refresh and naming conventions are described in [canada_data_processing.md](canada_data_processing.md).
