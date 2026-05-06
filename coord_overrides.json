@@ -131,6 +131,10 @@
     -126.687238,
     50.566631
   ],
+  "7245": [
+    -123.258106,
+    48.598508
+  ],
   "_block_pdf_correct_csv_wrong": "Stations where the CSV row is wrong but the PDF is right. Marked null so the script doesn't keep flagging them.",
   "8870": null,
   "_block_us_cross_border": "US stations included in CHS tables for cross-border tidal context. Not in the CHS CSV or IWLS (they're not Canadian gauges), so they fall through every automated source. Coords sourced from NOAA / station detail pages and converted from DMS to decimal degrees.",
