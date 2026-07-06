@@ -80,8 +80,9 @@ export async function fetchManifest(): Promise<Manifest> {
 
 /** CHS sometimes uses the short name in Table 3 references (e.g. "VICTORIA")
  *  while Table 1/2 use a longer form for the same station ("VICTORIA HARBOUR").
- *  Strip a small set of known suffixes to expose an alias. */
-function suffixAlias(name: string): string | null {
+ *  Strip a small set of known suffixes to expose an alias. Exported so the
+ *  data-invariant tests resolve references the same way. */
+export function suffixAlias(name: string): string | null {
   const m = name.match(/^(.+?)\s+(HARBOUR|HARBOR|INLET|BAY)$/i);
   return m ? m[1] : null;
 }

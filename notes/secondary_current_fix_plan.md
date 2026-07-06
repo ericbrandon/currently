@@ -2,6 +2,27 @@
 
 Status: ALL PHASES DONE (2026-07-05).
 
+## Postscript: tide-side audit (2026-07-05)
+
+Same three failure classes hunted on the Table 3 / tide pipeline — NO
+BUGS FOUND:
+- No silent drops: 268 parsed = 263 published + 5 deliberate US-border
+  suppressions; Table 3 parsing already spans all pages.
+- No ignored footnote semantics: both Table 3 footnotes are advisory.
+  The vol 6/7 "small tidal range → use para. 6a" note is satisfied
+  because secondaryTides.ts applies 6a interpolation (verified against
+  the book's procedure text) to every station and event.
+- Parse fidelity: worst-anomaly rows (Yokeko Point, Davis River,
+  Reservation Bay, Friday Harbor, Octopus Islands, Sidney) match the
+  PDF exactly.
+Known method artifacts (faithful to the book, not fixed): neap
+inversions — computed HW below adjacent LW on vanishing tides — at
+54/263 stations (worst 0.63 m, Deep Cove); sub-datum extreme lows to
+-1.32 m (Yokeko Point). Bounds encoded in
+web/src/interp/tideDataInvariants.test.ts, which also pins parser
+output for the hand-verified rows and guards the suppression list,
+reference resolution, and primary-data alternation for future years.
+
 Phase 4 outcome:
 - HARO STRAIT (a): new turn_to_ebb_conditional field ({below_knots,
   add}) emitted from TABLE4_FOOTNOTES; secondaryCurrentExtremes walks

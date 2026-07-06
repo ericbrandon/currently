@@ -22,3 +22,6 @@ env/
 # NOAA pipeline raw cache and timestamped anomaly reports
 us_data/raw/
 us_data/anomalies_*.md
+
+# Wrangler CLI cache
+.wrangler/
