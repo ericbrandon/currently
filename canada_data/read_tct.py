@@ -104,6 +104,15 @@ class SecondaryCurrent:
     # SEYMOUR NARROWS while max times and rates stay on JOHNSTONE
     # STRAIT-CENTRAL). None means turns and maxes share reference_primary.
     turn_reference_primary: str | None = None
+    # From footnote semantics: conditional addition to turn_to_ebb_diff
+    # (vol 5 footnote (a), HARO STRAIT: add 1:10 when the preceding flood
+    # at the reference ran below the threshold).
+    turn_to_ebb_conditional: dict | None = None
+    # From footnote semantics: for offsets_from_tides rows whose
+    # turn-to-flood offset differs by LW type (vol 6 footnote (b),
+    # NITINAT BAR: higher LW +2:00 → turn_to_flood_diff, lower LW +4:17 →
+    # this field).
+    lower_lw_turn_to_flood_diff: str | None = None
 
 
 # Curated semantics for every known Table 4 footnote, keyed by
@@ -112,27 +121,36 @@ class SecondaryCurrent:
 # NEW footnote (new station, new marker, or a letter moving to a
 # different row) fails the parse loudly until a human reads the footnote
 # text and adds an entry here. Actions:
-#   turn_reference — turn_to_* diffs apply to this OTHER station's turns
-#   static_ok      — static diffs are a documented approximation; no
-#                    structural change (conditional corrections are
-#                    handled, if at all, in the app)
-#   drop           — the row's rule cannot be represented yet; exclude
-#                    the station rather than emit wrong predictions
+#   turn_reference          — turn_to_* diffs apply to this OTHER
+#                             station's turns
+#   conditional_turn_to_ebb — add `add` to turn_to_ebb_diff when the
+#                             reference's preceding flood max ran below
+#                             `below_knots` (weak/variable counts as 0)
+#   lw_turn_to_flood        — offsets_from_tides row whose turn-to-flood
+#                             offset depends on LW type: `higher_lw`
+#                             fills turn_to_flood_diff, `lower_lw` fills
+#                             lower_lw_turn_to_flood_diff
+#   static_ok               — static diffs are a documented
+#                             approximation; no structural change
+#   drop                    — the row's rule cannot be represented;
+#                             exclude the station rather than emit wrong
+#                             predictions
 TABLE4_FOOTNOTES: dict[tuple[int, str], dict] = {
     # Vol 5 (a), HARO STRAIT: "If the preceding flood current at Race
     # Passage was less than 2.0 knots, add 1 hour 10 minutes" (to the
-    # turn-to-ebb diff). Static diff applied; conditional correction is
-    # a possible app-side refinement (fix-plan Phase 4).
-    (7245, "a"): {"action": "static_ok"},
+    # +02:30 turn-to-ebb diff).
+    (7245, "a"): {"action": "conditional_turn_to_ebb",
+                  "below_knots": 2.0, "add": "+01:10"},
     # Vol 6 (a): "Time differences for 'turn to flood' and 'turn to ebb'
     # are to be applied to the predictions for Seymour Narrows NOT to
     # those for Johnstone Strait-Central."
     (8281, "a"): {"action": "turn_reference", "station": "SEYMOUR NARROWS"},
     (8292, "a"): {"action": "turn_reference", "station": "SEYMOUR NARROWS"},
-    # Vol 6 (b), NITINAT BAR: turn-to-flood = higher LW +2:00 / lower LW
-    # +4:17 — an asymmetric per-LW rule the offsets_from_tides model
-    # can't express yet (fix-plan Phase 4).
-    (8533, "b"): {"action": "drop"},
+    # Vol 6 (b), NITINAT BAR: "Times of 'turn to flood' are the times of
+    # higher low water plus 2 hours and the times of lower low water
+    # plus 4 hours 17 minutes."
+    (8533, "b"): {"action": "lw_turn_to_flood",
+                  "higher_lw": "+02:00", "lower_lw": "+04:17"},
 }
 
 
@@ -1310,6 +1328,8 @@ def parse_table4(
             # read by a human instead of silently mis-applied.
             row_markers = sorted(set(re.findall(r"\(([a-z])\)", " ".join(row_texts))))
             turn_reference: str | None = None
+            tte_conditional: dict | None = None
+            lower_lw_tf: str | None = None
             drop_row = False
             for mk in row_markers:
                 sem = TABLE4_FOOTNOTES.get((index_no, mk))
@@ -1322,6 +1342,12 @@ def parse_table4(
                     )
                 if sem["action"] == "turn_reference":
                     turn_reference = sem["station"]
+                elif sem["action"] == "conditional_turn_to_ebb":
+                    tte_conditional = {"below_knots": sem["below_knots"],
+                                       "add": sem["add"]}
+                elif sem["action"] == "lw_turn_to_flood":
+                    tf = sem["higher_lw"]
+                    lower_lw_tf = sem["lower_lw"]
                 elif sem["action"] == "drop":
                     drop_row = True
             if drop_row:
@@ -1346,6 +1372,8 @@ def parse_table4(
                 has_footnote=bool(row_markers),
                 footnote_markers=row_markers,
                 turn_reference_primary=turn_reference,
+                turn_to_ebb_conditional=tte_conditional,
+                lower_lw_turn_to_flood_diff=lower_lw_tf,
             ))
             pending_zone = None
             pending_format_note = None

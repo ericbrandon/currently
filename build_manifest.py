@@ -97,10 +97,16 @@ _PUBLISH_KEEP: dict[str, dict[str, set[str]]] = {
             "flood_max_diff", "ebb_max_diff",
             "pct_ref_flood", "pct_ref_ebb",
             "max_flood_knots", "max_ebb_knots",
-            # Table 4 footnote semantics: slack times key off this other
-            # station when set (ALERT BAY / PULTENEY POINT → SEYMOUR
-            # NARROWS). See canada_data/read_tct.py TABLE4_FOOTNOTES.
+            # Table 4 footnote semantics — see canada_data/read_tct.py
+            # TABLE4_FOOTNOTES. turn_reference_primary: slack times key
+            # off this other station (ALERT BAY / PULTENEY POINT →
+            # SEYMOUR NARROWS). turn_to_ebb_conditional: HARO STRAIT's
+            # +1:10 when the preceding ref flood is weak.
+            # lower_lw_turn_to_flood_diff: NITINAT BAR's asymmetric
+            # per-LW turn-to-flood offset.
             "turn_reference_primary",
+            "turn_to_ebb_conditional",
+            "lower_lw_turn_to_flood_diff",
         },
     },
     "noaa_tidal_primary": {

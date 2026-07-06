@@ -218,10 +218,10 @@ For v1 we apply the static diff only. To do this correctly we would: (i) extend 
 
 ### `has_footnote: true` rows
 
-Superseded 2026-07: Table 4 footnotes are now curated per (index_no, marker) in `canada_data/read_tct.py` `TABLE4_FOOTNOTES`, and the parser FAILS on any marker without an entry (2027-proofing). Current semantics:
-- HARO STRAIT (a): conditional +1:10 turn-to-ebb when the preceding Race Passage flood < 2.0 kn — static diff applied, conditional still deferred (fix-plan Phase 4).
+Superseded 2026-07: Table 4 footnotes are now curated per (index_no, marker) in `canada_data/read_tct.py` `TABLE4_FOOTNOTES`, and the parser FAILS on any marker without an entry (2027-proofing). All three known footnotes are fully implemented:
+- HARO STRAIT (a): `turn_to_ebb_conditional` — when the preceding Race Passage max-flood (weak counts as 0) is below 2.0 kn, the slack-to-ebb emits at turn_to_ebb_diff + 1:10. 147 of Race Passage's slack-to-ebb events qualify in 2026.
 - ALERT BAY / PULTENEY POINT (a): turn diffs apply to SEYMOUR NARROWS' turns, max diffs/rates to Johnstone Strait-Central. Serialized as `turn_reference_primary`; `secondaryCurrentExtremes` takes a third `turnRefClassified` argument and the loader wires it.
-- NITINAT BAR (b): asymmetric higher-LW/lower-LW rule; station dropped at parse time rather than emitting wrong predictions (fix-plan Phase 4).
+- NITINAT BAR (b): `lower_lw_turn_to_flood_diff` — turn-to-flood is higher LW +2:00 (in turn_to_flood_diff) / lower LW +4:17. `classifyLowerLows` buckets the tide ref's LWs by station-local day and marks each day's lowest (single-LW days count as lower); `classifyTideAsCurrent` tags the derived slack-to-flood events with `lowerLW` and the builder picks the diff per event.
 
 ### Weak/variable ref maxes
 

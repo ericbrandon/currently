@@ -1,6 +1,26 @@
 # Fix plan: one-directional secondary currents (Johnstone Strait group)
 
-Status: Phases 1, 2, 3 DONE (2026-07-05). Phase 4 not started.
+Status: ALL PHASES DONE (2026-07-05).
+
+Phase 4 outcome:
+- HARO STRAIT (a): new turn_to_ebb_conditional field ({below_knots,
+  add}) emitted from TABLE4_FOOTNOTES; secondaryCurrentExtremes walks
+  back to the turn ref's preceding max-flood (weak counts as 0) and
+  adds +1:10 when below 2.0 kn. E2E: exactly 147 of Haro's 2026
+  slack-to-ebb events shift, each by exactly +1:10.
+- NITINAT BAR (b): restored (48 40N 124 51W raw PDF coords — needs a
+  coord_overrides.json entry like the other restored stations). New
+  lower_lw_turn_to_flood_diff field ("+04:17"); turn_to_flood_diff
+  holds the higher-LW "+02:00". New classifyLowerLows(extremes, isHi,
+  utcOffset) marks each station-local day's lowest LW (single-LW days
+  count as lower); classifyTideAsCurrent tags slack-to-flood events
+  with lowerLW; builder picks the per-event diff. E2E: Tofino 2026 has
+  365 lower + 340 higher LWs; Nitinat balanced 705 flood / 704 ebb.
+- Published data now 47 secondaries. Whitelist extended with both new
+  fields. 25 tests green (conditional x3, lower-LW x2, invariants
+  extended to pin Haro/Nitinat footnote fields per year). Build green.
+- TABLE4_FOOTNOTES actions now: turn_reference, conditional_turn_to_ebb,
+  lw_turn_to_flood, static_ok, drop. Unknown markers still raise.
 
 Phase 3 outcome:
 - SURPRISE FINDING: parse_table4 read only the FIRST page of Table 4;
