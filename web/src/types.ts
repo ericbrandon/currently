@@ -177,12 +177,23 @@ export type CurrentSecondaryStation = {
   pct_ref_ebb: number | null;
   max_flood_knots: number | null;
   max_ebb_knots: number | null;
-  // Table 4 footnote semantics: when set, the turn_to_* diffs apply to
-  // THIS station's turn (slack) predictions while max diffs and rates
-  // stay on reference_primary. Vol 6 footnote (a): ALERT BAY and
-  // PULTENEY POINT turns key off SEYMOUR NARROWS, not Johnstone
-  // Strait-Central. Curated in canada_data/read_tct.py TABLE4_FOOTNOTES.
+  // Table 4 footnote semantics, curated in canada_data/read_tct.py
+  // TABLE4_FOOTNOTES.
+  //
+  // turn_reference_primary: when set, the turn_to_* diffs apply to THIS
+  // station's turn (slack) predictions while max diffs and rates stay
+  // on reference_primary. Vol 6 footnote (a): ALERT BAY and PULTENEY
+  // POINT turns key off SEYMOUR NARROWS, not Johnstone Strait-Central.
   turn_reference_primary?: string | null;
+  // turn_to_ebb_conditional: add `add` ("±HH:MM") to turn_to_ebb_diff
+  // when the reference's preceding flood max ran below below_knots
+  // (weak/variable counts as 0). Vol 5 footnote (a), HARO STRAIT.
+  turn_to_ebb_conditional?: { below_knots: number; add: string } | null;
+  // lower_lw_turn_to_flood_diff: offsets_from_tides rows only — the
+  // turn-to-flood offset from LOWER low water when it differs from the
+  // higher-LW offset in turn_to_flood_diff. Vol 6 footnote (b),
+  // NITINAT BAR (higher LW +2:00, lower LW +4:17).
+  lower_lw_turn_to_flood_diff?: string | null;
   has_footnote?: boolean;
   name_annotation?: string | null;
   geographic_zone?: string | null;

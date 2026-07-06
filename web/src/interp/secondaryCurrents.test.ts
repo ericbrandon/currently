@@ -6,9 +6,11 @@
 // Central secondaries). See notes/secondary_current_fix_plan.md.
 
 import { describe, expect, it } from "vitest";
-import type { CurrentPrimaryStation, CurrentSecondaryStation } from "../types";
+import type { CurrentPrimaryStation, CurrentSecondaryStation, Extreme } from "../types";
 import {
   classifyCurrentEvents,
+  classifyLowerLows,
+  classifyTideAsCurrent,
   secondaryCurrentExtremes,
 } from "./secondaryCurrents";
 
@@ -249,5 +251,105 @@ describe("secondaryCurrentExtremes weak-ref handling", () => {
     );
     expect(ext.map((e) => e.v)).toEqual([0, -2.0, 0, -2.0]);
     expect(ext.map((e) => !!e.weak)).toEqual([true, false, true, false]);
+  });
+});
+
+// ------------------------------------------------------------------
+// Footnote extras: HARO STRAIT conditional, NITINAT BAR per-LW offset
+// ------------------------------------------------------------------
+
+const hhmmUtc = (t: number) => {
+  const d = new Date(t);
+  return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+};
+
+describe("turn_to_ebb_conditional (HARO STRAIT footnote a)", () => {
+  const sec = () =>
+    secondary({
+      pct_ref_flood: 45,
+      pct_ref_ebb: 45,
+      turn_to_ebb_diff: "+02:30",
+      turn_to_ebb_conditional: { below_knots: 2.0, add: "+01:10" },
+    });
+
+  it("adds the correction when the preceding ref flood is below threshold", () => {
+    // Flood 1.5 kn < 2.0 → the following slack-to-ebb shifts +02:30
+    // +01:10 = +03:40 from the ref turn at 06:00 local (14:00 UTC).
+    const ref = classifyCurrentEvents(
+      station([["01:00"], ["03:00", 1.5], ["06:00"], ["09:00", -3.0]]),
+    );
+    const ext = secondaryCurrentExtremes(sec(), ref);
+    const slackToEbb = ext.filter((e) => e.v === 0)[1];
+    expect(hhmmUtc(slackToEbb.t)).toBe("17:40");
+  });
+
+  it("applies the plain diff when the preceding ref flood is strong", () => {
+    const ref = classifyCurrentEvents(
+      station([["01:00"], ["03:00", 2.5], ["06:00"], ["09:00", -3.0]]),
+    );
+    const ext = secondaryCurrentExtremes(sec(), ref);
+    const slackToEbb = ext.filter((e) => e.v === 0)[1];
+    expect(hhmmUtc(slackToEbb.t)).toBe("16:30");
+  });
+
+  it("treats a weak (v=0) preceding flood as below threshold", () => {
+    const ref = classifyCurrentEvents(
+      station([["01:00"], ["03:00", "*"], ["06:00"], ["09:00", -3.0]]),
+    );
+    const ext = secondaryCurrentExtremes(sec(), ref);
+    // Skip the weak max (also v === 0) — take the true slacks only.
+    const slackToEbb = ext.filter((e) => e.v === 0 && !e.weak)[1];
+    expect(hhmmUtc(slackToEbb.t)).toBe("17:40");
+  });
+});
+
+describe("classifyLowerLows / lower_lw_turn_to_flood_diff (NITINAT BAR footnote b)", () => {
+  // Tide extremes in UTC for a station at utc_offset 0 (keeps the local
+  // day arithmetic transparent): two LW/HW pairs per day, then a
+  // single-LW day.
+  const T = (day: number, h: number) => Date.UTC(2026, 0, day, h);
+  const extremes: Extreme[] = [
+    { t: T(1, 2), v: 1.1 },   // LW (higher low)
+    { t: T(1, 8), v: 3.0 },   // HW
+    { t: T(1, 14), v: 0.4 },  // LW (lower low)
+    { t: T(1, 20), v: 3.4 },  // HW
+    { t: T(2, 3), v: 0.9 },   // LW — single-LW day → lower
+    { t: T(2, 9), v: 3.2 },   // HW
+  ];
+  const isHi = extremes.map((e) => e.v > 2);
+
+  it("marks the lowest LW of each local day (single-LW day counts as lower)", () => {
+    expect(classifyLowerLows(extremes, isHi, 0)).toEqual([
+      false, false, true, false, true, false,
+    ]);
+  });
+
+  it("applies the lower-LW diff only to lower-low turns", () => {
+    const classified = classifyTideAsCurrent(
+      extremes,
+      isHi,
+      classifyLowerLows(extremes, isHi, 0),
+    );
+    const ext = secondaryCurrentExtremes(
+      secondary({
+        offsets_from_tides: true,
+        max_flood_knots: 8.0,
+        max_ebb_knots: 8.0,
+        turn_to_flood_diff: "+02:00",
+        turn_to_ebb_diff: "+02:15",
+        lower_lw_turn_to_flood_diff: "+04:17",
+        flood_max_diff: null,
+        ebb_max_diff: null,
+      }),
+      classified,
+    );
+    const slacks = ext.filter((e) => e.v === 0).map((e) => hhmmUtc(e.t));
+    // Jan 1: higher LW 02:00 → +2:00 = 04:00; HW 08:00 → +2:15 = 10:15;
+    // lower LW 14:00 → +4:17 = 18:17; HW 20:00 → 22:15.
+    // Jan 2: single (lower) LW 03:00 → +4:17 = 07:17; HW 09:00 → 11:15.
+    expect(slacks).toEqual(["04:00", "10:15", "18:17", "22:15", "07:17", "11:15"]);
+    // Midpoint synthesis still supplies ±8.0 peaks between the slacks.
+    expect(ext.some((e) => e.v === 8.0)).toBe(true);
+    expect(ext.some((e) => e.v === -8.0)).toBe(true);
   });
 });

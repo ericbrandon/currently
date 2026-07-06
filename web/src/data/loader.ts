@@ -36,6 +36,7 @@ import {
 import {
   type ClassifiedCurrentEvent,
   classifyCurrentEvents,
+  classifyLowerLows,
   classifyTideAsCurrent,
   hasMagnitudeData,
   secondaryCurrentExtremes,
@@ -243,7 +244,18 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
         if (sec.offsets_from_tides) {
           const tideRef = refByName.get(sec.reference_primary);
           if (tideRef) {
-            refClassified = classifyTideAsCurrent(tideRef.extremes, tideRef.classified);
+            // Stations with an asymmetric per-LW offset (NITINAT BAR)
+            // need each LW tagged higher/lower — skip the extra pass
+            // for everyone else.
+            const lowerLW =
+              sec.lower_lw_turn_to_flood_diff != null
+                ? classifyLowerLows(
+                    tideRef.extremes,
+                    tideRef.classified,
+                    tideRef.station.utc_offset,
+                  )
+                : undefined;
+            refClassified = classifyTideAsCurrent(tideRef.extremes, tideRef.classified, lowerLW);
           }
         } else {
           const aliased = CURRENT_REF_ALIASES[sec.reference_primary] ?? sec.reference_primary;

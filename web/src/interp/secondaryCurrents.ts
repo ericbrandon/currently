@@ -35,6 +35,10 @@ export type ClassifiedCurrentEvent = {
   v: number;                // signed knots (currents) or 0 (tide-ref)
   weak: boolean;            // weak/variable max — always v === 0
   kind: CurrentEventKind;
+  // Tide-referenced slack-to-flood only: true when the source LW is the
+  // day's LOWER low water. Drives lower_lw_turn_to_flood_diff (NITINAT
+  // BAR). Absent for current-referenced events.
+  lowerLW?: boolean;
 };
 
 // ============================================================
@@ -179,13 +183,53 @@ export function classifyCurrentEvents(
   return out;
 }
 
+/** Per-extreme flag: is this LW the day's LOWER low water? Buckets LWs
+ *  by station-local calendar day (matching the printed day tables the
+ *  extremes came from) and marks the lowest LW of each day; a
+ *  single-LW day's only LW counts as lower (it is the dominant low).
+ *  HW slots are always false. Needed only by stations with a
+ *  lower_lw_turn_to_flood_diff (NITINAT BAR). */
+export function classifyLowerLows(
+  refExtremes: Extreme[],
+  refIsHi: boolean[],
+  utcOffset: number,
+): boolean[] {
+  const n = refExtremes.length;
+  const out = new Array<boolean>(n).fill(false);
+  const dayOf = (t: number) => Math.floor((t + utcOffset * 3600_000) / 86_400_000);
+  let i = 0;
+  while (i < n) {
+    if (refIsHi[i]) {
+      i++;
+      continue;
+    }
+    // Collect this local day's LWs and mark its minimum.
+    const day = dayOf(refExtremes[i].t);
+    let lowest = i;
+    const dayLows: number[] = [];
+    for (let j = i; j < n; j++) {
+      if (dayOf(refExtremes[j].t) !== day) break;
+      if (!refIsHi[j]) {
+        dayLows.push(j);
+        if (refExtremes[j].v < refExtremes[lowest].v) lowest = j;
+      }
+    }
+    out[lowest] = true;
+    i = dayLows[dayLows.length - 1] + 1;
+  }
+  return out;
+}
+
 /** Adapter for tide-referenced secondaries (offsets_from_tides=true).
  *  Each tide HW becomes a turn-to-ebb slack at the secondary; each LW
  *  becomes a turn-to-flood slack. v carries the original tide height
- *  but is ignored downstream — slacks always emit v === 0. */
+ *  but is ignored downstream — slacks always emit v === 0.
+ *  `lowerLW` (from classifyLowerLows) tags each LW-derived slack so
+ *  stations with an asymmetric per-LW offset can pick the right diff. */
 export function classifyTideAsCurrent(
   refExtremes: Extreme[],
   refIsHi: boolean[],
+  lowerLW?: boolean[],
 ): ClassifiedCurrentEvent[] {
   const n = refExtremes.length;
   const out = new Array<ClassifiedCurrentEvent>(n);
@@ -196,6 +240,7 @@ export function classifyTideAsCurrent(
       v: e.v,
       weak: false,
       kind: refIsHi[i] ? "slack-to-ebb" : "slack-to-flood",
+      ...(lowerLW && !refIsHi[i] && lowerLW[i] ? { lowerLW: true } : {}),
     };
   }
   return out;
@@ -261,20 +306,47 @@ export function secondaryCurrentExtremes(
   const pctE = sec.pct_ref_ebb;
   const fMag = sec.max_flood_knots;
   const eMag = sec.max_ebb_knots;
+  // Footnote extras (see CurrentSecondaryStation for provenance).
+  const ttfLower =
+    sec.lower_lw_turn_to_flood_diff != null
+      ? parseSignedHHMM(sec.lower_lw_turn_to_flood_diff)
+      : null;
+  const cond = sec.turn_to_ebb_conditional ?? null;
+  const condAdd = cond ? parseSignedHHMM(cond.add) : 0;
 
   const events: EmittedEvent[] = [];
 
   // Slacks from the turn reference (usually the same array as
   // refClassified — see the doc comment).
-  for (const ev of turnRefClassified) {
+  for (let i = 0; i < turnRefClassified.length; i++) {
+    const ev = turnRefClassified[i];
     switch (ev.kind) {
-      case "slack-to-flood":
+      case "slack-to-flood": {
         // Slacks must be strictly v === 0 (currentValueAt branches on it).
-        events.push({ t: ev.t + ttf, v: 0, weak: false, kind: "slack-to-flood" });
+        const diff = ttfLower !== null && ev.lowerLW ? ttfLower : ttf;
+        events.push({ t: ev.t + diff, v: 0, weak: false, kind: "slack-to-flood" });
         break;
-      case "slack-to-ebb":
-        events.push({ t: ev.t + tte, v: 0, weak: false, kind: "slack-to-ebb" });
+      }
+      case "slack-to-ebb": {
+        // HARO STRAIT footnote (a): when the reference's preceding flood
+        // ran below the threshold (weak counts as 0), the ebb turns
+        // later — add the conditional correction.
+        let diff = tte;
+        if (cond) {
+          let precedingFlood: ClassifiedCurrentEvent | null = null;
+          for (let j = i - 1; j >= 0; j--) {
+            if (turnRefClassified[j].kind === "max-flood") {
+              precedingFlood = turnRefClassified[j];
+              break;
+            }
+          }
+          if (precedingFlood !== null && precedingFlood.v < cond.below_knots) {
+            diff += condAdd;
+          }
+        }
+        events.push({ t: ev.t + diff, v: 0, weak: false, kind: "slack-to-ebb" });
         break;
+      }
     }
   }
 

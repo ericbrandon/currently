@@ -187,7 +187,7 @@ describe("published current-primary data", () => {
 
       for (const frag of [
         "NAHWITTI", "STUART NARROWS", "NENAHLMAI", "ECLIPSE",
-        "SCHOONER", "SLINGSBY", "HAYDEN",
+        "SCHOONER", "SLINGSBY", "HAYDEN", "NITINAT",
       ]) {
         expect(byName(frag), `${year}: continuation-page station ${frag} missing`).toBeDefined();
       }
@@ -197,6 +197,18 @@ describe("published current-primary data", () => {
           `${year}: ${frag} should turn-reference Seymour Narrows`,
         ).toBe("SEYMOUR NARROWS");
       }
+      // HARO STRAIT footnote (a): conditional +1:10 turn-to-ebb.
+      expect(
+        byName("HARO")?.turn_to_ebb_conditional,
+        `${year}: HARO STRAIT conditional missing`,
+      ).toEqual({ below_knots: 2.0, add: "+01:10" });
+      // NITINAT BAR footnote (b): asymmetric per-LW turn-to-flood.
+      const nitinat = byName("NITINAT");
+      expect(nitinat?.turn_to_flood_diff, `${year}: NITINAT higher-LW diff`).toBe("+02:00");
+      expect(
+        nitinat?.lower_lw_turn_to_flood_diff,
+        `${year}: NITINAT lower-LW diff`,
+      ).toBe("+04:17");
     }
   });
 });
