@@ -43,8 +43,9 @@ import {
 
 /** Alias map for current-station references that don't match exactly
  *  between Table 4's reference column and the primary current header.
- *  Vol 5: secondary "JOHNSTONE STRAIT-CENTRAL" ↔ primary "JOHNSTONE STR. CEN.". */
-const CURRENT_REF_ALIASES: Record<string, string> = {
+ *  Vol 5: secondary "JOHNSTONE STRAIT-CENTRAL" ↔ primary "JOHNSTONE STR. CEN.".
+ *  Exported so the data-invariant tests resolve references the same way. */
+export const CURRENT_REF_ALIASES: Record<string, string> = {
   "JOHNSTONE STRAIT-CENTRAL": "JOHNSTONE STR. CEN.",
 };
 
@@ -256,6 +257,23 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
           continue;
         }
 
+        // Table 4 footnote (a): turn diffs apply to a different primary's
+        // turns than the max diffs (ALERT BAY / PULTENEY POINT → SEYMOUR
+        // NARROWS). Fall back to the main reference if unresolvable.
+        let turnRefClassified = refClassified;
+        if (sec.turn_reference_primary) {
+          const aliased =
+            CURRENT_REF_ALIASES[sec.turn_reference_primary] ?? sec.turn_reference_primary;
+          const turnRef = curRefByName.get(aliased);
+          if (turnRef) {
+            turnRefClassified = turnRef.classified;
+          } else {
+            console.warn(
+              `secondary current ${sec.index_no} ${sec.name} turn-references unknown current primary "${sec.turn_reference_primary}" — using ${sec.reference_primary}`,
+            );
+          }
+        }
+
         // Skip stations with no magnitude data entirely (BARONET PASSAGE,
         // DRANEY NARROWS). CHS publishes time differences for them but no
         // percentage or absolute knots, so we can't calculate a flow value
@@ -301,7 +319,7 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
           current_max_knots: bound,
         });
 
-        const ext = secondaryCurrentExtremes(sec, refClassified);
+        const ext = secondaryCurrentExtremes(sec, refClassified, turnRefClassified);
         if (ext.length > 0) pushTo(currentExtremesByStation, id, ext);
       }
     }

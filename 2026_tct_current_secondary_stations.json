@@ -20,7 +20,9 @@
       "max_ebb_knots": null,
       "format_note": null,
       "offsets_from_tides": false,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 7251,
@@ -41,7 +43,9 @@
       "max_ebb_knots": null,
       "format_note": null,
       "offsets_from_tides": false,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 7245,
@@ -62,7 +66,11 @@
       "max_ebb_knots": null,
       "format_note": null,
       "offsets_from_tides": false,
-      "has_footnote": true
+      "has_footnote": true,
+      "footnote_markers": [
+        "a"
+      ],
+      "turn_reference_primary": null
     },
     {
       "index_no": 7257,
@@ -83,7 +91,9 @@
       "max_ebb_knots": null,
       "format_note": null,
       "offsets_from_tides": false,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 7335,
@@ -104,7 +114,9 @@
       "max_ebb_knots": null,
       "format_note": null,
       "offsets_from_tides": false,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 7343,
@@ -125,7 +137,9 @@
       "max_ebb_knots": null,
       "format_note": null,
       "offsets_from_tides": false,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 7422,
@@ -146,7 +160,9 @@
       "max_ebb_knots": null,
       "format_note": null,
       "offsets_from_tides": false,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 7520,
@@ -167,7 +183,9 @@
       "max_ebb_knots": null,
       "format_note": null,
       "offsets_from_tides": false,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 7513,
@@ -188,7 +206,9 @@
       "max_ebb_knots": null,
       "format_note": null,
       "offsets_from_tides": false,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 7312,
@@ -209,7 +229,9 @@
       "max_ebb_knots": 3.0,
       "format_note": null,
       "offsets_from_tides": false,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 7488,
@@ -230,7 +252,9 @@
       "max_ebb_knots": null,
       "format_note": null,
       "offsets_from_tides": false,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 7849,
@@ -251,7 +275,9 @@
       "max_ebb_knots": null,
       "format_note": null,
       "offsets_from_tides": false,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 7863,
@@ -272,7 +298,9 @@
       "max_ebb_knots": 9.0,
       "format_note": null,
       "offsets_from_tides": true,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 8118,
@@ -293,7 +321,9 @@
       "max_ebb_knots": 11.0,
       "format_note": null,
       "offsets_from_tides": false,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 8153,
@@ -314,7 +344,9 @@
       "max_ebb_knots": 7.0,
       "format_note": null,
       "offsets_from_tides": false,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 8156,
@@ -335,7 +367,9 @@
       "max_ebb_knots": 5.0,
       "format_note": null,
       "offsets_from_tides": false,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 8221,
@@ -356,7 +390,9 @@
       "max_ebb_knots": 7.0,
       "format_note": null,
       "offsets_from_tides": false,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 8256,
@@ -377,7 +413,9 @@
       "max_ebb_knots": 5.0,
       "format_note": null,
       "offsets_from_tides": false,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 8268,
@@ -398,7 +436,9 @@
       "max_ebb_knots": null,
       "format_note": null,
       "offsets_from_tides": false,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 8057,
@@ -419,7 +459,9 @@
       "max_ebb_knots": 8.0,
       "format_note": null,
       "offsets_from_tides": false,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 8138,
@@ -440,7 +482,9 @@
       "max_ebb_knots": 9.5,
       "format_note": null,
       "offsets_from_tides": false,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 8200,
@@ -461,7 +505,9 @@
       "max_ebb_knots": null,
       "format_note": null,
       "offsets_from_tides": false,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 8208,
@@ -482,7 +528,9 @@
       "max_ebb_knots": 6.0,
       "format_note": null,
       "offsets_from_tides": false,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 8214,
@@ -503,7 +551,9 @@
       "max_ebb_knots": 5.0,
       "format_note": null,
       "offsets_from_tides": false,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 8232,
@@ -524,7 +574,9 @@
       "max_ebb_knots": null,
       "format_note": null,
       "offsets_from_tides": false,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 8249,
@@ -545,7 +597,9 @@
       "max_ebb_knots": null,
       "format_note": null,
       "offsets_from_tides": false,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 8281,
@@ -566,7 +620,11 @@
       "max_ebb_knots": 4.0,
       "format_note": null,
       "offsets_from_tides": false,
-      "has_footnote": true
+      "has_footnote": true,
+      "footnote_markers": [
+        "a"
+      ],
+      "turn_reference_primary": "SEYMOUR NARROWS"
     },
     {
       "index_no": 8292,
@@ -587,7 +645,11 @@
       "max_ebb_knots": 3.0,
       "format_note": null,
       "offsets_from_tides": false,
-      "has_footnote": true
+      "has_footnote": true,
+      "footnote_markers": [
+        "a"
+      ],
+      "turn_reference_primary": "SEYMOUR NARROWS"
     },
     {
       "index_no": 8404,
@@ -608,7 +670,9 @@
       "max_ebb_knots": 1.0,
       "format_note": null,
       "offsets_from_tides": false,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 8400,
@@ -629,7 +693,170 @@
       "max_ebb_knots": 1.5,
       "format_note": null,
       "offsets_from_tides": false,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
+    },
+    {
+      "index_no": 8420,
+      "name": "GOLETAS CHANNEL NAHWITTI BAR",
+      "flood_direction_true": 100,
+      "latitude": 50.9,
+      "longitude": -128.0,
+      "reference_primary": "ALERT BAY",
+      "geographic_zone": null,
+      "name_annotation": null,
+      "turn_to_flood_diff": "-00:25",
+      "flood_max_diff": null,
+      "turn_to_ebb_diff": "-00:20",
+      "ebb_max_diff": null,
+      "pct_ref_flood": null,
+      "pct_ref_ebb": null,
+      "max_flood_knots": 5.5,
+      "max_ebb_knots": 5.5,
+      "format_note": null,
+      "offsets_from_tides": true,
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
+    },
+    {
+      "index_no": 8382,
+      "name": "DRURY INLET STUART NARROWS",
+      "flood_direction_true": 275,
+      "latitude": 50.9,
+      "longitude": -126.95,
+      "reference_primary": "ALERT BAY",
+      "geographic_zone": null,
+      "name_annotation": null,
+      "turn_to_flood_diff": "+00:05",
+      "flood_max_diff": null,
+      "turn_to_ebb_diff": "+00:10",
+      "ebb_max_diff": null,
+      "pct_ref_flood": null,
+      "pct_ref_ebb": null,
+      "max_flood_knots": 6.0,
+      "max_ebb_knots": 7.0,
+      "format_note": null,
+      "offsets_from_tides": true,
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
+    },
+    {
+      "index_no": 8445,
+      "name": "NENAHLMAI LAGOON",
+      "flood_direction_true": 120,
+      "latitude": 51.0,
+      "longitude": -127.25,
+      "reference_primary": "NAKWAKTO RAPIDS",
+      "geographic_zone": null,
+      "name_annotation": null,
+      "turn_to_flood_diff": "+04:45",
+      "flood_max_diff": "+03:45",
+      "turn_to_ebb_diff": "+02:15",
+      "ebb_max_diff": "+02:40",
+      "pct_ref_flood": 55,
+      "pct_ref_ebb": 60,
+      "max_flood_knots": null,
+      "max_ebb_knots": null,
+      "format_note": null,
+      "offsets_from_tides": false,
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
+    },
+    {
+      "index_no": 8455,
+      "name": "ECLIPSE NARROWS",
+      "flood_direction_true": 100,
+      "latitude": 51.06666666666667,
+      "longitude": -126.76666666666667,
+      "reference_primary": "NAKWAKTO RAPIDS",
+      "geographic_zone": "ENTRANCE",
+      "name_annotation": null,
+      "turn_to_flood_diff": "+00:25",
+      "flood_max_diff": "+00:00",
+      "turn_to_ebb_diff": "+00:30",
+      "ebb_max_diff": "+00:00",
+      "pct_ref_flood": 40,
+      "pct_ref_ebb": 30,
+      "max_flood_knots": null,
+      "max_ebb_knots": null,
+      "format_note": null,
+      "offsets_from_tides": false,
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
+    },
+    {
+      "index_no": 8436,
+      "name": "SCHOONER CHANNEL",
+      "flood_direction_true": 5,
+      "latitude": 51.06666666666667,
+      "longitude": -127.51666666666667,
+      "reference_primary": "NAKWAKTO RAPIDS",
+      "geographic_zone": null,
+      "name_annotation": null,
+      "turn_to_flood_diff": "-00:10",
+      "flood_max_diff": "-00:10",
+      "turn_to_ebb_diff": "-00:10",
+      "ebb_max_diff": "-00:10",
+      "pct_ref_flood": 40,
+      "pct_ref_ebb": 40,
+      "max_flood_knots": null,
+      "max_ebb_knots": null,
+      "format_note": null,
+      "offsets_from_tides": false,
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
+    },
+    {
+      "index_no": 8437,
+      "name": "SLINGSBY CHANNEL",
+      "flood_direction_true": 80,
+      "latitude": 51.083333333333336,
+      "longitude": -127.63333333333334,
+      "reference_primary": "NAKWAKTO RAPIDS",
+      "geographic_zone": null,
+      "name_annotation": "(OUTER NARROWS)",
+      "turn_to_flood_diff": "-00:10",
+      "flood_max_diff": "-00:10",
+      "turn_to_ebb_diff": "-00:10",
+      "ebb_max_diff": "-00:10",
+      "pct_ref_flood": 50,
+      "pct_ref_ebb": 60,
+      "max_flood_knots": null,
+      "max_ebb_knots": null,
+      "format_note": null,
+      "offsets_from_tides": false,
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
+    },
+    {
+      "index_no": 8635,
+      "name": "HAYDEN PASSAGE",
+      "flood_direction_true": 110,
+      "latitude": 49.4,
+      "longitude": -126.11666666666666,
+      "reference_primary": "TOFINO",
+      "geographic_zone": null,
+      "name_annotation": null,
+      "turn_to_flood_diff": "+00:30",
+      "flood_max_diff": null,
+      "turn_to_ebb_diff": "+00:35",
+      "ebb_max_diff": null,
+      "pct_ref_flood": null,
+      "pct_ref_ebb": null,
+      "max_flood_knots": 4.0,
+      "max_ebb_knots": 4.0,
+      "format_note": null,
+      "offsets_from_tides": true,
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 8825,
@@ -650,7 +877,9 @@
       "max_ebb_knots": null,
       "format_note": null,
       "offsets_from_tides": true,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 9007,
@@ -671,7 +900,9 @@
       "max_ebb_knots": 5.0,
       "format_note": null,
       "offsets_from_tides": true,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 9059,
@@ -692,7 +923,9 @@
       "max_ebb_knots": 3.0,
       "format_note": null,
       "offsets_from_tides": true,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 9167,
@@ -713,7 +946,9 @@
       "max_ebb_knots": 6.0,
       "format_note": null,
       "offsets_from_tides": true,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 9235,
@@ -734,7 +969,9 @@
       "max_ebb_knots": 4.0,
       "format_note": null,
       "offsets_from_tides": true,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 9243,
@@ -755,7 +992,9 @@
       "max_ebb_knots": 4.0,
       "format_note": null,
       "offsets_from_tides": true,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 9244,
@@ -776,7 +1015,9 @@
       "max_ebb_knots": 7.0,
       "format_note": null,
       "offsets_from_tides": true,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 9948,
@@ -797,7 +1038,9 @@
       "max_ebb_knots": 2.5,
       "format_note": null,
       "offsets_from_tides": true,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     },
     {
       "index_no": 9957,
@@ -818,7 +1061,9 @@
       "max_ebb_knots": 3.0,
       "format_note": null,
       "offsets_from_tides": true,
-      "has_footnote": false
+      "has_footnote": false,
+      "footnote_markers": [],
+      "turn_reference_primary": null
     }
   ]
 }

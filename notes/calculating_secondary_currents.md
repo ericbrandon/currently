@@ -99,8 +99,9 @@ Else (current ref):
 - Look up the reference **current** primary from `currentExtremesById`.
 - Classify each event into one of `{slack-to-flood, slack-to-ebb, max-flood, max-ebb}`. The original `CurrentEvent.kind` and `knots` sign almost get us there, but we lose `kind` when we collapse to `Extreme`. So either:
   - **Preferred**: keep a parallel classified array per primary (cached, like `classifyHiLow` for tides), built at load from the original `CurrentStation` JSON. Each entry: `{ t, v, weak, kind }` where kind is one of the four labels.
-  - For `kind === "slack"` events: look at the **next non-slack event** to decide turn-to-flood (next is max-flood, v > 0) vs turn-to-ebb (next is max-ebb, v < 0). Falls back to the previous event if at end-of-array.
-  - For `kind === "max"`: positive knots → `max-flood`, negative → `max-ebb`. Weak/variable maxes (`v === 0, weak: true`) get classified by neighbouring slacks' implied direction (or by the surrounding max events).
+  - For `kind === "max"`: positive knots → `max-flood`, negative → `max-ebb`. Weak/variable maxes (`v === 0, weak: true`) are **faded peaks between two opposite peaks**, so they resolve by alternation parity from the nearest signed max on each side (odd distance flips direction; the two sides agree for 874/876 weak maxes in the 2026 data; on conflict — consecutive weaks — the nearer anchor wins). Do NOT copy the nearest signed value's sign: that neighbour is almost always the opposite direction, which is exactly the 2026-07 bug that classified Johnstone Strait Central's 591 faded floods as ebbs (and Scott Channel's 14 faded ebbs as floods). Note JSC often prints no turns at all around a weak max, so slack-bracket positioning is not available.
+  - For `kind === "slack"` events: use the **resolved direction of the next max** (including weak maxes resolved above) to decide turn-to-flood vs turn-to-ebb; invert the previous max's direction at end-of-array.
+  - Alternation is NOT globally strict: the tables print consecutive same-sign maxes when a peak vanishes without even a `*` placeholder (291 cases in 2026, e.g. Juan de Fuca East double ebbs). Signed maxes always classify by their own sign.
 
 Cache classified arrays per **primary** so multiple secondaries pointing at the same reference share the work — same pattern as `classifyHiLow`.
 
@@ -217,7 +218,10 @@ For v1 we apply the static diff only. To do this correctly we would: (i) extend 
 
 ### `has_footnote: true` rows
 
-3 BC stations (HARO STRAIT, ALERT BAY, PULTENEY POINT) carry station-level footnotes in the JSON. The footnote text is not preserved (same situation as Table 3). The standard formula is applied to all of them. Per the PDF's own caveat that secondary predictions are inherently approximate, this is acceptable for visualisation. Worth surfacing visually (e.g. a "*" annotation on the marker tooltip) so users know the prediction is rougher.
+Superseded 2026-07: Table 4 footnotes are now curated per (index_no, marker) in `canada_data/read_tct.py` `TABLE4_FOOTNOTES`, and the parser FAILS on any marker without an entry (2027-proofing). Current semantics:
+- HARO STRAIT (a): conditional +1:10 turn-to-ebb when the preceding Race Passage flood < 2.0 kn — static diff applied, conditional still deferred (fix-plan Phase 4).
+- ALERT BAY / PULTENEY POINT (a): turn diffs apply to SEYMOUR NARROWS' turns, max diffs/rates to Johnstone Strait-Central. Serialized as `turn_reference_primary`; `secondaryCurrentExtremes` takes a third `turnRefClassified` argument and the loader wires it.
+- NITINAT BAR (b): asymmetric higher-LW/lower-LW rule; station dropped at parse time rather than emitting wrong predictions (fix-plan Phase 4).
 
 ### Weak/variable ref maxes
 

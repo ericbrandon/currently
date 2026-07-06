@@ -94,6 +94,46 @@ class SecondaryCurrent:
     # slack/maximum times. Reference_primary will be a tide station in this case.
     offsets_from_tides: bool = False
     has_footnote: bool = False
+    # Per-row Table 4 footnote markers, e.g. ["a"]. Every marker MUST have
+    # an entry in TABLE4_FOOTNOTES or parse_table4 raises — that guard is
+    # what keeps a new year's unseen footnote from being silently ignored.
+    footnote_markers: list[str] = field(default_factory=list)
+    # From footnote semantics: the station whose TURN (slack) predictions
+    # the turn_to_* diffs apply to, when it differs from reference_primary
+    # (vol 6 footnote (a): ALERT BAY / PULTENEY POINT turns key off
+    # SEYMOUR NARROWS while max times and rates stay on JOHNSTONE
+    # STRAIT-CENTRAL). None means turns and maxes share reference_primary.
+    turn_reference_primary: str | None = None
+
+
+# Curated semantics for every known Table 4 footnote, keyed by
+# (index_no, marker). CHS index numbers are stable across years, so a new
+# year re-using these footnotes flows through automatically, while any
+# NEW footnote (new station, new marker, or a letter moving to a
+# different row) fails the parse loudly until a human reads the footnote
+# text and adds an entry here. Actions:
+#   turn_reference — turn_to_* diffs apply to this OTHER station's turns
+#   static_ok      — static diffs are a documented approximation; no
+#                    structural change (conditional corrections are
+#                    handled, if at all, in the app)
+#   drop           — the row's rule cannot be represented yet; exclude
+#                    the station rather than emit wrong predictions
+TABLE4_FOOTNOTES: dict[tuple[int, str], dict] = {
+    # Vol 5 (a), HARO STRAIT: "If the preceding flood current at Race
+    # Passage was less than 2.0 knots, add 1 hour 10 minutes" (to the
+    # turn-to-ebb diff). Static diff applied; conditional correction is
+    # a possible app-side refinement (fix-plan Phase 4).
+    (7245, "a"): {"action": "static_ok"},
+    # Vol 6 (a): "Time differences for 'turn to flood' and 'turn to ebb'
+    # are to be applied to the predictions for Seymour Narrows NOT to
+    # those for Johnstone Strait-Central."
+    (8281, "a"): {"action": "turn_reference", "station": "SEYMOUR NARROWS"},
+    (8292, "a"): {"action": "turn_reference", "station": "SEYMOUR NARROWS"},
+    # Vol 6 (b), NITINAT BAR: turn-to-flood = higher LW +2:00 / lower LW
+    # +4:17 — an asymmetric per-LW rule the offsets_from_tides model
+    # can't express yet (fix-plan Phase 4).
+    (8533, "b"): {"action": "drop"},
+}
 
 
 @dataclass
@@ -1112,8 +1152,8 @@ def _parse_t4_time_diff(words: list[dict]) -> tuple[str | None, bool]:
         return None, False
     h_text = words[0]["text"]
     m_text = words[1]["text"]
-    has_foot = "(a)" in m_text or "(a)" in h_text
-    m_clean = m_text.replace("(a)", "").strip()
+    has_foot = bool(re.search(r"\([a-z]\)", m_text) or re.search(r"\([a-z]\)", h_text))
+    m_clean = re.sub(r"\([a-z]\)", "", m_text).strip()
     sign = "+"
     if h_text.startswith("-"):
         sign = "-"
@@ -1142,14 +1182,6 @@ def parse_table4(
 ) -> tuple[list[_ReferenceCurrentInfo], list[SecondaryCurrent]]:
     if 4 not in toc.table_pages:
         return [], []
-    pdf_idx = toc.table_pages[4] + page_offset
-    page = pdf.pages[pdf_idx]
-    words = page.extract_words()
-
-    rows: dict[int, list[dict]] = {}
-    for w in words:
-        rows.setdefault(round(w["top"]), []).append(w)
-    sorted_tops = sorted(rows.keys())
 
     refs: list[_ReferenceCurrentInfo] = []
     secs: list[SecondaryCurrent] = []
@@ -1158,8 +1190,28 @@ def parse_table4(
     pending_zone: str | None = None
     pending_format_note: str | None = None
 
-    for top in sorted_tops:
-        row = sorted(rows[top], key=lambda w: w["x0"])
+    # Table 4 may span multiple pages (vol 6: the ALERT BAY / NAKWAKTO
+    # RAPIDS / TOFINO sections continue onto a second page). Every table
+    # page — first and continuation — repeats the "REFERENCE AND
+    # SECONDARY" header, and the pages that follow the table (typical
+    # tidal curves, index) don't, so walk forward until it disappears.
+    # Rows from all pages feed one loop so the on/sur reference and zone
+    # state carries across the page break.
+    all_rows: list[list[dict]] = []
+    pdf_idx = toc.table_pages[4] + page_offset
+    while pdf_idx < len(pdf.pages):
+        page = pdf.pages[pdf_idx]
+        if "REFERENCE AND SECONDARY" not in (page.extract_text() or "").upper():
+            break
+        rows: dict[int, list[dict]] = {}
+        for w in page.extract_words():
+            rows.setdefault(round(w["top"]), []).append(w)
+        for top in sorted(rows.keys()):
+            all_rows.append(rows[top])
+        pdf_idx += 1
+
+    for row_words in all_rows:
+        row = sorted(row_words, key=lambda w: w["x0"])
         text = " ".join(w["text"] for w in row).strip()
 
         # Data row: starts with a 4-digit index in the leftmost column
@@ -1252,6 +1304,33 @@ def parse_table4(
             else:
                 effective_zone = pending_zone
 
+            # Footnote markers anywhere in the row (e.g. "-0 40(a)",
+            # "LW (b)"). Every marker must be curated in TABLE4_FOOTNOTES;
+            # an unknown one aborts the parse so a new year's footnote is
+            # read by a human instead of silently mis-applied.
+            row_markers = sorted(set(re.findall(r"\(([a-z])\)", " ".join(row_texts))))
+            turn_reference: str | None = None
+            drop_row = False
+            for mk in row_markers:
+                sem = TABLE4_FOOTNOTES.get((index_no, mk))
+                if sem is None:
+                    raise ValueError(
+                        f"Table 4 secondary {index_no} {name!r} carries footnote "
+                        f"({mk}) with no entry in TABLE4_FOOTNOTES. Read the "
+                        f"footnote text on the PDF page and add curated "
+                        f"semantics before regenerating."
+                    )
+                if sem["action"] == "turn_reference":
+                    turn_reference = sem["station"]
+                elif sem["action"] == "drop":
+                    drop_row = True
+            if drop_row:
+                _log(f"      dropping Table 4 secondary {index_no} {name!r}: "
+                     f"footnote rule not representable (see TABLE4_FOOTNOTES)")
+                pending_zone = None
+                pending_format_note = None
+                continue
+
             secs.append(SecondaryCurrent(
                 index_no=index_no, name=name,
                 flood_direction_true=flood_dir,
@@ -1264,7 +1343,9 @@ def parse_table4(
                 max_flood_knots=max_flood, max_ebb_knots=max_ebb,
                 format_note=None if offsets_from_tides else pending_format_note,
                 offsets_from_tides=offsets_from_tides,
-                has_footnote=any([fa, fb, fc, fd]),
+                has_footnote=bool(row_markers),
+                footnote_markers=row_markers,
+                turn_reference_primary=turn_reference,
             ))
             pending_zone = None
             pending_format_note = None
@@ -1283,7 +1364,7 @@ def parse_table4(
             pending_format_note = "LW HW"
             continue
 
-        if text.startswith("(") and text.endswith(")") and not text.startswith("(a)"):
+        if text.startswith("(") and text.endswith(")") and not re.match(r"\([a-z]\)", text):
             if secs and secs[-1].name_annotation is None:
                 secs[-1].name_annotation = text
             continue
@@ -1305,7 +1386,9 @@ def parse_table4(
         )):
             continue
 
-        if text.startswith("(a)") or text.startswith("*"):
+        # Footnote text rows ("(a) Time differences…", "(b) Times of…")
+        # and the rate-column legend ("* % of predicted rate…").
+        if re.match(r"\([a-z]\)", text) or text.startswith("*"):
             continue
         if text.isdigit():
             continue  # footer

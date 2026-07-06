@@ -177,7 +177,13 @@ export type CurrentSecondaryStation = {
   pct_ref_ebb: number | null;
   max_flood_knots: number | null;
   max_ebb_knots: number | null;
-  has_footnote: boolean;
+  // Table 4 footnote semantics: when set, the turn_to_* diffs apply to
+  // THIS station's turn (slack) predictions while max diffs and rates
+  // stay on reference_primary. Vol 6 footnote (a): ALERT BAY and
+  // PULTENEY POINT turns key off SEYMOUR NARROWS, not Johnstone
+  // Strait-Central. Curated in canada_data/read_tct.py TABLE4_FOOTNOTES.
+  turn_reference_primary?: string | null;
+  has_footnote?: boolean;
   name_annotation?: string | null;
   geographic_zone?: string | null;
   format_note?: string | null;

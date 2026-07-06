@@ -44,10 +44,22 @@ export type ClassifiedCurrentEvent = {
 /** Classify each event of a primary current station's flat extreme list
  *  into one of {slack-to-flood, slack-to-ebb, max-flood, max-ebb}.
  *
- *  Maxes classify by sign. Weak/variable maxes (v === 0, weak: true)
- *  classify by neighbouring peak direction. True slacks (v === 0,
- *  !weak) classify as the slack BEFORE the next peak; if at the end of
- *  the array, by inverting the previous peak's direction. */
+ *  Signed maxes classify by sign. Weak/variable maxes (v === 0,
+ *  weak: true) are faded peaks sitting BETWEEN two opposite peaks, so
+ *  they classify by alternation parity from the nearest signed max on
+ *  each side (an odd number of steps flips direction). The two sides
+ *  agree for 874 of the 876 weak maxes in the 2026 data; on the rare
+ *  disagreement (a genuinely vanished peak nearby — consecutive
+ *  same-sign maxes do occur, e.g. Juan de Fuca East double ebbs) the
+ *  nearer anchor wins. Matching the nearest signed value directly is
+ *  wrong by construction: that neighbour is almost always the opposite
+ *  direction (it zeroed out Johnstone Strait Central's 591 faded
+ *  floods as ebbs).
+ *
+ *  True slacks (v === 0, !weak) classify as the slack BEFORE the next
+ *  max, using that max's RESOLVED direction (so a slack ahead of a
+ *  weak flood is slack-to-flood); at the end of the array, by
+ *  inverting the previous max's resolved direction. */
 export function classifyCurrentEvents(
   s: CurrentPrimaryStation,
 ): ClassifiedCurrentEvent[] {
@@ -73,43 +85,93 @@ export function classifyCurrentEvents(
   const n = raw.length;
   const out = new Array<ClassifiedCurrentEvent>(n);
 
-  // Per index, the direction (+1 / -1) of the nearest non-zero v after
-  // and before that index. Pre-computing in two linear sweeps keeps the
-  // classification one-pass and predictable for weak/edge cases.
-  const nextDir = new Array<number>(n);
-  const prevDir = new Array<number>(n);
-  let last = 0;
-  for (let i = n - 1; i >= 0; i--) {
-    if (raw[i].v > 0) last = 1;
-    else if (raw[i].v < 0) last = -1;
-    nextDir[i] = last;
+  // Pass 1 — resolve a direction (+1 / -1) for every max event, walking
+  // the max-only subsequence. Signed maxes resolve by sign; weak maxes
+  // by alternation parity from the nearest signed max on each side.
+  const maxPos: number[] = [];
+  for (let i = 0; i < n; i++) if (raw[i].isMax) maxPos.push(i);
+  const m = maxPos.length;
+  const maxDir = new Array<number>(m).fill(0);
+
+  // Nearest signed max at-or-before / at-or-after each max index, as
+  // (dir, distance-in-maxes) pairs from two linear sweeps.
+  const beforeDir = new Array<number>(m).fill(0);
+  const beforeDist = new Array<number>(m).fill(0);
+  const afterDir = new Array<number>(m).fill(0);
+  const afterDist = new Array<number>(m).fill(0);
+  let dir = 0;
+  let dist = 0;
+  for (let k = 0; k < m; k++) {
+    const v = raw[maxPos[k]].v;
+    if (v !== 0) {
+      dir = v > 0 ? 1 : -1;
+      dist = 0;
+    } else if (dir !== 0) {
+      dist++;
+    }
+    beforeDir[k] = dir;
+    beforeDist[k] = dist;
   }
-  last = 0;
-  for (let i = 0; i < n; i++) {
-    if (raw[i].v > 0) last = 1;
-    else if (raw[i].v < 0) last = -1;
-    prevDir[i] = last;
+  dir = 0;
+  dist = 0;
+  for (let k = m - 1; k >= 0; k--) {
+    const v = raw[maxPos[k]].v;
+    if (v !== 0) {
+      dir = v > 0 ? 1 : -1;
+      dist = 0;
+    } else if (dir !== 0) {
+      dist++;
+    }
+    afterDir[k] = dir;
+    afterDist[k] = dist;
   }
 
+  for (let k = 0; k < m; k++) {
+    const v = raw[maxPos[k]].v;
+    if (v !== 0) {
+      maxDir[k] = v > 0 ? 1 : -1;
+      continue;
+    }
+    // Alternation parity: an odd number of steps from a signed anchor
+    // flips its direction.
+    const cb = beforeDir[k] === 0 ? 0 : beforeDist[k] % 2 === 1 ? -beforeDir[k] : beforeDir[k];
+    const ca = afterDir[k] === 0 ? 0 : afterDist[k] % 2 === 1 ? -afterDir[k] : afterDir[k];
+    if (cb !== 0 && ca !== 0) {
+      // Disagreement means a peak genuinely vanished somewhere between
+      // the anchors; trust the nearer one (tie → before).
+      maxDir[k] = cb === ca ? cb : beforeDist[k] <= afterDist[k] ? cb : ca;
+    } else {
+      // At most one anchor (array edge). Default flood when neither
+      // side has any signed max at all (no real station is all-weak).
+      maxDir[k] = cb !== 0 ? cb : ca !== 0 ? ca : 1;
+    }
+  }
+
+  // Pass 2 — per raw index, the resolved direction of the next / previous
+  // max event, for slack classification.
+  const nextMaxDir = new Array<number>(n).fill(0);
+  const prevMaxDir = new Array<number>(n).fill(0);
+  for (let k = m - 1, i = n - 1; i >= 0; i--) {
+    while (k >= 0 && maxPos[k] > i) k--;
+    prevMaxDir[i] = k >= 0 ? maxDir[k] : 0;
+  }
+  for (let k = 0, i = 0; i < n; i++) {
+    while (k < m && maxPos[k] < i) k++;
+    nextMaxDir[i] = k < m ? maxDir[k] : 0;
+  }
+
+  let mi = 0;
   for (let i = 0; i < n; i++) {
     const e = raw[i];
     let kind: CurrentEventKind;
 
-    if (e.v > 0) {
-      kind = "max-flood";
-    } else if (e.v < 0) {
-      kind = "max-ebb";
-    } else if (e.isMax) {
-      // Weak max — sit between same-direction slacks (slack-to-flood …
-      // weak … slack-to-ebb means a faded flood peak). Match the
-      // nearest non-zero peak's sign.
-      const dir = nextDir[i] || prevDir[i];
-      kind = dir >= 0 ? "max-flood" : "max-ebb";
+    if (e.isMax) {
+      kind = maxDir[mi++] >= 0 ? "max-flood" : "max-ebb";
     } else {
-      // Slack — turn-to-flood if the next peak is positive, turn-to-ebb
-      // if negative. At end-of-array, infer from the previous peak.
-      const dir = nextDir[i] !== 0 ? nextDir[i] : -prevDir[i];
-      kind = dir >= 0 ? "slack-to-flood" : "slack-to-ebb";
+      // Slack — turn toward the next max's resolved direction. At
+      // end-of-array, infer by inverting the previous max's direction.
+      const d = nextMaxDir[i] !== 0 ? nextMaxDir[i] : -prevMaxDir[i];
+      kind = d >= 0 ? "slack-to-flood" : "slack-to-ebb";
     }
 
     out[i] = { t: e.t, v: e.v, weak: e.weak, kind };
@@ -177,10 +239,17 @@ function byT(a: { t: number }, b: { t: number }): number {
 }
 
 /** Build the Extreme[] for a secondary current station from a
- *  pre-classified reference (current primary or tide primary). */
+ *  pre-classified reference (current primary or tide primary).
+ *
+ *  `turnRefClassified` supplies the slack (turn) events when the
+ *  station's turn diffs key off a DIFFERENT primary than its max diffs
+ *  (Table 4 vol 6 footnote (a): ALERT BAY / PULTENEY POINT turns come
+ *  from SEYMOUR NARROWS while maxes stay on Johnstone Strait-Central).
+ *  Defaults to refClassified — one reference for both, the normal case. */
 export function secondaryCurrentExtremes(
   sec: CurrentSecondaryStation,
   refClassified: ClassifiedCurrentEvent[],
+  turnRefClassified: ClassifiedCurrentEvent[] = refClassified,
 ): Extreme[] {
   if (!hasMagnitudeData(sec)) return [];
 
@@ -195,7 +264,9 @@ export function secondaryCurrentExtremes(
 
   const events: EmittedEvent[] = [];
 
-  for (const ev of refClassified) {
+  // Slacks from the turn reference (usually the same array as
+  // refClassified — see the doc comment).
+  for (const ev of turnRefClassified) {
     switch (ev.kind) {
       case "slack-to-flood":
         // Slacks must be strictly v === 0 (currentValueAt branches on it).
@@ -204,10 +275,27 @@ export function secondaryCurrentExtremes(
       case "slack-to-ebb":
         events.push({ t: ev.t + tte, v: 0, weak: false, kind: "slack-to-ebb" });
         break;
+    }
+  }
+
+  // Maxes from the (rate) reference.
+  for (const ev of refClassified) {
+    switch (ev.kind) {
       case "max-flood": {
         if (fmd === null) break;            // synthesise at midpoint below
-        if (ev.weak) {
+        // Weak/variable is a property of the REFERENCE, not the
+        // secondary. Percentage rule: the secondary's rate is a multiple
+        // of the ref rate, and a `*` ref rate is unusable → 0 with
+        // weak: true. Knots rule: the book gives the secondary's
+        // large-tide rate directly and the ref contributes timing only
+        // ("a consistent method of calculating speeds from the Reference
+        // Station has not been established"), so the ref's `*` must not
+        // zero it — Johnstone Strait Central's 591 faded floods would
+        // otherwise erase Alert Bay's 4-knot flood for most of the year.
+        if (ev.weak && pctF !== null) {
           events.push({ t: ev.t + fmd, v: 0, weak: true, kind: "max-flood" });
+        } else if (ev.weak) {
+          events.push({ t: ev.t + fmd, v: fMag ?? 0, weak: fMag === null, kind: "max-flood" });
         } else {
           const v =
             pctF !== null
@@ -221,8 +309,10 @@ export function secondaryCurrentExtremes(
       }
       case "max-ebb": {
         if (emd === null) break;
-        if (ev.weak) {
+        if (ev.weak && pctE !== null) {
           events.push({ t: ev.t + emd, v: 0, weak: true, kind: "max-ebb" });
+        } else if (ev.weak) {
+          events.push({ t: ev.t + emd, v: eMag !== null ? -eMag : 0, weak: eMag === null, kind: "max-ebb" });
         } else {
           const v =
             pctE !== null
