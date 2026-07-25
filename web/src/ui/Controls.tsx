@@ -18,6 +18,7 @@
 //                             recenters on every position update.
 //               Tap cycles: off → following; following → off; active → following.
 
+import { useState } from "preact/hooks";
 import {
   showTides,
   showCurrents,
@@ -25,7 +26,13 @@ import {
   userLocationActive,
   userLocationFollowing,
   infoModalOpen,
+  showWeather,
+  weatherData,
+  weatherEverEnabled,
+  weatherHasActiveAlert,
+  weatherOnline,
 } from "../state/store";
+import { refreshMarineForecast } from "../data/marineForecast";
 
 function onLocationClick() {
   if (!userLocationActive.value) {
@@ -37,6 +44,62 @@ function onLocationClick() {
     userLocationActive.value = false;
     userLocationFollowing.value = false;
   }
+}
+
+// Weather button. Three visual states on top of the shared on/off pair:
+//   - offline (grey): the last forecast refresh failed. Still tappable —
+//     as an iPhone home-screen app there is no reload button, so the grey
+//     button doubles as the manual "retry now" affordance. A failed retry
+//     shakes the button briefly as feedback.
+//   - alert dot: layer off but an active warning/watch exists in the data
+//     (only possible when polling, i.e. the user has used weather before).
+function WeatherButton() {
+  const [shaking, setShaking] = useState(false);
+
+  const offline = weatherEverEnabled.value && !weatherOnline.value;
+  const on = showWeather.value && weatherData.value !== null;
+  const showAlertDot = !showWeather.value && weatherHasActiveAlert.value;
+
+  const onClick = () => {
+    if (offline) {
+      // Manual retry. Success un-greys via the signals; keep the user's
+      // intent to see the layer so it appears as soon as data lands.
+      showWeather.value = true;
+      void refreshMarineForecast().then((ok) => {
+        if (!ok) {
+          setShaking(true);
+          setTimeout(() => setShaking(false), 500);
+        }
+      });
+      return;
+    }
+    const next = !showWeather.value;
+    showWeather.value = next;
+    // First-ever enable (or enable with stale-ish data): fetch right away.
+    // initMarineWeather's poll covers the rest.
+    if (next && weatherData.value === null) void refreshMarineForecast();
+  };
+
+  return (
+    <button
+      class={
+        `control-box weather ${on ? "on" : "off"}` +
+        (offline ? " offline" : "") +
+        (showAlertDot ? " has-alert" : "") +
+        (shaking ? " shake" : "")
+      }
+      onClick={onClick}
+      aria-label={
+        offline
+          ? "Weather unavailable — tap to retry"
+          : on
+            ? "Hide marine weather"
+            : "Show marine weather"
+      }
+    >
+      Weather
+    </button>
+  );
 }
 
 export function Controls() {
@@ -63,6 +126,7 @@ export function Controls() {
       >
         Currents
       </button>
+      <WeatherButton />
       {showTides.value && (
         <button
           class="control-box unit-toggle"

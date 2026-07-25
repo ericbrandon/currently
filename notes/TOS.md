@@ -114,21 +114,21 @@ The text below is what the user sees inside the modal (or via the "Terms of Use"
 
 ### Terms of Use
 
-**Last updated: April 28, 2026**
+**Last updated: July 24, 2026** *(v1.2 — added marine weather: ECCC non-affiliation in §1, official-broadcast disclaimer in §2, forecasts/warnings in §3's scope. The May 1 v1.1 revision had previously added NOAA to §1.)*
 
 By using this site, you agree to the following terms. If you do not agree, please do not use the site.
 
 #### 1. About this site
 
-This is an **experimental hobby project**, provided free of charge with no commercial purpose. It is not affiliated with, endorsed by, or sponsored by the Canadian Hydrographic Service (CHS), Fisheries and Oceans Canada, or any government agency.
+This is an **experimental hobby project**, provided free of charge with no commercial purpose. It is not affiliated with, endorsed by, or sponsored by the Canadian Hydrographic Service (CHS), Fisheries and Oceans Canada, Environment and Climate Change Canada (ECCC), the U.S. National Oceanic and Atmospheric Administration (NOAA), or any government agency.
 
 #### 2. Not for navigation
 
-**This site must not be used for navigation, vessel routing, voyage planning, or any decision affecting the safety of life or property at sea.** Mariners must consult official, current CHS publications, charts, and tide and current tables, and must use properly maintained navigational equipment.
+**This site must not be used for navigation, vessel routing, voyage planning, or any decision affecting the safety of life or property at sea.** Mariners must consult official, current CHS publications, charts, and tide and current tables, and must use properly maintained navigational equipment. Marine weather forecasts and warnings shown here are not a substitute for official sources — consult ECCC marine forecasts and Coast Guard weather broadcasts.
 
 #### 3. No warranty
 
-The site and all information it presents — including tide predictions, current predictions, station locations, timings, and derived values — are provided **"as is" and "as available," without warranties of any kind**, express or implied. We make no representations as to accuracy, completeness, timeliness, reliability, or fitness for any particular purpose. Data may be incorrect, out of date, or missing, and predictions may differ materially from actual conditions.
+The site and all information it presents — including tide predictions, current predictions, marine weather forecasts and warnings, station locations, timings, and derived values — are provided **"as is" and "as available," without warranties of any kind**, express or implied. We make no representations as to accuracy, completeness, timeliness, reliability, or fitness for any particular purpose. Data may be incorrect, out of date, or missing, and predictions may differ materially from actual conditions.
 
 #### 4. Assumption of risk
 

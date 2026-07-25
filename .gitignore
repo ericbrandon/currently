@@ -25,3 +25,6 @@ us_data/anomalies_*.md
 
 # Wrangler CLI cache
 .wrangler/
+
+# ECCC geography package raw cache
+canada_data/marine_zones_raw/

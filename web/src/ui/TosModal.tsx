@@ -40,7 +40,7 @@ export function TosModal() {
       <div class="tos-modal">
         <h2 id="tos-title" class="tos-title">Terms of Use</h2>
         <div class="tos-scroll">
-          <p class="tos-last-updated"><strong>Last updated: May 1, 2026</strong></p>
+          <p class="tos-last-updated"><strong>Last updated: July 24, 2026</strong></p>
 
           <p>
             By using this site, you agree to the following terms. If you do not
@@ -52,9 +52,9 @@ export function TosModal() {
             This is an <strong>experimental hobby project</strong>, provided
             free of charge with no commercial purpose. It is not affiliated
             with, endorsed by, or sponsored by the Canadian Hydrographic
-            Service (CHS), Fisheries and Oceans Canada, the U.S. National
-            Oceanic and Atmospheric Administration (NOAA), or any government
-            agency.
+            Service (CHS), Fisheries and Oceans Canada, Environment and
+            Climate Change Canada (ECCC), the U.S. National Oceanic and
+            Atmospheric Administration (NOAA), or any government agency.
           </p>
 
           <h3>2. Not for navigation</h3>
@@ -66,14 +66,17 @@ export function TosModal() {
             </strong>{" "}
             Mariners must consult official, current CHS publications, charts,
             and tide and current tables, and must use properly maintained
-            navigational equipment.
+            navigational equipment. Marine weather forecasts and warnings
+            shown here are not a substitute for official sources — consult
+            ECCC marine forecasts and Coast Guard weather broadcasts.
           </p>
 
           <h3>3. No warranty</h3>
           <p>
             The site and all information it presents — including tide
-            predictions, current predictions, station locations, timings, and
-            derived values — are provided{" "}
+            predictions, current predictions, marine weather forecasts and
+            warnings, station locations, timings, and derived values — are
+            provided{" "}
             <strong>"as is" and "as available," without warranties of any
             kind</strong>, express or implied. We make no representations as to
             accuracy, completeness, timeliness, reliability, or fitness for any

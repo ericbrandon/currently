@@ -18,7 +18,12 @@
 //     app reads.
 
 import { signal, computed, effect } from "@preact/signals";
-import type { LoadedData, Manifest } from "../types";
+import type {
+  LoadedData,
+  Manifest,
+  MarineForecastData,
+  MarineZoneInfo,
+} from "../types";
 
 export const manifest = signal<Manifest | null>(null);
 export const loadedData = signal<LoadedData | null>(null);
@@ -146,7 +151,7 @@ effect(() => {
 // Terms-of-Use gate. Acceptance is recorded in localStorage under a
 // versioned key — bump TOS_VERSION any time the terms change materially
 // so existing users are re-prompted (see notes/TOS.md §6).
-export const TOS_VERSION = "v1.1";
+export const TOS_VERSION = "v1.2";
 const TOS_STORAGE_KEY = `tos-accepted-${TOS_VERSION}`;
 
 function readTosAccepted(): boolean {
@@ -191,3 +196,54 @@ export const userLocation = signal<{ lat: number; lon: number } | null>(null);
 // from the "i" button in the Controls panel; dismissed by tapping the
 // backdrop, the close button, or pressing Escape.
 export const infoModalOpen = signal<boolean>(false);
+
+// ---------------------------------------------------------------
+// Marine weather (see notes/weather_plan.md).
+// ---------------------------------------------------------------
+
+// Weather layer toggle, persisted like its siblings.
+export const showWeather = persistedBoolean("pref-show-weather", false);
+
+// Latched forever the first time the user turns weather on. Gates ALL
+// weather network activity: a user who has never touched the button pays
+// zero bytes and sees no warning badge on it.
+export const weatherEverEnabled = persistedBoolean(
+  "pref-weather-ever-enabled",
+  false,
+);
+effect(() => {
+  if (showWeather.value) weatherEverEnabled.value = true;
+});
+
+// Latest successfully-fetched forecast data. Never-stale rule: a failed
+// refresh NULLS this rather than leaving old data visible (weather_plan.md
+// §3), so `weatherData !== null` implies the last refresh succeeded.
+export const weatherData = signal<MarineForecastData | null>(null);
+
+// Connectivity as far as the weather feature is concerned: false after a
+// failed refresh (or a navigator.onLine=false hint), true after a
+// successful one. Drives the greyed-out Weather button. Starts true so
+// the button isn't grey before the first fetch has been attempted.
+export const weatherOnline = signal<boolean>(true);
+
+// Sub-zone list from marine_zones.geojson, published by MarineZoneLayer
+// once loaded. The WeatherPanel reads zone names/joins from here.
+export const marineZones = signal<MarineZoneInfo[] | null>(null);
+
+// CLC of the zone whose forecast panel is open; null = panel closed.
+// While non-null the app is modal: a scrim blocks the map, stations,
+// and scrubber (weather_plan.md §2).
+export const selectedZoneId = signal<string | null>(null);
+
+/** True when any zone in the loaded data has an active warning/watch —
+ *  drives the alert dot on the Weather button when the layer is off. */
+export const weatherHasActiveAlert = computed(() => {
+  const data = weatherData.value;
+  if (!data) return false;
+  for (const area of data.areasBySite.values()) {
+    for (const events of area.warningsByZone.values()) {
+      if (events.length > 0) return true;
+    }
+  }
+  return false;
+});

@@ -1,0 +1,130 @@
+// Marine forecast text panel. Opens when a weather zone is tapped
+// (selectedZoneId non-null) and is fully modal: a scrim covers the whole
+// app underneath — map, stations, scrubber, controls — so nothing else is
+// interactive until it closes (X button or any tap on the scrim).
+//
+// Content order (notes/weather_plan.md §2): zone name + issue time +
+// period of coverage, warnings/watches (with the badge glyph matching the
+// map), wind, weather & visibility, extended forecast, status statements.
+
+import { useEffect } from "preact/hooks";
+import { marineZones, selectedZoneId, weatherData } from "../state/store";
+import {
+  formatIssued,
+  zoneExtendedForecast,
+  zoneRegularForecast,
+  zoneWarnings,
+} from "../data/marineForecast";
+
+function close() {
+  selectedZoneId.value = null;
+}
+
+export function WeatherPanel() {
+  const clc = selectedZoneId.value;
+  const data = weatherData.value;
+  const zones = marineZones.value;
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        close();
+      }
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, []);
+
+  if (clc === null || !data || !zones) return null;
+  const zone = zones.find((z) => z.clc === clc);
+  if (!zone) return null;
+
+  const area = data.areasBySite.get(zone.site_code);
+  const regular = zoneRegularForecast(data, zone.site_code, zone.nom_fr);
+  const extended = zoneExtendedForecast(data, zone.site_code, zone.nom_fr);
+  const warnings = zoneWarnings(data, zone.site_code, zone.name_en);
+  const issued = formatIssued(area?.issuedLocal ?? null);
+
+  return (
+    <div
+      class="weather-scrim"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="weather-title"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) close();
+      }}
+    >
+      <div class="weather-panel">
+        <div class="weather-header">
+          <div class="weather-header-text">
+            <h2 id="weather-title" class="weather-title">
+              {zone.name_en}
+            </h2>
+            {issued && <div class="weather-issued">{issued}</div>}
+            {regular?.periodOfCoverage && (
+              <div class="weather-period">Valid: {regular.periodOfCoverage}</div>
+            )}
+          </div>
+          <button
+            class="weather-close"
+            type="button"
+            aria-label="Close"
+            onClick={close}
+          >
+            ×
+          </button>
+        </div>
+        <div class="weather-body">
+          {warnings.length > 0 && (
+            <div class="weather-warnings">
+              {warnings.map((w) => (
+                <div class="weather-warning-row" key={w.name}>
+                  <span class={`weather-badge inline ${w.type}`}>!</span>
+                  <span class="weather-warning-name">{w.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {regular?.wind && (
+            <section>
+              <h3>Wind</h3>
+              <p>{regular.wind}</p>
+            </section>
+          )}
+
+          {regular?.weatherVisibility && (
+            <section>
+              <h3>Weather &amp; visibility</h3>
+              <p>{regular.weatherVisibility}</p>
+            </section>
+          )}
+
+          {extended && extended.periods.length > 0 && (
+            <section>
+              <h3>Extended forecast</h3>
+              {extended.periods.map((p) => (
+                <p class="weather-extended-row" key={p.day}>
+                  <strong>{p.day}</strong> {p.text}
+                </p>
+              ))}
+            </section>
+          )}
+
+          {area?.statusStatements.map((s) => (
+            <p class="weather-status-statement" key={s}>
+              {s}
+            </p>
+          ))}
+
+          {!regular && (!extended || extended.periods.length === 0) && (
+            <p>No forecast text available for this zone.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

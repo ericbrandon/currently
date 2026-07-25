@@ -325,3 +325,67 @@ export type LoadedData = {
   tideExtremesById: Map<string, Extreme[]>;
   currentExtremesById: Map<string, Extreme[]>;
 };
+
+// ---------------------------------------------------------------
+// Marine weather (see notes/weather_plan.md).
+//
+// Zone polygons come pre-baked from web/public/data/marine_zones.geojson
+// (canada_data/extract_marine_zones.py); forecast text and warnings come
+// live from the ECCC GeoMet marineweather-realtime collection. A zone's
+// `site_code` names its parent forecast area — the API feature id.
+// ---------------------------------------------------------------
+
+/** Properties of one sub-zone feature in marine_zones.geojson. */
+export type MarineZoneInfo = {
+  clc: string;
+  site_code: string;
+  // Exactly matches the API's warnings.locations[].name.en.
+  name_en: string;
+  // Matches the API's French-only regularForecast/extendedForecast
+  // location names (case-insensitively — the API capitalises, the
+  // shapefile doesn't).
+  nom_fr: string;
+  // Pole-of-inaccessibility point for the warning badge.
+  label_lon: number;
+  label_lat: number;
+  // Map tint index 0/1/2 — 3-colouring of the adjacency graph so touching
+  // zones never share a colour (assigned in extract_marine_zones.py).
+  color: number;
+};
+
+export type MarineWarningEvent = {
+  name: string; // "Strong wind warning", "Gale warning", ...
+  type: "warning" | "watch";
+};
+
+/** One regularForecast location. `nameFr` is null when the area has a
+ *  single undivided location (Haro Strait, Howe Sound, ...). */
+export type MarineSubLocationForecast = {
+  nameFr: string | null;
+  periodOfCoverage: string;
+  wind: string;
+  weatherVisibility: string;
+};
+
+export type MarineExtendedForecast = {
+  nameFr: string | null;
+  periods: { day: string; text: string }[];
+};
+
+export type MarineAreaForecast = {
+  siteCode: string; // "m0000028"
+  areaNameEn: string; // "Strait of Georgia"
+  // ISO with local offset, e.g. "2026-07-24T16:00:00-07:00".
+  issuedLocal: string | null;
+  regular: MarineSubLocationForecast[];
+  extended: MarineExtendedForecast[];
+  // Active (non-ENDED) events keyed by English sub-zone name.
+  warningsByZone: Map<string, MarineWarningEvent[]>;
+  // statusStatement pass-through (season-end notices; unused on Pacific).
+  statusStatements: string[];
+};
+
+export type MarineForecastData = {
+  fetchedAt: number; // Date.now() of the successful fetch
+  areasBySite: Map<string, MarineAreaForecast>;
+};

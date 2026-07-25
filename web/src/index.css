@@ -1464,3 +1464,183 @@ html, body, #app {
     opacity: 1;
   }
 }
+
+/* ------------------------------------------------------------------
+   Marine weather (see notes/weather_plan.md)
+   ------------------------------------------------------------------ */
+
+/* Warning/watch badge on the map: a small filled circle with a bold "!"
+   at the zone's pole-of-inaccessibility point. Red = active warning,
+   yellow = watch only. Also reused inline in the panel (smaller, so the
+   panel text visually matches the map marker). */
+.weather-badge {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+  color: #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  user-select: none;
+}
+.weather-badge.warning { background: #dc2626; }
+.weather-badge.watch   { background: #d97706; }
+.weather-badge.inline {
+  width: 20px;
+  height: 20px;
+  font-size: 14px;
+  flex: 0 0 auto;
+  cursor: default;
+  box-shadow: none;
+}
+
+/* Weather button states on top of the shared .control-box on/off pair. */
+.control-box.weather { position: relative; }
+.control-box.weather.offline {
+  background: #cbd5e1;
+  color: #64748b;
+  border-color: #94a3b8;
+}
+.control-box.weather.has-alert::after {
+  content: "";
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #dc2626;
+  border: 2px solid #ffffff;
+}
+.control-box.weather.shake {
+  animation: weather-shake 0.4s ease-in-out;
+}
+@keyframes weather-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  50% { transform: translateX(4px); }
+  75% { transform: translateX(-4px); }
+}
+
+/* Modal scrim: covers the whole app (map, stations, scrubber, controls)
+   while the forecast panel is open. Any tap on it closes the panel.
+   z-index 90: above everything interactive, below the TOS/info modals. */
+.weather-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.35);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: calc(0.75rem + env(safe-area-inset-top))
+           calc(0.75rem + env(safe-area-inset-right))
+           calc(0.75rem + env(safe-area-inset-bottom))
+           calc(0.75rem + env(safe-area-inset-left));
+  z-index: 90;
+  overscroll-behavior: contain;
+}
+
+.weather-panel {
+  width: min(480px, 100%);
+  max-height: min(75dvh, 100%);
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  color: #0f172a;
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+/* Header stays put (the × is always visible); only the body scrolls. */
+.weather-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 12px 8px 10px 18px;
+  background: #0c4a6e;
+  color: #ffffff;
+}
+
+.weather-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.weather-issued,
+.weather-period {
+  font-size: 12.5px;
+  opacity: 0.85;
+  margin-top: 3px;
+}
+
+.weather-close {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border: none;
+  background: transparent;
+  color: #ffffff;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 4px;
+  font-family: inherit;
+  padding: 0;
+}
+@media (hover: hover) {
+  .weather-close:hover { background: rgba(255, 255, 255, 0.15); }
+}
+
+.weather-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 14px 18px 18px;
+  font-size: 14.5px;
+  line-height: 1.45;
+}
+
+.weather-body h3 {
+  margin: 14px 0 4px;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #475569;
+}
+.weather-body section:first-child h3,
+.weather-body h3:first-child { margin-top: 0; }
+.weather-body p { margin: 0 0 6px; }
+
+.weather-warnings {
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.weather-warning-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.weather-extended-row { margin: 0 0 4px; }
+.weather-extended-row strong { margin-right: 4px; }
+
+.weather-status-statement {
+  margin-top: 12px;
+  font-style: italic;
+  color: #475569;
+}

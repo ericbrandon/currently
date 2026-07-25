@@ -25,11 +25,14 @@ import {
   tosAccepted,
   infoModalOpen,
   nowLocked,
+  selectedZoneId,
 } from "./state/store";
 import { fetchManifest, loadAllYears } from "./data/loader";
+import { initMarineWeather } from "./data/marineForecast";
 import { createMap, getSavedMapView, attachMapViewPersistence } from "./map/map";
 import { TideStationLayer } from "./map/stationLayer";
 import { CurrentStationLayer } from "./map/currentStationLayer";
+import { MarineZoneLayer } from "./map/marineZoneLayer";
 import { UserLocationMarker } from "./map/userLocationMarker";
 import { rafCoalesce } from "./util/rafCoalesce";
 import { startGeolocation, stopGeolocation } from "./util/geolocation";
@@ -39,14 +42,22 @@ import { CurrentPanel } from "./ui/CurrentPanel";
 import { Controls } from "./ui/Controls";
 import { TosModal } from "./ui/TosModal";
 import { InfoModal } from "./ui/InfoModal";
+import { WeatherPanel } from "./ui/WeatherPanel";
 
 export function App() {
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
   const layerRef = useRef<TideStationLayer | null>(null);
   const currentLayerRef = useRef<CurrentStationLayer | null>(null);
+  const marineLayerRef = useRef<MarineZoneLayer | null>(null);
   const userLocMarkerRef = useRef<UserLocationMarker | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Marine weather polling — armed lazily off the weatherEverEnabled
+  // latch, so this is a no-op for users who never touch the button.
+  useEffect(() => {
+    initMarineWeather();
+  }, []);
 
   // Step 1 + 2: fetch manifest, load all years.
   useEffect(() => {
@@ -91,6 +102,8 @@ export function App() {
     layerRef.current = layer;
     const currentLayer = new CurrentStationLayer(map, data);
     currentLayerRef.current = currentLayer;
+    const marineLayer = new MarineZoneLayer(map);
+    marineLayerRef.current = marineLayer;
     userLocMarkerRef.current = new UserLocationMarker(map);
 
     map.on("load", () => {
@@ -98,10 +111,21 @@ export function App() {
       layer.updateAt(scrubberMs.value);
       currentLayer.attach();
       currentLayer.updateAt(scrubberMs.value);
+      void marineLayer.attach();
     });
     // Marker DOM clicks are handled by the marker's own listener (and call
     // stopPropagation), so this fires only for clicks that hit the map canvas.
-    map.on("click", () => {
+    // A canvas click that lands on a visible marine zone opens that zone's
+    // forecast panel and leaves the station selection alone (the chart stays
+    // open underneath the panel — weather_plan.md §2); anywhere else it
+    // deselects the station as before. While the weather panel is open its
+    // scrim swallows every pointer event, so this handler can't fire.
+    map.on("click", (e) => {
+      const zone = marineLayer.zoneAt(e.point);
+      if (zone !== null) {
+        selectedZoneId.value = zone;
+        return;
+      }
       selectedStationId.value = null;
     });
 
@@ -312,6 +336,7 @@ export function App() {
       <CurrentPanel />
       <Scrubber />
       <Controls />
+      <WeatherPanel />
       {!tosAccepted.value && <TosModal />}
       {infoModalOpen.value && <InfoModal />}
     </div>

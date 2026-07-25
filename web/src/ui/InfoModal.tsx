@@ -121,6 +121,20 @@ export function InfoModal() {
             , National Ocean Service. U.S. Government data, not subject
             to copyright.
           </p>
+
+          <h3>Marine weather</h3>
+          <p>
+            Marine forecasts, warnings and forecast-area boundaries:{" "}
+            <a
+              href="https://weather.gc.ca/marine/index_e.html"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Environment and Climate Change Canada
+            </a>
+            . Forecasts are shown for information only and are not a
+            substitute for official marine weather broadcasts.
+          </p>
         </div>
       </div>
     </div>
