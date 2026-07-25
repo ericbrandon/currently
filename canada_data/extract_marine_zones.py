@@ -44,7 +44,8 @@ import zipfile
 from pathlib import Path
 
 import shapefile  # pyshp
-from shapely.geometry import Polygon, mapping, shape
+import shapely
+from shapely.geometry import Polygon, box, mapping, shape
 from shapely.ops import polylabel, unary_union
 
 PKG_VERSION = "6_15_0"
@@ -97,13 +98,15 @@ STD_ZONES: dict[str, str] = {
 
 # NWS marine zones (Seattle forecast office), fetched from api.weather.gov.
 # The zone id is both the display id and the forecast/alert join key.
+# PZZ133 is deliberately LAST: its blockified shape (below) is finished by
+# clipping against every neighbour, so they must all be accepted first.
 US_ZONES: list[str] = [
     "PZZ130",  # West Entrance U.S. Waters Strait Of Juan De Fuca
     "PZZ131",  # Central U.S. Waters Strait Of Juan De Fuca
     "PZZ132",  # East Entrance U.S. Waters Strait Of Juan De Fuca
-    "PZZ133",  # Northern Inland Waters Including The San Juan Islands
     "PZZ134",  # Admiralty Inlet
     "PZZ135",  # Puget Sound and Hood Canal
+    "PZZ133",  # Northern Inland Waters Including The San Juan Islands
 ]
 NWS_ZONE_URL = "https://api.weather.gov/zones/marine/{}"
 NWS_UA = "currentlybc.com zone extraction (admin.currentlybc@gmail.com)"
@@ -156,6 +159,206 @@ def fetch_nws_zone(zone_id: str) -> dict:
         data = resp.read()
     cache.write_bytes(data)
     return json.loads(data)
+
+
+# ------------------------------------------------------------------
+# Blockified PZZ133 (Northern Inland Waters / San Juan Islands).
+#
+# The raw NWS polygon hugs every coastline, which reads as a different
+# visual language from the blocky ECCC zones. Per the design decision
+# (2026-07-25): all island holes are covered, and the ragged east/south
+# boundary is replaced by straight lines. The Canada border, the Haro
+# Strait side, and the shared boundary with PZZ132 keep the original
+# linework. Points marked "snap" are matched to the nearest existing
+# vertex (of this ring, or of PZZ135 where the new boundary must meet
+# Puget Sound and Hood Canal without overlap or gap); the final shape is
+# also clipped against every neighbour, which trims any remaining
+# overlap along those seams. Visual geometry only — forecast/warning
+# joins still use the official zone id.
+# ------------------------------------------------------------------
+
+# (lon, lat), north → south. snap: "ring" = this zone, "135" = PZZ135.
+PZZ133_EAST_BOUNDARY: list[tuple[float, float, str | None]] = [
+    (-122.75774563164018, 49.002219103088116, "ring"),
+    (-122.48457021193411, 48.75334842360956, None),
+    (-122.34003868317473, 48.09681947291731, None),
+    (-122.37597396320557, 48.03454298569983, "135"),
+    (-122.55138655725212, 47.97282469847735, "135"),
+    (-122.70230349018604, 47.913563154310864, "135"),
+]
+
+# Whidbey Island cover (2026-07-25): the raw ring wraps Whidbey's
+# shoreline, leaving the Oak Harbor lobe carved out of the block. This
+# polygon is unioned over the island so the block runs unbroken from the
+# East Entrance boundary to the Admiralty Inlet boundary. Its two
+# western corners deliberately OVERSHOOT into PZZ132 / PZZ134 water —
+# straight chords between boundary junctions leave uncovered slivers
+# where the real boundaries bow west — and the neighbour clip then trims
+# the cover to their exact shapes, so the block hugs them by
+# construction. Corners ordered clockwise; snap keys as above.
+PZZ133_WHIDBEY_COVER: list[tuple[float, float, str | None]] = [
+    (-122.83, 48.35, None),  # overshoot into PZZ132 (mid east entrance)
+    (-122.66474532018788, 48.39056584247043, "ring"),  # Deception junction
+    (-122.34003868317473, 48.09681947291731, None),
+    (-122.37597396320557, 48.03454298569983, "135"),
+    # Deep southern sweep: the official 133/135 boundary runs diagonally
+    # (Mukilteo → Possession Point → Foulweather), so straight chords near
+    # it always strand land wedges (Double Bluff, Possession Point). Round
+    # south Whidbey's SE lobe through Possession Sound, then run far into
+    # PZZ135 water; the clip pulls the seam back to the official boundary,
+    # and the Kitsap land the last edge crosses is severed and dropped by
+    # the fragment allowance.
+    (-122.345, 47.947, "135"),  # PZZ135's Mukilteo corner
+    (-122.377, 47.905, "135"),  # PZZ135's Possession Point corner
+    (-122.43, 47.82, None),
+    (-122.70230349018604, 47.913563154310864, "135"),  # Foulweather anchor
+    (-122.73, 48.135, None),  # overshoot into PZZ134 (mid Admiralty channel)
+]
+
+
+def nearest_vertex(ring: list, target: tuple[float, float]) -> int:
+    return min(
+        range(len(ring)),
+        key=lambda i: (ring[i][0] - target[0]) ** 2
+        + (ring[i][1] - target[1]) ** 2,
+    )
+
+
+def blockify_pzz133(poly: Polygon, pzz135: Polygon) -> Polygon:
+    ring = list(poly.exterior.coords)[:-1]  # drop closing duplicate
+    ring135 = list(pzz135.exterior.coords)
+
+    def snap_points(
+        spec: list[tuple[float, float, str | None]],
+    ) -> list[tuple[float, float]]:
+        out: list[tuple[float, float]] = []
+        for lon, lat, snap in spec:
+            if snap == "ring":
+                i = nearest_vertex(ring, (lon, lat))
+                out.append((ring[i][0], ring[i][1]))
+            elif snap == "135":
+                i = nearest_vertex(ring135, (lon, lat))
+                out.append((ring135[i][0], ring135[i][1]))
+            else:
+                out.append((lon, lat))
+        return out
+
+    snapped = snap_points(PZZ133_EAST_BOUNDARY)
+
+    # Keep the original linework from the south anchor (A, near
+    # Foulweather Bluff) around the west/north side to the north anchor
+    # (B, on the Canada border): of the two ring paths A→B, the keeper is
+    # the one containing the ring's westernmost vertex (the Haro side).
+    iB = nearest_vertex(ring, snapped[0])
+    iA = nearest_vertex(ring, snapped[-1])
+    iWest = nearest_vertex(ring, (-130.0, 48.6))  # min-lon direction probe
+
+    def path(from_i: int, to_i: int) -> list:
+        out = []
+        i = from_i
+        while True:
+            out.append(ring[i])
+            if i == to_i:
+                return out
+            i = (i + 1) % len(ring)
+
+    forward = path(iA, iB)
+    backward = path(iB, iA)[::-1]  # same endpoints, other way around
+    west = tuple(ring[iWest])
+    keep = forward if west in {tuple(p) for p in forward} else backward
+
+    # keep runs A→…→B; append the new east/south boundary B→…→A
+    # (snapped[0] is B and snapped[-1] is A, already at the keep ends).
+    new_ring = keep + [(lon, lat) for lon, lat in snapped[1:-1]]
+    block = Polygon(new_ring)
+    if not block.is_valid:
+        block = block.buffer(0)
+    if block.geom_type == "MultiPolygon":
+        block = max(block.geoms, key=lambda g: g.area)
+
+    # Union the Whidbey cover over the island so the block runs unbroken
+    # between the East Entrance and Admiralty Inlet boundaries.
+    cover = Polygon(snap_points(PZZ133_WHIDBEY_COVER))
+    if not cover.is_valid:
+        cover = cover.buffer(0)
+    block = unary_union([block, cover])
+    if block.geom_type == "MultiPolygon":
+        block = max(block.geoms, key=lambda g: g.area)
+    # Drop any interior rings the union stitched up — islands are covered.
+    return Polygon(block.exterior)
+
+
+# ------------------------------------------------------------------
+# Cross-border gap fill (2026-07-25). The two countries approximate the
+# international water boundary differently, leaving slivers and — at
+# zone junctions (the bend south of Victoria; Boundary Pass where Haro
+# and Georgia-south meet PZZ133) — visible pockets of unowned water up
+# to ~3 km wide. The corridor below runs along the whole shared
+# boundary and is partitioned among the border-adjacent zones by
+# iterative dilation: each zone grows into unclaimed corridor water
+# only, so seams land mid-pocket and zones stay disjoint. The corridor
+# deliberately stops short of the Victoria / Esquimalt shoreline
+# (nearshore bights ECCC leaves unzoned stay unzoned, consistent with
+# the rest of the map) and short of PZZ133's straight Blaine chord.
+# ------------------------------------------------------------------
+
+BORDER_CORRIDOR = [
+    (-124.75, 48.20, -123.42, 48.33),  # Juan de Fuca midline band
+    (-123.42, 48.24, -123.10, 48.40),  # junction pocket south of Victoria
+    (-123.28, 48.40, -123.10, 48.46),  # up to the Haro junction
+    (-123.30, 48.44, -123.00, 48.80),  # Haro Strait seam
+    (-123.10, 48.68, -122.80, 49.005),  # Boundary Pass → 49th parallel
+]
+BORDER_ZONES = [
+    "001111", "001112", "001113",  # CA Juan de Fuca sub-zones
+    "001120",  # Haro Strait
+    "001132",  # Strait of Georgia - south of Nanaimo
+    "PZZ130", "PZZ131", "PZZ132", "PZZ133",
+]
+FILL_STEP = 0.006  # ~500 m dilation per round
+FILL_ROUNDS = 8
+
+
+def fill_border_gaps(seen: dict[str, Polygon]) -> None:
+    """Partition the corridor gaps among the border zones by iterative
+    dilation. Splitting pockets (rather than assigning each whole to one
+    zone) matters: whole-pocket assignment forms 4-cliques at the
+    five-zone junctions and the graph stops being 3-colourable. The
+    dilation fronts are low-resolution (quad_segs=1) and the grown zones
+    are re-simplified afterwards, clipped against the others so the
+    mosaic stays disjoint."""
+    corridor = unary_union([box(w, s, e, n) for w, s, e, n in BORDER_CORRIDOR])
+    gap = corridor.difference(unary_union(list(seen.values())))
+    grown: set[str] = set()
+    for _ in range(FILL_ROUNDS):
+        if gap.is_empty:
+            break
+        for clc in BORDER_ZONES:
+            grow = seen[clc].buffer(FILL_STEP, quad_segs=1).intersection(gap)
+            if grow.is_empty or grow.area < 1e-9:
+                continue
+            merged = unary_union([seen[clc], grow]).buffer(0)
+            if merged.geom_type == "MultiPolygon":
+                merged = max(merged.geoms, key=lambda g: g.area)
+            seen[clc] = merged
+            grown.add(clc)
+            gap = gap.difference(grow)
+
+    # Tame the dilation fronts: simplify each grown zone, then clip it
+    # against every other zone so simplification can't reintroduce
+    # overlap (hairline re-opened gaps are <50 m — invisible).
+    for clc in grown:
+        others = unary_union([g for c, g in seen.items() if c != clc])
+        slim = (
+            seen[clc]
+            .simplify(0.0004, preserve_topology=True)
+            .difference(others)
+        )
+        if slim.geom_type == "MultiPolygon":
+            slim = max(slim.geoms, key=lambda g: g.area)
+        if slim.geom_type == "Polygon" and slim.is_valid:
+            seen[clc] = slim
+    print(f"  border fill: grew {len(grown)} zone(s) into corridor gaps")
 
 
 def largest_real_part(poly, label: str):
@@ -228,25 +431,45 @@ def main() -> int:
         except ValueError as e:
             print(f"ERROR: {e}")
             return 1
-        holes = [
-            h for h in poly.interiors if Polygon(h).area >= MIN_HOLE_AREA
-        ]
-        poly = Polygon(poly.exterior, holes).simplify(
-            US_SIMPLIFY_TOLERANCE, preserve_topology=True
-        )
+        if zone_id == "PZZ133":
+            # Blockified: islands covered (no holes), straight east/south
+            # boundary. Snaps against the already-accepted PZZ135 shape.
+            poly = blockify_pzz133(poly, seen["PZZ135"])
+        else:
+            holes = [
+                h for h in poly.interiors if Polygon(h).area >= MIN_HOLE_AREA
+            ]
+            poly = Polygon(poly.exterior, holes)
+        poly = poly.simplify(US_SIMPLIFY_TOLERANCE, preserve_topology=True)
         clipped = poly.difference(clip_union)
         if clipped.geom_type == "MultiPolygon":
-            try:
-                clipped = largest_real_part(clipped, f"{zone_id} post-clip")
-            except ValueError as e:
-                print(f"ERROR: {e}")
-                return 1
+            if zone_id == "PZZ133":
+                # The blockified cover deliberately overshoots into
+                # neighbour water; where its edges cross unzoned land
+                # (Marrowstone Island, the Kitsap tip) the clip severs
+                # fragments that are MEANT to be discarded. Keep the main
+                # block, report what fell away.
+                parts = sorted(clipped.geoms, key=lambda g: g.area, reverse=True)
+                dropped = sum(g.area for g in parts[1:])
+                print(
+                    f"  PZZ133: dropped {len(parts) - 1} clip fragment(s) "
+                    f"over unzoned land ({dropped:.5f} deg²)"
+                )
+                clipped = parts[0]
+            else:
+                try:
+                    clipped = largest_real_part(clipped, f"{zone_id} post-clip")
+                except ValueError as e:
+                    print(f"ERROR: {e}")
+                    return 1
         if clipped.geom_type != "Polygon" or not clipped.is_valid:
             print(f"ERROR: US zone {zone_id} produced {clipped.geom_type}")
             return 1
         seen[zone_id] = clipped
         meta[zone_id] = (zone_id, name, name, "US")
         clip_union = clip_union.union(clipped)
+
+    fill_border_gaps(seen)
 
     features = []
     for clc, poly in seen.items():
@@ -255,7 +478,13 @@ def main() -> int:
             print(f"ERROR: label point outside polygon for {clc}")
             return 1
         site, name, nom, country = meta[clc]
-        geo = mapping(poly)
+        # Snap coordinates to the output precision through GEOS rather
+        # than naive rounding — rounding complex boundaries by hand can
+        # create self-intersections and degenerate rings.
+        snapped_poly = shapely.set_precision(poly, 10**-COORD_DECIMALS)
+        if snapped_poly.geom_type == "MultiPolygon":
+            snapped_poly = max(snapped_poly.geoms, key=lambda g: g.area)
+        geo = mapping(snapped_poly)
         features.append(
             {
                 "type": "Feature",
@@ -284,26 +513,48 @@ def main() -> int:
             if inter.area > 1e-9:
                 print(f"ERROR: zones {a} and {b} overlap (area {inter.area})")
                 return 1
-            # Shared linework = neighbours (point-touches don't count —
-            # corner contact doesn't need distinct colours).
-            if inter.length > 1e-6:
+            # Within the Canadian dataset, linework is authoritative:
+            # neighbours share exact boundary geometry (point-touches
+            # don't count — corner contact doesn't need distinct
+            # colours). Any pair involving a US zone only APPROXIMATELY
+            # coincides with its neighbours (cross-border midline, or
+            # hairline simplification gaps between US zones), so there
+            # "within ~200 m" is what touching means — without this,
+            # Haro Strait and PZZ133 read as non-adjacent and could
+            # share a tint across a visually-shared boundary.
+            both_ca = not a.startswith("PZZ") and not b.startswith("PZZ")
+            if inter.length > 1e-6 or (
+                not both_ca and seen[a].distance(seen[b]) < 0.002
+            ):
                 adjacent[a].add(b)
                 adjacent[b].add(a)
 
-    # Greedy 3-colouring, highest-degree first, preferring the least-used
-    # free colour so all three tints appear even where 2 would suffice.
-    # The zone graph is planar and sparse, so 3 colours suffice; fail
-    # loudly if a future zone set ever breaks that assumption.
+    # Exact 3-colouring by backtracking (highest-degree first, least-used
+    # colour preferred so all three tints appear even where fewer would
+    # do). The graph is planar-ish but the distance-based cross-border
+    # edges densify it, so greedy is no longer trustworthy; 27 nodes is
+    # trivial to solve exactly. Fails loudly if truly not 3-colourable.
+    order = sorted(clcs, key=lambda c: -len(adjacent[c]))
     colors: dict[str, int] = {}
-    for clc in sorted(clcs, key=lambda c: -len(adjacent[c])):
+
+    def solve(i: int) -> bool:
+        if i == len(order):
+            return True
+        clc = order[i]
         used = {colors[n] for n in adjacent[clc] if n in colors}
-        free = [c for c in range(3) if c not in used]
-        if not free:
-            print(f"ERROR: zone {clc} needs a 4th colour; adjacency: "
-                  f"{sorted(adjacent[clc])}")
-            return 1
-        counts = {c: sum(1 for v in colors.values() if v == c) for c in free}
-        colors[clc] = min(free, key=lambda c: (counts[c], c))
+        counts = {c: sum(1 for v in colors.values() if v == c) for c in range(3)}
+        for c in sorted(range(3), key=lambda c: (counts[c], c)):
+            if c in used:
+                continue
+            colors[clc] = c
+            if solve(i + 1):
+                return True
+            del colors[clc]
+        return False
+
+    if not solve(0):
+        print("ERROR: zone graph is not 3-colourable; a 4th tint is needed")
+        return 1
     for f in features:
         f["properties"]["color"] = colors[f["id"]]
 
