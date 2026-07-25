@@ -513,18 +513,25 @@ def main() -> int:
             if inter.area > 1e-9:
                 print(f"ERROR: zones {a} and {b} overlap (area {inter.area})")
                 return 1
-            # Within the Canadian dataset, linework is authoritative:
-            # neighbours share exact boundary geometry (point-touches
-            # don't count — corner contact doesn't need distinct
-            # colours). Any pair involving a US zone only APPROXIMATELY
-            # coincides with its neighbours (cross-border midline, or
-            # hairline simplification gaps between US zones), so there
-            # "within ~200 m" is what touching means — without this,
-            # Haro Strait and PZZ133 read as non-adjacent and could
-            # share a tint across a visually-shared boundary.
-            both_ca = not a.startswith("PZZ") and not b.startswith("PZZ")
+            # Within the pristine Canadian dataset, linework is
+            # authoritative: neighbours share exact boundary geometry
+            # (point-touches don't count — corner contact doesn't need
+            # distinct colours). Any pair involving a US zone OR a zone
+            # reshaped by the border fill only APPROXIMATELY coincides
+            # with its neighbours (cross-border midline, hairline
+            # simplification gaps), so there "within ~200 m" is what
+            # touching means — without this, Haro/PZZ133 (and, after the
+            # border fill, the CA Juan de Fuca sub-zones themselves)
+            # read as non-adjacent and could share a tint across a
+            # visually-shared boundary.
+            pristine = (
+                not a.startswith("PZZ")
+                and not b.startswith("PZZ")
+                and a not in BORDER_ZONES
+                and b not in BORDER_ZONES
+            )
             if inter.length > 1e-6 or (
-                not both_ca and seen[a].distance(seen[b]) < 0.002
+                not pristine and seen[a].distance(seen[b]) < 0.002
             ):
                 adjacent[a].add(b)
                 adjacent[b].add(a)
