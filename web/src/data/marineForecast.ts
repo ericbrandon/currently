@@ -28,7 +28,7 @@ import type {
 
 const API_URL =
   "https://api.weather.gc.ca/collections/marineweather-realtime/items" +
-  "?f=json&bbox=-130.5,48,-122.5,52.4&limit=50&skipGeometry=true";
+  "?f=json&bbox=-134.5,48,-122.5,55&limit=50&skipGeometry=true";
 
 export const POLL_MS = 60 * 60 * 1000; // 1 h — forecasts issue ~4×/day
 // Toggling the layer on refreshes only if held data is older than this.

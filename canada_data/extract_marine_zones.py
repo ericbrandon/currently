@@ -75,6 +75,14 @@ ZONES: dict[str, str] = {
     "001170": "m0000043",  # West Coast Vancouver Island North
     "001180": "m0000065",  # West Coast Vancouver Island South
     "001220": "m0000140",  # Central Coast from McInnes Island to Pine Island
+    "001230": "m0000152",  # Douglas Channel
+    "001241": "m0000106",  # Hecate Strait - northern half
+    "001242": "m0000106",  # Hecate Strait - southern half
+    "001250": "m0000124",  # Dixon Entrance East
+    "001261": "m0000098",  # Dixon Entrance West - east of Langara
+    "001262": "m0000098",  # Dixon Entrance West - west of Langara
+    "001271": "m0000079",  # West Coast Haida Gwaii - northern half
+    "001272": "m0000079",  # West Coast Haida Gwaii - southern half
 }
 
 # Zones taken from STD_LAYER as one whole polygon (see note there).

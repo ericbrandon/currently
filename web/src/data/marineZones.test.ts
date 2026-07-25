@@ -48,6 +48,26 @@ const EXPECTED: Record<string, { site: string; name: string }> = {
     site: "m0000140",
     name: "Central Coast from McInnes Island to Pine Island",
   },
+  "001230": { site: "m0000152", name: "Douglas Channel" },
+  "001241": { site: "m0000106", name: "Hecate Strait - northern half" },
+  "001242": { site: "m0000106", name: "Hecate Strait - southern half" },
+  "001250": { site: "m0000124", name: "Dixon Entrance East" },
+  "001261": {
+    site: "m0000098",
+    name: "Dixon Entrance West - east of Langara",
+  },
+  "001262": {
+    site: "m0000098",
+    name: "Dixon Entrance West - west of Langara",
+  },
+  "001271": {
+    site: "m0000079",
+    name: "West Coast Haida Gwaii - northern half",
+  },
+  "001272": {
+    site: "m0000079",
+    name: "West Coast Haida Gwaii - southern half",
+  },
 };
 
 function pointInRing(lon: number, lat: number, ring: number[][]): boolean {
@@ -85,10 +105,10 @@ describe("marine_zones.geojson", () => {
         expect(ring.length).toBeGreaterThanOrEqual(4);
         expect(ring[0]).toEqual(ring[ring.length - 1]);
         for (const [lon, lat] of ring) {
-          expect(lon).toBeGreaterThan(-133);
+          expect(lon).toBeGreaterThan(-135);
           expect(lon).toBeLessThan(-121);
           expect(lat).toBeGreaterThan(47);
-          expect(lat).toBeLessThan(53.5);
+          expect(lat).toBeLessThan(55.5);
         }
       }
     }
