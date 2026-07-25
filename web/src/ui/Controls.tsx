@@ -27,6 +27,7 @@ import {
   userLocationFollowing,
   infoModalOpen,
   showWeather,
+  usWeatherData,
   weatherData,
   weatherEverEnabled,
   weatherHasActiveAlert,
@@ -57,7 +58,9 @@ function WeatherButton() {
   const [shaking, setShaking] = useState(false);
 
   const offline = weatherEverEnabled.value && !weatherOnline.value;
-  const on = showWeather.value && weatherData.value !== null;
+  const on =
+    showWeather.value &&
+    (weatherData.value !== null || usWeatherData.value !== null);
   const showAlertDot = !showWeather.value && weatherHasActiveAlert.value;
 
   const onClick = () => {
@@ -75,9 +78,11 @@ function WeatherButton() {
     }
     const next = !showWeather.value;
     showWeather.value = next;
-    // First-ever enable (or enable with stale-ish data): fetch right away.
-    // initMarineWeather's poll covers the rest.
-    if (next && weatherData.value === null) void refreshMarineForecast();
+    // First-ever enable (or enable with a source missing): fetch right
+    // away. initMarineWeather's poll covers the rest.
+    if (next && (weatherData.value === null || usWeatherData.value === null)) {
+      void refreshMarineForecast();
+    }
   };
 
   return (

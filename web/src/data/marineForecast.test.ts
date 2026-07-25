@@ -16,6 +16,7 @@ import {
   zoneRegularForecasts,
   zoneWarnings,
 } from "./marineForecast";
+import { formatThumb } from "../util/time";
 
 const fixture = JSON.parse(
   readFileSync(
@@ -155,10 +156,24 @@ describe("parseMarineForecast", () => {
     ]);
   });
 
-  it("records issue timestamps", () => {
-    expect(data.areasBySite.get("m0000028")!.issuedLocal).toBe(
-      "2026-07-24T16:00:00-07:00",
+  it("records issue timestamps (UTC)", () => {
+    expect(data.areasBySite.get("m0000028")!.issuedUtc).toBe(
+      "2026-07-24T23:00:00Z",
     );
+  });
+
+  it("classifies unrecognised event types as yellow, never red", () => {
+    const doctored = JSON.parse(JSON.stringify(fixture));
+    const first = doctored.features.find(
+      (f: { id: string }) => f.id === "m0000064",
+    );
+    const ev = first.properties.warnings.locations[0].events[0];
+    ev.type.en = "statement";
+    ev.name.en = "Special weather statement";
+    const parsed = parseMarineForecast(doctored);
+    expect(zoneWarnings(parsed, "m0000064", "Haro Strait")).toEqual([
+      { name: "Special weather statement", type: "watch" },
+    ]);
   });
 
   it("survives missing branches without throwing", () => {
@@ -195,13 +210,16 @@ describe("subLocationLabel", () => {
 });
 
 describe("formatIssued", () => {
-  it("formats from the string's own components (already BC local)", () => {
-    expect(formatIssued("2026-07-24T16:00:00-07:00")).toBe(
-      "Issued 4:00 PM Jul 24",
-    );
-    expect(formatIssued("2026-01-02T00:30:00-08:00")).toBe(
-      "Issued 12:30 AM Jan 2",
-    );
+  it("renders UTC timestamps in the app's display zone (America/Vancouver)", () => {
+    // July: Vancouver is UTC-7, so 23:00Z is 16:00 local.
+    const july = formatIssued("2026-07-24T23:00:00Z")!;
+    expect(july).toMatch(/^Issued /);
+    expect(july).toContain("16:00");
+    expect(july).toContain("24");
+    // The exact date words come from util/time's formatters — same
+    // rendering as every other time in the app.
+    expect(july).toBe(`Issued ${formatThumb(Date.parse("2026-07-24T23:00:00Z"))}`);
     expect(formatIssued(null)).toBeNull();
+    expect(formatIssued("garbage")).toBeNull();
   });
 });

@@ -124,7 +124,7 @@ This is an **experimental hobby project**, provided free of charge with no comme
 
 #### 2. Not for navigation
 
-**This site must not be used for navigation, vessel routing, voyage planning, or any decision affecting the safety of life or property at sea.** Mariners must consult official, current CHS publications, charts, and tide and current tables, and must use properly maintained navigational equipment. Marine weather forecasts and warnings shown here are not a substitute for official sources — consult ECCC marine forecasts and Coast Guard weather broadcasts.
+**This site must not be used for navigation, vessel routing, voyage planning, or any decision affecting the safety of life or property at sea.** Mariners must consult official, current CHS publications, charts, and tide and current tables, and must use properly maintained navigational equipment. Marine weather forecasts and warnings shown here are not a substitute for official sources — consult ECCC and U.S. National Weather Service marine forecasts and Coast Guard weather broadcasts.
 
 #### 3. No warranty
 

@@ -21,10 +21,11 @@ import {
   marineZones,
   selectedZoneId,
   showWeather,
+  usWeatherData,
   weatherData,
 } from "../state/store";
 import { zoneWarnings } from "../data/marineForecast";
-import type { MarineZoneInfo } from "../types";
+import type { MarineWarningEvent, MarineZoneInfo } from "../types";
 
 const SOURCE_ID = "marine-zones";
 const FILL_LAYER_ID = "marine-zones-fill";
@@ -145,12 +146,22 @@ export class MarineZoneLayer {
       firstSymbol,
     );
 
-    // Visibility: on iff the toggle is on AND data is held. Also rebuilds
-    // badges whenever the forecast data changes (hourly refresh may add or
-    // clear warnings).
+    // Visibility: on iff the toggle is on AND at least one country's data
+    // is held. Zones of a country whose source is down are filtered out
+    // entirely (never-stale: nothing tappable without data) — a NWS
+    // outage must not hide Canadian zones. Also rebuilds badges whenever
+    // forecast data changes (hourly refresh may add or clear warnings).
     effect(() => {
-      const visible = showWeather.value && weatherData.value !== null;
+      const caOk = weatherData.value !== null;
+      const usOk = usWeatherData.value !== null;
+      const visible = showWeather.value && (caOk || usOk);
       const vis = visible ? "visible" : "none";
+      const filter =
+        caOk && usOk
+          ? null
+          : (["==", ["get", "country"], caOk ? "CA" : "US"] as any);
+      this.map.setFilter(FILL_LAYER_ID, filter);
+      this.map.setFilter(LINE_LAYER_ID, filter);
       this.map.setLayoutProperty(FILL_LAYER_ID, "visibility", vis);
       this.map.setLayoutProperty(LINE_LAYER_ID, "visibility", vis);
       this.rebuildBadges(visible);
@@ -198,10 +209,16 @@ export class MarineZoneLayer {
     for (const m of this.badges.values()) m.remove();
     this.badges.clear();
     const data = weatherData.value;
-    if (!visible || !data) return;
+    const usData = usWeatherData.value;
+    if (!visible || (!data && !usData)) return;
 
     for (const z of this.zones) {
-      const events = zoneWarnings(data, z.site_code, z.name_en);
+      let events: MarineWarningEvent[];
+      if (z.country === "US") {
+        events = usData?.warningsByZone.get(z.site_code) ?? [];
+      } else {
+        events = data ? zoneWarnings(data, z.site_code, z.name_en) : [];
+      }
       if (events.length === 0) continue;
       // Red beats yellow when a zone somehow has both.
       const isWarning = events.some((e) => e.type === "warning");

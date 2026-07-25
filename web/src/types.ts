@@ -337,8 +337,15 @@ export type LoadedData = {
 
 /** Properties of one sub-zone feature in marine_zones.geojson. */
 export type MarineZoneInfo = {
+  // ECCC CLC ("001131") or NWS zone id ("PZZ133").
   clc: string;
+  // Forecast join key: ECCC marineweather-realtime feature id for CA,
+  // the NWS zone id itself for US.
   site_code: string;
+  // Routes fetching and rendering: CA zones read the ECCC feed, US zones
+  // the NWS CWF product + alerts. The two sources fail independently —
+  // a NWS outage must never hide Canadian zones.
+  country: "CA" | "US";
   // Exactly matches the API's warnings.locations[].name.en.
   name_en: string;
   // Matches the API's French-only regularForecast/extendedForecast
@@ -361,7 +368,10 @@ export type MarineZoneInfo = {
 };
 
 export type MarineWarningEvent = {
-  name: string; // "Strong wind warning", "Gale warning", ...
+  name: string; // "Strong wind warning", "Gale warning", "Small Craft Advisory", ...
+  // Display class, not the raw feed type: "warning" renders the red badge,
+  // "watch" the yellow one. Watches, advisories, statements, and anything
+  // unrecognised all map to yellow — red is reserved for true warnings.
   type: "warning" | "watch";
 };
 
@@ -382,8 +392,10 @@ export type MarineExtendedForecast = {
 export type MarineAreaForecast = {
   siteCode: string; // "m0000028"
   areaNameEn: string; // "Strait of Georgia"
-  // ISO with local offset, e.g. "2026-07-24T16:00:00-07:00".
-  issuedLocal: string | null;
+  // ISO UTC, e.g. "2026-07-24T23:00:00Z" — displayed via the app's
+  // America/Vancouver formatters, never the source's local clock (BC and
+  // Washington disagree about DST now).
+  issuedUtc: string | null;
   regular: MarineSubLocationForecast[];
   extended: MarineExtendedForecast[];
   // Active (non-ENDED) events keyed by English sub-zone name.
@@ -395,4 +407,32 @@ export type MarineAreaForecast = {
 export type MarineForecastData = {
   fetchedAt: number; // Date.now() of the successful fetch
   areasBySite: Map<string, MarineAreaForecast>;
+};
+
+// ---------------------------------------------------------------
+// US marine weather (NWS). Forecast text comes from the raw Coastal
+// Waters Forecast (CWF) product — api.weather.gov does not serve marine
+// zone forecasts as JSON — and warnings from the CAP alerts endpoint.
+// ---------------------------------------------------------------
+
+/** One CWF period line: ".TONIGHT...S wind 5 to 10 kt. Waves 2 ft." */
+export type UsMarinePeriod = { name: string; text: string };
+
+export type UsZoneForecast = {
+  zoneId: string; // "PZZ133"
+  // "...SMALL CRAFT ADVISORY IN EFFECT..." headline lines, cleaned.
+  headlines: string[];
+  periods: UsMarinePeriod[];
+};
+
+export type UsMarineForecastData = {
+  fetchedAt: number;
+  // CWF product issuanceTime (ISO UTC); one product covers every zone.
+  issuedUtc: string | null;
+  // The product's SYNOPSIS segment text, if present.
+  synopsis: string | null;
+  forecastsByZone: Map<string, UsZoneForecast>;
+  // Active alerts keyed by zone id, mapped to display classes (Small
+  // Craft Advisory → "watch"/yellow per design).
+  warningsByZone: Map<string, MarineWarningEvent[]>;
 };

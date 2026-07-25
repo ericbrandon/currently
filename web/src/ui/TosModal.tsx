@@ -68,7 +68,8 @@ export function TosModal() {
             and tide and current tables, and must use properly maintained
             navigational equipment. Marine weather forecasts and warnings
             shown here are not a substitute for official sources — consult
-            ECCC marine forecasts and Coast Guard weather broadcasts.
+            ECCC and U.S. National Weather Service marine forecasts and
+            Coast Guard weather broadcasts.
           </p>
 
           <h3>3. No warranty</h3>

@@ -23,6 +23,7 @@ import type {
   Manifest,
   MarineForecastData,
   MarineZoneInfo,
+  UsMarineForecastData,
 } from "../types";
 import { polygonIntersectsRect } from "../util/geo";
 
@@ -216,15 +217,19 @@ effect(() => {
   if (showWeather.value) weatherEverEnabled.value = true;
 });
 
-// Latest successfully-fetched forecast data. Never-stale rule: a failed
-// refresh NULLS this rather than leaving old data visible (weather_plan.md
-// §3), so `weatherData !== null` implies the last refresh succeeded.
+// Latest successfully-fetched forecast data, one signal per country —
+// the two sources fail independently, and a NWS outage must never hide
+// Canadian data (or vice versa). Never-stale rule: a failed refresh
+// NULLS the failing source rather than leaving old data visible
+// (weather_plan.md §3), so non-null implies the last refresh succeeded.
 export const weatherData = signal<MarineForecastData | null>(null);
+export const usWeatherData = signal<UsMarineForecastData | null>(null);
 
-// Connectivity as far as the weather feature is concerned: false after a
-// failed refresh (or a navigator.onLine=false hint), true after a
-// successful one. Drives the greyed-out Weather button. Starts true so
-// the button isn't grey before the first fetch has been attempted.
+// Connectivity as far as the weather feature is concerned: false when
+// the last refresh produced NO data from either source (or a
+// navigator.onLine=false hint). Drives the greyed-out Weather button —
+// one working source is enough to stay live. Starts true so the button
+// isn't grey before the first fetch has been attempted.
 export const weatherOnline = signal<boolean>(true);
 
 // Sub-zone list from marine_zones.geojson, published by MarineZoneLayer
@@ -256,9 +261,10 @@ export const mapViewBounds = signal<
  *  an import cycle). */
 export const weatherHasActiveAlert = computed(() => {
   const data = weatherData.value;
+  const usData = usWeatherData.value;
   const zones = marineZones.value;
   const view = mapViewBounds.value;
-  if (!data || !zones) return false;
+  if ((!data && !usData) || !zones) return false;
   for (const z of zones) {
     if (view && z.bbox) {
       const [zw, zs, ze, zn] = z.bbox;
@@ -266,7 +272,13 @@ export const weatherHasActiveAlert = computed(() => {
       if (ze < vw || zw > ve || zn < vs || zs > vn) continue;
       if (z.ring && !polygonIntersectsRect(z.ring, view)) continue;
     }
-    const area = data.areasBySite.get(z.site_code);
+    if (z.country === "US") {
+      if ((usData?.warningsByZone.get(z.site_code)?.length ?? 0) > 0) {
+        return true;
+      }
+      continue;
+    }
+    const area = data?.areasBySite.get(z.site_code);
     if (!area) continue;
     for (const [locName, events] of area.warningsByZone) {
       if (

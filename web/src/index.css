@@ -1655,3 +1655,12 @@ html, body, #app {
   color: #0c4a6e;
 }
 .weather-body > div:first-child .weather-subloc { margin-top: 0; }
+
+/* NWS headline lines ("SMALL CRAFT ADVISORY IN EFFECT THROUGH...") shown
+   under the warning rows in US zone panels. */
+.weather-headline {
+  font-size: 13px;
+  font-weight: 600;
+  color: #9a3412;
+  margin: 0 0 10px;
+}

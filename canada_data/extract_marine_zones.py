@@ -1,29 +1,34 @@
 #!/usr/bin/env python3
-"""Extract ECCC marine forecast sub-zone polygons for the webapp.
+"""Extract marine forecast zone polygons (Canada + US) for the webapp.
 
-Reads the `water_MarSubZone_hybrid_unproj` layer from the MSC Geography
-Package (the official boundary geometry for marine forecast sub-locations),
-filters it to the sub-zones covering the app's map area, and writes
-web/public/data/marine_zones.geojson.
+Canada: reads the `water_MarSubZone_hybrid_unproj` layer from the MSC
+Geography Package (official boundary geometry for forecast sub-locations),
+filtered to the zones covering the app's map area.
+US: fetches the NWS marine zone GeoJSON (island-holed polygons) from
+api.weather.gov for the six Puget Sound / US Juan de Fuca zones, prunes
+sub-km² island holes, and clips against the Canadian zones at the border
+midline (the two datasets approximate the boundary differently).
 
-The polygons are static, versioned data (package v6.15.0 as of 2026-07);
-re-run this script only when ECCC publishes a new geography package version.
-The 40 MB source zip is cached in canada_data/marine_zones_raw/ (gitignored).
+Writes web/public/data/marine_zones.geojson. Polygons are static,
+versioned data; re-run only when ECCC ships a new geography package or
+NWS redraws zones. Sources are cached in canada_data/marine_zones_raw/
+(gitignored).
 
 Each output feature carries:
-  clc        zone code, joins to ECCC location metadata
-  site_code  Datamart/GeoMet site id (m00000xx) of the PARENT forecast area —
-             the id of the matching feature in the marineweather-realtime
-             OGC API collection
-  name_en    English sub-zone name; exactly matches the API's
-             warnings.locations[].name.en
-  nom_fr     French sub-zone name; matches the API's French-only
-             regularForecast.locations[].name (see notes/weather_plan.md §1.1)
+  clc        zone code: ECCC CLC ("001131") or NWS zone id ("PZZ133")
+  site_code  forecast join key — ECCC marineweather-realtime feature id
+             (m00000xx) for CA, the NWS zone id itself for US
+  country    "CA" | "US" — routes fetching/rendering in the app
+  name_en    English zone name; matches ECCC warnings.locations[].name.en
+             (CA) / the NWS zone name (US)
+  nom_fr     French name (CA; see weather_plan.md §1.1) — mirrors name_en
+             for US zones
   label_lon / label_lat
              pole-of-inaccessibility point for the map warning badge
              (true centroids fall outside concave zones)
   color      0/1/2 — map tint index, greedy 3-colouring of the zone
-             adjacency graph so no two touching zones share a colour
+             adjacency graph (cross-border pairs included) so no two
+             touching zones share a colour
 
 Validates before writing: geometry validity, zero pairwise overlap,
 label points inside their polygon, expected zone set complete.
@@ -90,7 +95,29 @@ STD_ZONES: dict[str, str] = {
     "001210": "m0000063",  # Queen Charlotte Sound
 }
 
+# NWS marine zones (Seattle forecast office), fetched from api.weather.gov.
+# The zone id is both the display id and the forecast/alert join key.
+US_ZONES: list[str] = [
+    "PZZ130",  # West Entrance U.S. Waters Strait Of Juan De Fuca
+    "PZZ131",  # Central U.S. Waters Strait Of Juan De Fuca
+    "PZZ132",  # East Entrance U.S. Waters Strait Of Juan De Fuca
+    "PZZ133",  # Northern Inland Waters Including The San Juan Islands
+    "PZZ134",  # Admiralty Inlet
+    "PZZ135",  # Puget Sound and Hood Canal
+]
+NWS_ZONE_URL = "https://api.weather.gov/zones/marine/{}"
+NWS_UA = "currentlybc.com zone extraction (admin.currentlybc@gmail.com)"
+
 COORD_DECIMALS = 5  # ~1 m — plenty for zone fills on a webmap
+# Island holes smaller than this (~1 km²) are pruned from US zones —
+# PZZ133 alone ships 210 holes down to bare rocks.
+MIN_HOLE_AREA = 1e-4
+# US zones ship at full NOAA coastline resolution (PZZ135 alone: ~8k
+# points, 10× the entire Canadian set). Simplified to ~80 m, then clipped
+# sequentially so simplification can't reintroduce overlaps — worst case
+# is a hairline (<~160 m) gap along a shared boundary, invisible on a
+# translucent fill.
+US_SIMPLIFY_TOLERANCE = 0.001
 
 
 def fetch_package() -> Path:
@@ -117,11 +144,37 @@ def round_ring(ring: list) -> list:
     return [[round(x, COORD_DECIMALS), round(y, COORD_DECIMALS)] for x, y in ring]
 
 
+def fetch_nws_zone(zone_id: str) -> dict:
+    CACHE_DIR.mkdir(exist_ok=True)
+    cache = CACHE_DIR / f"nws_{zone_id}.json"
+    if cache.exists():
+        return json.loads(cache.read_text())
+    url = NWS_ZONE_URL.format(zone_id)
+    print(f"fetching {url} ...")
+    req = urllib.request.Request(url, headers={"User-Agent": NWS_UA})
+    with urllib.request.urlopen(req) as resp:
+        data = resp.read()
+    cache.write_bytes(data)
+    return json.loads(data)
+
+
+def largest_real_part(poly, label: str):
+    """Collapse a MultiPolygon to its dominant part; error out if any
+    dropped part is bigger than sliver scale (~1 km²)."""
+    if poly.geom_type != "MultiPolygon":
+        return poly
+    parts = sorted(poly.geoms, key=lambda g: g.area, reverse=True)
+    if any(g.area > MIN_HOLE_AREA for g in parts[1:]):
+        raise ValueError(f"{label} has multiple real parts")
+    return parts[0]
+
+
 def main() -> int:
     zip_path = fetch_package()
 
     seen: dict[str, Polygon] = {}
-    meta: dict[str, tuple[str, str, str]] = {}  # clc -> (site, name, nom)
+    # clc -> (site, name, nom, country)
+    meta: dict[str, tuple[str, str, str, str]] = {}
     for layer, wanted in ((LAYER, ZONES), (STD_LAYER, STD_ZONES)):
         sf = read_layer(zip_path, layer)
         for i, rec in enumerate(sf.records()):
@@ -129,22 +182,18 @@ def main() -> int:
             clc = d.get("CLC")
             if clc not in wanted or clc in seen:
                 continue
-            poly = shape(sf.shape(i).__geo_interface__)
-            if poly.geom_type == "MultiPolygon":
-                # Some zones carry degenerate zero-area sliver parts
-                # (e.g. Central Coast). Keep the real polygon; refuse to
-                # silently drop anything with actual area.
-                parts = sorted(poly.geoms, key=lambda g: g.area, reverse=True)
-                # Sliver threshold ~1 km² in degrees at this latitude.
-                if any(g.area > 1e-4 for g in parts[1:]):
-                    print(f"ERROR: {clc} {d['NAME']} has multiple real parts")
-                    return 1
-                poly = parts[0]
+            try:
+                poly = largest_real_part(
+                    shape(sf.shape(i).__geo_interface__), f"{clc} {d['NAME']}"
+                )
+            except ValueError as e:
+                print(f"ERROR: {e}")
+                return 1
             if not poly.is_valid or poly.geom_type != "Polygon":
                 print(f"ERROR: bad geometry for {clc} {d['NAME']}")
                 return 1
             seen[clc] = poly
-            meta[clc] = (wanted[clc], d["NAME"].strip(), d["NOM"].strip())
+            meta[clc] = (wanted[clc], d["NAME"].strip(), d["NOM"].strip(), "CA")
 
     missing = (set(ZONES) | set(STD_ZONES)) - set(seen)
     if missing:
@@ -165,13 +214,47 @@ def main() -> int:
             return 1
         seen[clc] = clipped
 
+    # US zones: prune sub-km² island holes, simplify, then clip against
+    # everything already accepted (Canadian union + earlier US zones) —
+    # the two countries approximate the border midline differently
+    # (Canadian geometry wins), and per-zone simplification would
+    # otherwise reintroduce overlaps along shared US-US boundaries.
+    clip_union = unary_union(list(seen.values()))
+    for zone_id in US_ZONES:
+        zj = fetch_nws_zone(zone_id)
+        name = zj["properties"]["name"].strip()
+        try:
+            poly = largest_real_part(shape(zj["geometry"]), f"{zone_id} {name}")
+        except ValueError as e:
+            print(f"ERROR: {e}")
+            return 1
+        holes = [
+            h for h in poly.interiors if Polygon(h).area >= MIN_HOLE_AREA
+        ]
+        poly = Polygon(poly.exterior, holes).simplify(
+            US_SIMPLIFY_TOLERANCE, preserve_topology=True
+        )
+        clipped = poly.difference(clip_union)
+        if clipped.geom_type == "MultiPolygon":
+            try:
+                clipped = largest_real_part(clipped, f"{zone_id} post-clip")
+            except ValueError as e:
+                print(f"ERROR: {e}")
+                return 1
+        if clipped.geom_type != "Polygon" or not clipped.is_valid:
+            print(f"ERROR: US zone {zone_id} produced {clipped.geom_type}")
+            return 1
+        seen[zone_id] = clipped
+        meta[zone_id] = (zone_id, name, name, "US")
+        clip_union = clip_union.union(clipped)
+
     features = []
     for clc, poly in seen.items():
         label = polylabel(poly, tolerance=0.005)
         if not poly.contains(label):
             print(f"ERROR: label point outside polygon for {clc}")
             return 1
-        site, name, nom = meta[clc]
+        site, name, nom, country = meta[clc]
         geo = mapping(poly)
         features.append(
             {
@@ -180,6 +263,7 @@ def main() -> int:
                 "properties": {
                     "clc": clc,
                     "site_code": site,
+                    "country": country,
                     "name_en": name,
                     "nom_fr": nom,
                     "label_lon": round(label.x, COORD_DECIMALS),

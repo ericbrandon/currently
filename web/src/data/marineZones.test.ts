@@ -14,6 +14,7 @@ type ZoneFeature = {
   properties: {
     clc: string;
     site_code: string;
+    country: "CA" | "US";
     name_en: string;
     nom_fr: string;
     label_lon: number;
@@ -31,7 +32,8 @@ const fc = JSON.parse(
 ) as { type: string; features: ZoneFeature[] };
 
 // The zone set the feature was designed around (weather_plan.md §1.2).
-const EXPECTED: Record<string, { site: string; name: string }> = {
+// CA unless marked; US zones join forecasts/alerts by their own id.
+const EXPECTED: Record<string, { site: string; name: string; us?: true }> = {
   "001111": { site: "m0000009", name: "Juan de Fuca Strait - east entrance" },
   "001112": { site: "m0000009", name: "Juan de Fuca Strait - central strait" },
   "001113": { site: "m0000009", name: "Juan de Fuca Strait - west entrance" },
@@ -68,6 +70,28 @@ const EXPECTED: Record<string, { site: string; name: string }> = {
     site: "m0000079",
     name: "West Coast Haida Gwaii - southern half",
   },
+  "PZZ130": {
+    site: "PZZ130",
+    name: "West Entrance U.S. Waters Strait Of Juan De Fuca",
+    us: true,
+  },
+  "PZZ131": {
+    site: "PZZ131",
+    name: "Central U.S. Waters Strait Of Juan De Fuca",
+    us: true,
+  },
+  "PZZ132": {
+    site: "PZZ132",
+    name: "East Entrance U.S. Waters Strait Of Juan De Fuca",
+    us: true,
+  },
+  "PZZ133": {
+    site: "PZZ133",
+    name: "Northern Inland Waters Including The San Juan Islands",
+    us: true,
+  },
+  "PZZ134": { site: "PZZ134", name: "Admiralty Inlet", us: true },
+  "PZZ135": { site: "PZZ135", name: "Puget Sound and Hood Canal", us: true },
 };
 
 function pointInRing(lon: number, lat: number, ring: number[][]): boolean {
@@ -93,6 +117,7 @@ describe("marine_zones.geojson", () => {
       const f = byClc.get(clc)!;
       expect(f.properties.site_code).toBe(exp.site);
       expect(f.properties.name_en).toBe(exp.name);
+      expect(f.properties.country).toBe(exp.us ? "US" : "CA");
       expect(f.properties.nom_fr.length).toBeGreaterThan(0);
       expect(f.id).toBe(clc);
     }
@@ -107,7 +132,7 @@ describe("marine_zones.geojson", () => {
         for (const [lon, lat] of ring) {
           expect(lon).toBeGreaterThan(-135);
           expect(lon).toBeLessThan(-121);
-          expect(lat).toBeGreaterThan(47);
+          expect(lat).toBeGreaterThan(46.8); // Puget Sound reaches ~47.0
           expect(lat).toBeLessThan(55.5);
         }
       }

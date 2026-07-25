@@ -124,13 +124,23 @@ export function InfoModal() {
 
           <h3>Marine weather</h3>
           <p>
-            Marine forecasts, warnings and forecast-area boundaries:{" "}
+            Canadian marine forecasts, warnings and forecast-area
+            boundaries:{" "}
             <a
               href="https://weather.gc.ca/marine/index_e.html"
               target="_blank"
               rel="noopener noreferrer"
             >
               Environment and Climate Change Canada
+            </a>
+            . U.S. marine forecasts, alerts and zone boundaries courtesy
+            of the{" "}
+            <a
+              href="https://www.weather.gov/"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              NOAA National Weather Service
             </a>
             . Forecasts are shown for information only and are not a
             substitute for official marine weather broadcasts.
