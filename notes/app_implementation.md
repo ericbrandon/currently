@@ -668,3 +668,49 @@ Pre-ship checklist on a real iPhone and a real Android mid-tier:
 12. **Deploy to Cloudflare Pages** with the cache headers in §4.3.
 
 Each step is independently shippable to a dev preview; the order minimises rework.
+
+## 16. Marine weather layer (as built, 2026-07)
+
+Added after the sections above were written; full design record in
+[`weather_plan.md`](weather_plan.md). Summary of what it changes about the
+architecture described in §2–§13:
+
+- **First live network dependency.** Until this feature, the app fetched
+  only our own static files. The weather layer polls two public
+  CORS-enabled APIs directly from the browser (no proxy): ECCC GeoMet
+  (`api.weather.gc.ca`, marineweather-realtime collection) and NWS
+  (`api.weather.gov`, CWF text product + CAP alerts). Polling always
+  runs: on load, hourly, on tab-wake, on the `online` event, and via
+  tap-to-retry on the greyed Weather button. Every fetch has a 15 s abort
+  timeout. ~15 KB gz per round. The two countries fail independently —
+  one source going down never hides the other's zones; the button greys
+  only when both are gone, and failed data is discarded, never shown
+  stale (`web/src/data/marineForecast.ts`).
+- **First real MapLibre layers.** Station overlays are DOM markers
+  (§6 as-built), but the 27 weather zone polygons are a geojson source
+  with fill + line layers (`web/src/map/marineZoneLayer.ts`), inserted
+  below the basemap's symbol layers, with per-country availability
+  filters. Warning (red) / watch-or-advisory (yellow) badges reuse the
+  DOM-marker idiom at pre-computed pole-of-inaccessibility points.
+- **Pre-baked geometry.** `canada_data/extract_marine_zones.py` builds
+  `web/public/data/marine_zones.geojson` (~36 KB gz, cached 1 day via
+  `_headers`) from the ECCC MSC Geography Package + NWS zone API:
+  validated non-overlapping mosaic, blockified PZZ133, cross-border gap
+  fill, exact 3-colouring so touching zones never share a tint. Re-run
+  only when either agency revises zone geometry.
+- **State** (§8): `showWeather` (persisted), `weatherData` /
+  `usWeatherData` / `weatherOnline`, `selectedZoneId` (modal forecast
+  panel), `marineZones`, `mapViewBounds` (feeds the viewport-scoped
+  alert dot via `web/src/util/geo.ts`).
+- **UI** (§10): Weather toggle under Currents (grey = offline +
+  tap-to-retry + shake; red dot = active warning in view while layer
+  off); tap a zone for a fully modal panel (`web/src/ui/WeatherPanel.tsx`)
+  with country-specific layouts. Issue times render from UTC through
+  `util/time.ts`'s America/Vancouver formatters — BC is permanent UTC-7,
+  Washington still observes DST.
+- **Tests** (§13): parser fixtures from live 2026-07-24 ECCC/NWS
+  responses, CWF text-product parser tests, geojson invariants
+  (zone set, geometry validity, label containment, adjacent-tint
+  distinctness), and planar-geometry unit tests.
+- **Terms**: TOS bumped to v1.2 (ECCC/NWS non-affiliation + weather
+  disclaimer); ECCC + NWS attribution in the info modal.

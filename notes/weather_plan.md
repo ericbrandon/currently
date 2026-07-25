@@ -1,6 +1,19 @@
 # Marine weather feature — design plan
 
-*Drafted 2026-07-24 (weather branch). Facts below were live-tested against ECCC endpoints that evening. No code exists yet; this is the agreed plan.*
+*Drafted 2026-07-24 (weather branch). Facts below were live-tested against ECCC endpoints that evening.*
+
+> **Status 2026-07-25: shipped to production.** This doc is the design
+> record; where annotations below conflict with the original prose, the
+> annotations (and the code) win. Major as-built deltas from the original
+> plan: the **US side** was added (NWS zones PZZ130–135, CWF text product
+> + CAP alerts, independent CA/US failure handling — see
+> `web/src/data/marineForecast.ts` header); PZZ133 was **blockified** and
+> cross-border seams are gap-filled in the extraction pipeline
+> (`canada_data/extract_marine_zones.py`, which is the real name of §6's
+> sketched script); the never-enabled polling gate was **removed**
+> (polling always runs, 15 s fetch timeouts); zone tints are a 3-coloured
+> yellow/orange palette rather than a single pale tint; and issue times
+> render from UTC via America/Vancouver for both countries.
 
 Adds Environment and Climate Change Canada (ECCC) marine forecasts, warnings, and watches to the map as a toggleable polygon layer with a tap-to-read text panel. Wind and weather text only — no observed conditions, no wave forecasts (see §2.4).
 
@@ -17,7 +30,7 @@ Two sources, split by volatility:
 
 ```
 https://api.weather.gc.ca/collections/marineweather-realtime/items
-    ?f=json&bbox=-125.5,48,-122.5,50.5&limit=50&skipGeometry=true
+    ?f=json&bbox=-134.5,48,-122.5,55&limit=50&skipGeometry=true
 ```
 
 - Sends `Access-Control-Allow-Origin: *` — browser fetches directly, no server component.
@@ -61,7 +74,7 @@ ECCC period words have fixed definitions: Today = issue→18:00, Tonight = 18:00
 ### Weather button
 - New toggle under Tides and Currents in the Controls stack. Default **off**; state persists (`persistedBoolean`, like siblings).
 - **Offline behaviour**: never show stale data. The button greys out when the app has no confirmed connectivity (see §3). *Amended from "untappable": the grey button stays tappable and acts as manual retry* — tap → immediate fetch attempt → success un-greys (and turns the layer on); failure gives brief visual feedback ("no connection" flash/wiggle). Rationale: as an iPhone home-screen app there is no reload button; the grey button is the user's only manual "test my connection" affordance.
-- **Badge**: when the layer is off but an active warning/watch exists in the current data, show a small red dot on the Weather button. Only works while polling, so: polling runs only if the user has *ever* enabled weather (persisted flag). Never-users pay zero bytes and see no badge.
+- **Badge**: when the layer is off but an active warning/watch exists **in the current viewport**, show a small red dot on the Weather button. *(As built: polling always runs — the ever-enabled gate was removed pre-launch — and the dot is viewport-scoped via an exact polygon∩rect test in `web/src/util/geo.ts`.)*
 
 ### Polygon layer (on)
 - Sub-zone polygons render in pale yellow/orange tints (fill + subtle outline) — three colours assigned at extraction time via a 3-colouring of the adjacency graph, so touching zones never share a tint. Tints never change with conditions. *(2026-07-24: revised from "single uniform tint" during first visual test.)*
@@ -104,11 +117,11 @@ ECCC period words have fixed definitions: Today = issue→18:00, Tonight = 18:00
 ## 6. Implementation sketch
 
 Data pipeline (one-time + on package version bumps):
-- New script (Python, project venv) `canada_data/marine_zones/extract_subzones.py`: download/read the Water_Unproj zip, filter `water_MarSubZone_hybrid` to the configured CLC list, attach `site_code` (API feature id), `name_en`, `nom_fr`, `clc`, write `web/public/data/marine_zones.geojson`. Static file, fixed path (not year-scoped; manifest registration unnecessary — fetch like `manifest.json`).
+- New script (Python, project venv) — *as built:* `canada_data/extract_marine_zones.py`. Beyond the original sketch it also fetches the six NWS zones, blockifies PZZ133, clips everything into a verified non-overlapping mosaic, fills cross-border gap pockets, and runs an exact backtracking 3-colouring. Writes `web/public/data/marine_zones.geojson` (27 zones). Static file, fixed path (not year-scoped; manifest registration unnecessary — fetch like `manifest.json`).
 
 Web app (all new files unless noted):
 - `web/src/data/marineForecast.ts` — slim fetch, parse into per-sub-zone records (joins per §1.1 quirks), staleness/connectivity signals, poll scheduling.
-- `web/src/state/store.ts` (edit) — `showWeather`, `weatherEverEnabled`, `weatherData`, `weatherOnline`, `selectedZoneId` signals.
+- `web/src/state/store.ts` (edit) — `showWeather`, `weatherData`, `usWeatherData`, `weatherOnline`, `selectedZoneId`, `mapViewBounds` signals (as built; `weatherEverEnabled` was removed pre-launch).
 - `web/src/map/marineZoneLayer.ts` — the app's **first** real MapLibre `addSource`/`addLayer` (geojson fill + line), attached in `map.on("load")` in `app.tsx`; badge markers as DOM `maplibregl.Marker`s (reusing the existing marker idiom); click handling via `map.queryRenderedFeatures` filtered to the fill layer, suppressed when a station marker was hit.
 - `web/src/ui/WeatherPanel.tsx` — top panel, modal scrim beneath it to swallow all interaction, X close, scroll.
 - `web/src/ui/Controls.tsx` (edit) — Weather button + grey/badge states.

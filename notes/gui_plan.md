@@ -4,6 +4,16 @@ This document tracks UI/UX changes to the *Currently* webapp as they're made. Th
 
 When a decision here contradicts `app_implementation.md`, this file wins for the latest entry — `app_implementation.md` should be updated to match if the change is durable.
 
+## 2026-07-25 — Marine weather layer (ECCC + NWS)
+
+New Weather toggle under Currents; design record in [`weather_plan.md`](weather_plan.md), architecture in [`app_implementation.md`](app_implementation.md) §16. The UI decisions, briefly:
+
+- **Zone polygons** tint in three warm colours (yellow `#fcd34d` at 0.6 opacity — below ~0.5 the blue water drags yellow to olive; peach `#fdba74` and orange `#ea580c` at 0.45), assigned by an exact 3-colouring so touching zones never match. Fills sit below basemap labels. No zone name labels on the map — the name appears in the panel.
+- **Badges**: red `!` circle for warnings, yellow for watches/advisories (Small Craft Advisory is deliberately yellow), placed at pole-of-inaccessibility points. Map badges can slide under the scrubber like station markers do — pan to reach them.
+- **Panel** ([`WeatherPanel.tsx`](../web/src/ui/WeatherPanel.tsx)): tap a zone → fully modal top panel (scrim swallows map/stations/scrubber; station chart stays open, inert, underneath). Header = zone name, "Issued …" (BC clock), "Valid: …". Warnings first with matching badge glyphs. CA layout: Wind / Weather & visibility / Extended, with labelled sub-location blocks when ECCC splits an area. US layout: one block per CWF period (wind+waves combined) + product synopsis. Close: ×, tap outside, Escape.
+- **Weather button states**: on/off like siblings, plus grey = last refresh failed (still tappable = manual retry; failed retry shakes) and a red corner dot = layer off but an active warning is inside the current viewport (exact polygon∩viewport test — a bounding-box version false-positived on long diagonal zones).
+- **iOS hover note**: none needed — no hover styles on the new controls beyond `@media (hover: hover)` on the panel's ×.
+
 ## 2026-05-03 — Two-step chart dismiss; left-swipe on table dismisses table only
 
 Two related changes that align dismissal gestures with their natural granularity.

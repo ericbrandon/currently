@@ -11,16 +11,18 @@ This doc assumes you've read [app_implementation.md](app_implementation.md) §12
 **Deploying:** the contents of `web/dist/` (built by `npm run build`) plus `web/public/data/` (which Vite copies into `dist/data/` unchanged). All static bytes — HTML, JS, CSS, JSON, SVG. Total ~15 MB on disk today, ~1 MB on the wire after compression.
 
 **Not deploying:**
-- The Python pipeline (`read_tct.py`, `build_manifest.py`, `process_tct.sh`) — these run on your laptop to produce the JSONs that end up in `web/public/data/`.
+- The Python pipeline (`read_tct.py`, `build_manifest.py`, `process_tct.sh`, `canada_data/extract_marine_zones.py`) — these run on your laptop to produce the JSONs/GeoJSON that end up in `web/public/data/`.
 - `node_modules/` — installed fresh by Cloudflare's build runner from `package-lock.json`.
 - The PMTiles basemap — we don't have one yet. The map currently uses OpenFreeMap's hosted Liberty style ([web/src/map/map.ts:12](../web/src/map/map.ts#L12)). When/if we self-host PMTiles, see §8.
 
 Bytes shipped per page-load (cold cache, gzip):
-- JS bundle: ~325 KB
+- JS bundle: ~300 KB
 - CSS: ~15 KB
 - HTML + icons + favicon: ~5 KB
 - One year's data (4 JSONs): ~600 KB
+- Marine weather zone polygons (`data/marine_zones.geojson`): ~36 KB, cached 1 day via `_headers`
 - Basemap tiles: streamed from `tiles.openfreemap.org`, not from us
+- Live marine forecasts: streamed from `api.weather.gc.ca` and `api.weather.gov` (~15 KB/hour while open), not from us
 - **Total from our origin: ~1 MB**, well under any free-tier ceiling.
 
 ## 2. Why Cloudflare Pages
