@@ -94,7 +94,7 @@ ECCC period words have fixed definitions: Today = issue→18:00, Tonight = 18:00
 ## 4. Persistence keys
 
 - `pref-show-weather` — layer toggle (persisted like other prefs).
-- `weather-ever-enabled` — set once on first enable; gates all polling.
+- *(2026-07-25: the `weather-ever-enabled` polling gate was removed pre-launch — needless complexity for a minor edge case; polling now always runs and every weather fetch carries a 15 s abort timeout so a black-holed request can't stall the refresh cycle.)*
 
 ## 5. Attribution / terms
 

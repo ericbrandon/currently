@@ -29,7 +29,6 @@ import {
   showWeather,
   usWeatherData,
   weatherData,
-  weatherEverEnabled,
   weatherHasActiveAlert,
   weatherOnline,
 } from "../state/store";
@@ -52,12 +51,11 @@ function onLocationClick() {
 //     as an iPhone home-screen app there is no reload button, so the grey
 //     button doubles as the manual "retry now" affordance. A failed retry
 //     shakes the button briefly as feedback.
-//   - alert dot: layer off but an active warning/watch exists in the data
-//     (only possible when polling, i.e. the user has used weather before).
+//   - alert dot: layer off but an active warning/watch is in view.
 function WeatherButton() {
   const [shaking, setShaking] = useState(false);
 
-  const offline = weatherEverEnabled.value && !weatherOnline.value;
+  const offline = !weatherOnline.value;
   const on =
     showWeather.value &&
     (weatherData.value !== null || usWeatherData.value !== null);

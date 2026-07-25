@@ -203,19 +203,9 @@ export const infoModalOpen = signal<boolean>(false);
 // Marine weather (see notes/weather_plan.md).
 // ---------------------------------------------------------------
 
-// Weather layer toggle, persisted like its siblings.
+// Weather layer toggle, persisted like its siblings. Polling runs
+// regardless of the toggle (it feeds the button's alert dot).
 export const showWeather = persistedBoolean("pref-show-weather", false);
-
-// Latched forever the first time the user turns weather on. Gates ALL
-// weather network activity: a user who has never touched the button pays
-// zero bytes and sees no warning badge on it.
-export const weatherEverEnabled = persistedBoolean(
-  "pref-weather-ever-enabled",
-  false,
-);
-effect(() => {
-  if (showWeather.value) weatherEverEnabled.value = true;
-});
 
 // Latest successfully-fetched forecast data, one signal per country —
 // the two sources fail independently, and a NWS outage must never hide

@@ -9,8 +9,9 @@
 // All endpoints are CORS-enabled; no proxy. See notes/weather_plan.md.
 //
 // Freshness/connectivity model:
-//   - Poll only if the user has EVER enabled weather (weatherEverEnabled).
-//   - Refresh on: enable, hourly timer, tab resume (visibilitychange /
+//   - Polling always runs (armed at app startup): the data also feeds
+//     the Weather button's alert dot, and every fetch is a few KB.
+//   - Refresh on: startup, hourly timer, tab resume (visibilitychange /
 //     pageshow), browser `online` event, manual retry (grey button tap).
 //   - The two sources fail INDEPENDENTLY: a NWS outage nulls only
 //     usWeatherData — Canadian zones keep rendering (and vice versa).
@@ -21,7 +22,6 @@
 import {
   usWeatherData,
   weatherData,
-  weatherEverEnabled,
   weatherOnline,
 } from "../state/store";
 import { formatThumb } from "../util/time";
@@ -361,8 +361,15 @@ export function formatIssued(issuedUtc: string | null): string | null {
 // Fetch + polling.
 // ---------------------------------------------------------------
 
+// Cap hung requests: a black-holed connection would otherwise dangle for
+// the browser's own timeout (minutes) while the in-flight coalescing
+// blocks new refresh rounds.
+const FETCH_TIMEOUT_MS = 15_000;
+
 async function fetchJson(url: string): Promise<any> {
-  const resp = await fetch(url);
+  const resp = await fetch(url, {
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
   if (!resp.ok) throw new Error(`${url} → HTTP ${resp.status}`);
   return resp.json();
 }
@@ -455,34 +462,20 @@ function refreshIfDue(): void {
 
 let pollingStarted = false;
 
-/** Idempotent. Called once at app startup; arms everything lazily off the
- *  weatherEverEnabled latch so never-users trigger no network activity. */
+/** Idempotent. Called once at app startup. */
 export function initMarineWeather(): void {
   if (pollingStarted) return;
   pollingStarted = true;
-
-  let timer: ReturnType<typeof setInterval> | null = null;
 
   const onWake = () => {
     if (document.visibilityState !== "hidden") refreshIfDue();
   };
   const onOnline = () => void refreshMarineForecast();
 
-  const arm = () => {
-    if (!weatherEverEnabled.value || timer !== null) return false;
-    void refreshMarineForecast();
-    timer = setInterval(() => refreshIfDue(), POLL_MS);
-    document.addEventListener("visibilitychange", onWake);
-    window.addEventListener("pageshow", onWake);
-    window.addEventListener("online", onOnline);
-    window.addEventListener("offline", goOffline);
-    return true;
-  };
-
-  if (!arm()) {
-    // Not yet enabled: watch for the first enable, then arm permanently.
-    const unwatch = weatherEverEnabled.subscribe((v) => {
-      if (v && arm()) queueMicrotask(() => unwatch());
-    });
-  }
+  void refreshMarineForecast();
+  setInterval(() => refreshIfDue(), POLL_MS);
+  document.addEventListener("visibilitychange", onWake);
+  window.addEventListener("pageshow", onWake);
+  window.addEventListener("online", onOnline);
+  window.addEventListener("offline", goOffline);
 }

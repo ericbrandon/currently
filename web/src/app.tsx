@@ -54,8 +54,8 @@ export function App() {
   const userLocMarkerRef = useRef<UserLocationMarker | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Marine weather polling — armed lazily off the weatherEverEnabled
-  // latch, so this is a no-op for users who never touch the button.
+  // Marine weather polling — runs for everyone (it also feeds the
+  // Weather button's alert dot; each round is a few KB).
   useEffect(() => {
     initMarineWeather();
   }, []);
