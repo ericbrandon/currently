@@ -28,7 +28,7 @@ import type {
 
 const API_URL =
   "https://api.weather.gc.ca/collections/marineweather-realtime/items" +
-  "?f=json&bbox=-125.5,48,-122.5,50.5&limit=50&skipGeometry=true";
+  "?f=json&bbox=-130.5,48,-122.5,52.4&limit=50&skipGeometry=true";
 
 export const POLL_MS = 60 * 60 * 1000; // 1 h — forecasts issue ~4×/day
 // Toggling the layer on refreshes only if held data is older than this.
@@ -122,40 +122,87 @@ function sameLoc(nameFr: string | null, nomFr: string): boolean {
   return nameFr !== null && nameFr.toLowerCase() === nomFr.toLowerCase();
 }
 
-/** Active warning/watch events for one sub-zone (empty array if none). */
+/** Active warning/watch events for one zone (empty array if none).
+ *  Matches in both directions around ECCC's conditional splitting:
+ *  a whole-area zone polygon (Queen Charlotte Sound) collects events
+ *  issued for its sub-locations ("Queen Charlotte Sound - northern
+ *  half"), and a sub-zone polygon collects an event issued area-wide. */
 export function zoneWarnings(
   data: MarineForecastData,
   siteCode: string,
   zoneNameEn: string,
 ): MarineWarningEvent[] {
-  return (
-    data.areasBySite.get(siteCode)?.warningsByZone.get(zoneNameEn) ?? []
-  );
+  const area = data.areasBySite.get(siteCode);
+  if (!area) return [];
+  const out: MarineWarningEvent[] = [];
+  for (const [locName, events] of area.warningsByZone) {
+    if (
+      locName === zoneNameEn ||
+      locName.startsWith(zoneNameEn + " - ") ||
+      zoneNameEn.startsWith(locName + " - ")
+    ) {
+      out.push(...events);
+    }
+  }
+  return out;
 }
 
-/** The regular-forecast text for one sub-zone: matched by French name for
- *  split areas, or the area's single location otherwise. */
-export function zoneRegularForecast(
+/** Regular-forecast text for one zone. Usually one entry: the area's
+ *  single undivided location, or the sub-location matching the zone's
+ *  French name. A whole-area zone whose forecast is currently split
+ *  (Queen Charlotte Sound halves) returns every sub-location, in feed
+ *  order — the panel renders each with a label. */
+export function zoneRegularForecasts(
   data: MarineForecastData,
   siteCode: string,
   nomFr: string,
-): MarineSubLocationForecast | null {
+): MarineSubLocationForecast[] {
   const area = data.areasBySite.get(siteCode);
-  if (!area) return null;
-  if (area.regular.length === 1) return area.regular[0];
-  return area.regular.find((l) => sameLoc(l.nameFr, nomFr)) ?? null;
+  if (!area) return [];
+  const match = area.regular.find((l) => sameLoc(l.nameFr, nomFr));
+  if (match) return [match];
+  return area.regular;
 }
 
-/** Extended-forecast periods for one sub-zone, same matching rule. */
-export function zoneExtendedForecast(
+/** Extended-forecast periods for one zone, same matching rule. */
+export function zoneExtendedForecasts(
   data: MarineForecastData,
   siteCode: string,
   nomFr: string,
-): MarineExtendedForecast | null {
+): MarineExtendedForecast[] {
   const area = data.areasBySite.get(siteCode);
-  if (!area) return null;
-  if (area.extended.length === 1) return area.extended[0];
-  return area.extended.find((l) => sameLoc(l.nameFr, nomFr)) ?? null;
+  if (!area) return [];
+  const match = area.extended.find((l) => sameLoc(l.nameFr, nomFr));
+  if (match) return [match];
+  return area.extended;
+}
+
+// Known sub-location qualifiers, French (as the feed spells them) →
+// English (as ECCC's English site labels them). Used to head each text
+// block when a whole-area zone's forecast is split — the feed only
+// carries French sub-location names (weather_plan.md §1.1).
+const SUB_LOC_EN: Record<string, string> = {
+  "moitié nord": "Northern half",
+  "moitié sud": "Southern half",
+  "moitié est": "Eastern half",
+  "moitié ouest": "Western half",
+  "moitié nord-ouest": "Northwestern half",
+  "moitié sud-est": "Southeastern half",
+  "entrée est": "East entrance",
+  "entrée ouest": "West entrance",
+  "partie centrale": "Central strait",
+  "au nord de nanaimo": "North of Nanaimo",
+  "au sud de nanaimo": "South of Nanaimo",
+};
+
+/** English label for a French sub-location name ("bassin Reine-Charlotte
+ *  - moitié nord" → "Northern half"); null when there is no qualifier. */
+export function subLocationLabel(nameFr: string | null): string | null {
+  if (!nameFr) return null;
+  const dash = nameFr.indexOf(" - ");
+  if (dash === -1) return null;
+  const suffix = nameFr.slice(dash + 3).trim();
+  return SUB_LOC_EN[suffix.toLowerCase()] ?? suffix;
 }
 
 /** "Issued 4:00 PM Jul 24" from the API's local-offset ISO timestamp.

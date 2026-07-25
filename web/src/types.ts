@@ -351,6 +351,13 @@ export type MarineZoneInfo = {
   // Map tint index 0/1/2 — 3-colouring of the adjacency graph so touching
   // zones never share a colour (assigned in extract_marine_zones.py).
   color: number;
+  // Computed from the polygon by MarineZoneLayer at load time (not stored
+  // in the geojson); used to restrict the Weather button's alert dot to
+  // zones actually in the viewport. `bbox` is [west, south, east, north]
+  // (cheap prefilter); `ring` is the outer ring for the exact test — a
+  // bbox alone false-positives badly on long diagonal zones.
+  bbox?: [number, number, number, number];
+  ring?: [number, number][];
 };
 
 export type MarineWarningEvent = {

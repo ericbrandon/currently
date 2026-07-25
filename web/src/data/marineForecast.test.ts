@@ -11,8 +11,9 @@ import { readFileSync } from "node:fs";
 import {
   formatIssued,
   parseMarineForecast,
-  zoneExtendedForecast,
-  zoneRegularForecast,
+  subLocationLabel,
+  zoneExtendedForecasts,
+  zoneRegularForecasts,
   zoneWarnings,
 } from "./marineForecast";
 
@@ -46,43 +47,71 @@ describe("parseMarineForecast", () => {
   });
 
   it("extracts forecast text fields", () => {
-    const georgiaSouth = zoneRegularForecast(
+    const [georgiaSouth] = zoneRegularForecasts(
       data,
       "m0000028",
       "détroit de Georgie - au sud de Nanaimo",
     );
-    expect(georgiaSouth).not.toBeNull();
-    expect(georgiaSouth!.wind).toMatch(/^Wind variable 5 to 15 knots/);
-    expect(georgiaSouth!.weatherVisibility).toBe("Showers overnight.");
-    expect(georgiaSouth!.periodOfCoverage).toBe("Tonight and Saturday.");
+    expect(georgiaSouth).toBeDefined();
+    expect(georgiaSouth.wind).toMatch(/^Wind variable 5 to 15 knots/);
+    expect(georgiaSouth.weatherVisibility).toBe("Showers overnight.");
+    expect(georgiaSouth.periodOfCoverage).toBe("Tonight and Saturday.");
   });
 
   it("matches split-area sub-locations case-insensitively (API capitalises, shapefile doesn't)", () => {
-    const north = zoneRegularForecast(
+    const north = zoneRegularForecasts(
       data,
       "m0000028",
       "détroit de Georgie - au nord de Nanaimo",
     );
-    const south = zoneRegularForecast(
+    const south = zoneRegularForecasts(
       data,
       "m0000028",
       "détroit de Georgie - au sud de Nanaimo",
     );
-    expect(north).not.toBeNull();
-    expect(south).not.toBeNull();
-    expect(north!.wind).not.toBe(south!.wind);
+    expect(north).toHaveLength(1);
+    expect(south).toHaveLength(1);
+    expect(north[0].wind).not.toBe(south[0].wind);
   });
 
   it("returns per-sub-location extended forecasts for Juan de Fuca", () => {
-    const ext = zoneExtendedForecast(
+    const ext = zoneExtendedForecasts(
       data,
       "m0000009",
       "détroit de Juan de Fuca - partie centrale",
     );
-    expect(ext).not.toBeNull();
-    expect(ext!.periods).toHaveLength(3);
-    expect(ext!.periods[0].day).toBe("Sunday");
-    expect(ext!.periods[0].text).toMatch(/^Wind/);
+    expect(ext).toHaveLength(1);
+    expect(ext[0].periods).toHaveLength(3);
+    expect(ext[0].periods[0].day).toBe("Sunday");
+    expect(ext[0].periods[0].text).toMatch(/^Wind/);
+  });
+
+  it("returns all sub-locations for a whole-area zone whose forecast is split", () => {
+    // A whole-area polygon (like Queen Charlotte Sound) has the area's own
+    // French name, which matches none of the split sub-location names —
+    // every block comes back for labelled display.
+    const all = zoneRegularForecasts(data, "m0000028", "détroit de Georgie");
+    expect(all).toHaveLength(2);
+  });
+
+  it("aggregates sub-location warnings onto a whole-area zone name", () => {
+    // Zone polygon named "Strait of Georgia" (whole area) must collect the
+    // warning issued for "Strait of Georgia - north of Nanaimo".
+    expect(zoneWarnings(data, "m0000028", "Strait of Georgia")).toEqual([
+      { name: "Strong wind warning", type: "warning" },
+    ]);
+  });
+
+  it("applies an area-wide warning to every sub-zone", () => {
+    const doctored = JSON.parse(JSON.stringify(fixture));
+    const georgia = doctored.features.find(
+      (f: { id: string }) => f.id === "m0000028",
+    );
+    georgia.properties.warnings.locations[0].name.en = "Strait of Georgia";
+    const parsed = parseMarineForecast(doctored);
+    expect(
+      zoneWarnings(parsed, "m0000028", "Strait of Georgia - south of Nanaimo"),
+    ).toEqual([{ name: "Strong wind warning", type: "warning" }]);
   });
 
   it("keys warnings by English sub-zone name with severity type", () => {
@@ -140,6 +169,28 @@ describe("parseMarineForecast", () => {
     expect(area.regular).toEqual([]);
     expect(area.extended).toEqual([]);
     expect(area.warningsByZone.size).toBe(0);
+  });
+});
+
+describe("subLocationLabel", () => {
+  it("translates known French qualifiers", () => {
+    expect(subLocationLabel("bassin Reine-Charlotte - moitié nord")).toBe(
+      "Northern half",
+    );
+    expect(
+      subLocationLabel("Détroit de Juan de Fuca - entrée ouest"),
+    ).toBe("West entrance");
+    expect(
+      subLocationLabel("Détroit de Georgie - au nord de Nanaimo"),
+    ).toBe("North of Nanaimo");
+  });
+
+  it("falls back to the raw suffix for unknown qualifiers, null without one", () => {
+    expect(subLocationLabel("zone X - secteur inconnu")).toBe(
+      "secteur inconnu",
+    );
+    expect(subLocationLabel("détroit de Haro")).toBeNull();
+    expect(subLocationLabel(null)).toBeNull();
   });
 });
 

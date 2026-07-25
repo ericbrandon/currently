@@ -35,11 +35,13 @@ https://api.weather.gc.ca/collections/marineweather-realtime/items
 - Layer `water_MarSubZone_hybrid_unproj`: 380 records national, 28 BC/Pacific. This is the official *sub-location* granularity — the level warnings and forecast text are actually written at. Not available through GeoMet API (verified — only whole-area `marine-standard-forecast-zones` is served there).
 - Fields: `CLC` (zone code, joins to `Location_Metadata_V6_15_0_UTF8.txt`), `NAME`/`NOM`, `AREA_KM2`, `LAT_DD`/`LON_DD`, `PROVINCE_C`, `WATRBODY_C`.
 - **Tiling verified with shapely:** zero pairwise overlap among all Salish Sea polygons; adjacent zones share exact boundary linework; Georgia north+south union matches the API's whole-area polygon within 0.05%. Coverage gaps are US waters only (NOAA's problem, `api.weather.gov` if ever wanted).
-- Initial zone set (Salish Sea, matches current station coverage):
+- Zone set *(2026-07-24: expanded from the initial Salish Sea 9 to wrap all of Vancouver Island)*:
   - `001131` / `001132` Strait of Georgia north / south of Nanaimo
   - `001111` / `001112` / `001113` Juan de Fuca east entrance / central / west entrance
   - `001120` Haro Strait, `001140` Howe Sound, `001150` Johnstone Strait
-  - Optional at the edges: `001180` WCVI South, `001160` Queen Charlotte Strait
+  - `001160` Queen Charlotte Strait, `001170` WCVI North, `001180` WCVI South
+  - `001210` Queen Charlotte Sound — whole-area polygon from the MarStdZone layer, because its four sub-zone "halves" pairwise overlap (north/south and east/west are alternative splits, not a partition); clipped against the sub-zone union at extraction. When its forecast splits, the panel shows every half with a translated English label, and warnings match by name prefix.
+  - `001220` Central Coast McInnes–Pine Island — wraps the island's northern tip (Nahwitti Bar) to meet Queen Charlotte Strait at Pine Island; without it the mosaic has a hole off Cape Scott.
 - Hybrid depiction is what ECCC's own services use; `detail` variant exists if coastline edges look too coarse against our basemap.
 - Sub-zone → parent site code (API feature id) mapping comes from the metadata file (parent CLC column) and is baked into the GeoJSON properties at conversion time, so the client join is a simple lookup.
 

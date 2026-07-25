@@ -24,6 +24,7 @@ import type {
   MarineForecastData,
   MarineZoneInfo,
 } from "../types";
+import { polygonIntersectsRect } from "../util/geo";
 
 export const manifest = signal<Manifest | null>(null);
 export const loadedData = signal<LoadedData | null>(null);
@@ -235,14 +236,47 @@ export const marineZones = signal<MarineZoneInfo[] | null>(null);
 // and scrubber (weather_plan.md §2).
 export const selectedZoneId = signal<string | null>(null);
 
-/** True when any zone in the loaded data has an active warning/watch —
- *  drives the alert dot on the Weather button when the layer is off. */
+// Current map viewport as [west, south, east, north], published by
+// app.tsx on every moveend. Null until the map has loaded.
+export const mapViewBounds = signal<
+  [number, number, number, number] | null
+>(null);
+
+/** True when a zone that is VISIBLE in the current viewport has an
+ *  active warning/watch — drives the alert dot on the Weather button
+ *  when the layer is off. Two restrictions on top of the raw feed:
+ *  joined against marineZones (the fetch bbox unavoidably intersects
+ *  forecast areas we don't render — Explorer, Hecate Strait — whose
+ *  warnings must not light the dot), and against mapViewBounds (a gale
+ *  three zones off-screen isn't worth a badge; pan and it appears).
+ *  Zone-vs-viewport is exact: bbox prefilter, then polygon ∩ rect — a
+ *  bbox alone false-positives badly for long diagonal zones (WCVI South
+ *  in view lit the dot for a Juan de Fuca gale). Name matching mirrors
+ *  zoneWarnings() in data/marineForecast.ts (kept inline here to avoid
+ *  an import cycle). */
 export const weatherHasActiveAlert = computed(() => {
   const data = weatherData.value;
-  if (!data) return false;
-  for (const area of data.areasBySite.values()) {
-    for (const events of area.warningsByZone.values()) {
-      if (events.length > 0) return true;
+  const zones = marineZones.value;
+  const view = mapViewBounds.value;
+  if (!data || !zones) return false;
+  for (const z of zones) {
+    if (view && z.bbox) {
+      const [zw, zs, ze, zn] = z.bbox;
+      const [vw, vs, ve, vn] = view;
+      if (ze < vw || zw > ve || zn < vs || zs > vn) continue;
+      if (z.ring && !polygonIntersectsRect(z.ring, view)) continue;
+    }
+    const area = data.areasBySite.get(z.site_code);
+    if (!area) continue;
+    for (const [locName, events] of area.warningsByZone) {
+      if (
+        events.length > 0 &&
+        (locName === z.name_en ||
+          locName.startsWith(z.name_en + " - ") ||
+          z.name_en.startsWith(locName + " - "))
+      ) {
+        return true;
+      }
     }
   }
   return false;

@@ -26,6 +26,7 @@ import {
   infoModalOpen,
   nowLocked,
   selectedZoneId,
+  mapViewBounds,
 } from "./state/store";
 import { fetchManifest, loadAllYears } from "./data/loader";
 import { initMarineWeather } from "./data/marineForecast";
@@ -106,13 +107,22 @@ export function App() {
     marineLayerRef.current = marineLayer;
     userLocMarkerRef.current = new UserLocationMarker(map);
 
+    // Keep the viewport bounds signal current — feeds the Weather
+    // button's in-view alert-dot computation.
+    const publishBounds = () => {
+      const b = map.getBounds();
+      mapViewBounds.value = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
+    };
+
     map.on("load", () => {
       layer.attach();
       layer.updateAt(scrubberMs.value);
       currentLayer.attach();
       currentLayer.updateAt(scrubberMs.value);
       void marineLayer.attach();
+      publishBounds();
     });
+    map.on("moveend", publishBounds);
     // Marker DOM clicks are handled by the marker's own listener (and call
     // stopPropagation), so this fires only for clicks that hit the map canvas.
     // A canvas click that lands on a visible marine zone opens that zone's

@@ -39,8 +39,8 @@ import zipfile
 from pathlib import Path
 
 import shapefile  # pyshp
-from shapely.geometry import Polygon, shape
-from shapely.ops import polylabel
+from shapely.geometry import Polygon, mapping, shape
+from shapely.ops import polylabel, unary_union
 
 PKG_VERSION = "6_15_0"
 PKG_URL = (
@@ -49,6 +49,10 @@ PKG_URL = (
     f"MSC_Geography_Pkg_V{PKG_VERSION}_Water_Unproj.zip"
 )
 LAYER = "water_MarSubZone_hybrid_unproj"
+# Whole-area layer, used only for zones whose sub-zones don't tile (Queen
+# Charlotte Sound's four "halves" pairwise overlap — north/south and
+# east/west are alternative splits of the same water, not a partition).
+STD_LAYER = "water_MarStdZone_hybrid_unproj"
 
 ROOT = Path(__file__).resolve().parent
 CACHE_DIR = ROOT / "marine_zones_raw"
@@ -67,7 +71,15 @@ ZONES: dict[str, str] = {
     "001132": "m0000028",  # Strait of Georgia - south of Nanaimo
     "001140": "m0000102",  # Howe Sound
     "001150": "m0000010",  # Johnstone Strait
+    "001160": "m0000112",  # Queen Charlotte Strait
+    "001170": "m0000043",  # West Coast Vancouver Island North
     "001180": "m0000065",  # West Coast Vancouver Island South
+    "001220": "m0000140",  # Central Coast from McInnes Island to Pine Island
+}
+
+# Zones taken from STD_LAYER as one whole polygon (see note there).
+STD_ZONES: dict[str, str] = {
+    "001210": "m0000063",  # Queen Charlotte Sound
 }
 
 COORD_DECIMALS = 5  # ~1 m — plenty for zone fills on a webmap
@@ -84,12 +96,12 @@ def fetch_package() -> Path:
     return CACHE_ZIP
 
 
-def read_layer(zip_path: Path) -> shapefile.Reader:
+def read_layer(zip_path: Path, layer: str) -> shapefile.Reader:
     zf = zipfile.ZipFile(zip_path)
     return shapefile.Reader(
-        shp=io.BytesIO(zf.read(f"{LAYER}.shp")),
-        dbf=io.BytesIO(zf.read(f"{LAYER}.dbf")),
-        shx=io.BytesIO(zf.read(f"{LAYER}.shx")),
+        shp=io.BytesIO(zf.read(f"{layer}.shp")),
+        dbf=io.BytesIO(zf.read(f"{layer}.dbf")),
+        shx=io.BytesIO(zf.read(f"{layer}.shx")),
     )
 
 
@@ -98,37 +110,70 @@ def round_ring(ring: list) -> list:
 
 
 def main() -> int:
-    sf = read_layer(fetch_package())
+    zip_path = fetch_package()
+
+    seen: dict[str, Polygon] = {}
+    meta: dict[str, tuple[str, str, str]] = {}  # clc -> (site, name, nom)
+    for layer, wanted in ((LAYER, ZONES), (STD_LAYER, STD_ZONES)):
+        sf = read_layer(zip_path, layer)
+        for i, rec in enumerate(sf.records()):
+            d = rec.as_dict()
+            clc = d.get("CLC")
+            if clc not in wanted or clc in seen:
+                continue
+            poly = shape(sf.shape(i).__geo_interface__)
+            if poly.geom_type == "MultiPolygon":
+                # Some zones carry degenerate zero-area sliver parts
+                # (e.g. Central Coast). Keep the real polygon; refuse to
+                # silently drop anything with actual area.
+                parts = sorted(poly.geoms, key=lambda g: g.area, reverse=True)
+                # Sliver threshold ~1 km² in degrees at this latitude.
+                if any(g.area > 1e-4 for g in parts[1:]):
+                    print(f"ERROR: {clc} {d['NAME']} has multiple real parts")
+                    return 1
+                poly = parts[0]
+            if not poly.is_valid or poly.geom_type != "Polygon":
+                print(f"ERROR: bad geometry for {clc} {d['NAME']}")
+                return 1
+            seen[clc] = poly
+            meta[clc] = (wanted[clc], d["NAME"].strip(), d["NOM"].strip())
+
+    missing = (set(ZONES) | set(STD_ZONES)) - set(seen)
+    if missing:
+        print(f"ERROR: zones not found in layer: {sorted(missing)}")
+        return 1
+
+    # The std layer's coastline generalisation differs slightly from the
+    # sub-zone layer's, so whole-area zones can overlap their sub-zone
+    # neighbours by hairline slivers. Clip them against the sub-zone union
+    # so the mosaic tiles by construction.
+    sub_union = unary_union([seen[c] for c in ZONES])
+    for clc in STD_ZONES:
+        clipped = seen[clc].difference(sub_union)
+        if clipped.geom_type == "MultiPolygon":
+            clipped = max(clipped.geoms, key=lambda g: g.area)
+        if clipped.geom_type != "Polygon" or not clipped.is_valid:
+            print(f"ERROR: clipping {clc} produced {clipped.geom_type}")
+            return 1
+        seen[clc] = clipped
 
     features = []
-    seen: dict[str, Polygon] = {}
-    for i, rec in enumerate(sf.records()):
-        d = rec.as_dict()
-        clc = d.get("CLC")
-        if clc not in ZONES:
-            continue
-        geo = sf.shape(i).__geo_interface__
-        poly = shape(geo)
-        if not poly.is_valid:
-            print(f"ERROR: invalid geometry for {clc} {d['NAME']}")
-            return 1
-        if geo["type"] != "Polygon":
-            print(f"ERROR: expected Polygon for {clc}, got {geo['type']}")
-            return 1
+    for clc, poly in seen.items():
         label = polylabel(poly, tolerance=0.005)
         if not poly.contains(label):
-            print(f"ERROR: label point outside polygon for {clc} {d['NAME']}")
+            print(f"ERROR: label point outside polygon for {clc}")
             return 1
-        seen[clc] = poly
+        site, name, nom = meta[clc]
+        geo = mapping(poly)
         features.append(
             {
                 "type": "Feature",
                 "id": clc,
                 "properties": {
                     "clc": clc,
-                    "site_code": ZONES[clc],
-                    "name_en": d["NAME"].strip(),
-                    "nom_fr": d["NOM"].strip(),
+                    "site_code": site,
+                    "name_en": name,
+                    "nom_fr": nom,
                     "label_lon": round(label.x, COORD_DECIMALS),
                     "label_lat": round(label.y, COORD_DECIMALS),
                 },
@@ -138,11 +183,6 @@ def main() -> int:
                 },
             }
         )
-
-    missing = set(ZONES) - set(seen)
-    if missing:
-        print(f"ERROR: zones not found in layer: {sorted(missing)}")
-        return 1
 
     clcs = sorted(seen)
     adjacent: dict[str, set[str]] = {c: set() for c in clcs}

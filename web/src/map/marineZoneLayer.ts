@@ -92,9 +92,23 @@ export class MarineZoneLayer {
     }
     this.attached = true;
 
-    this.zones = geojson.features.map(
-      (f) => f.properties as MarineZoneInfo,
-    );
+    this.zones = geojson.features.map((f) => {
+      const info = { ...(f.properties as MarineZoneInfo) };
+      const outer = (f.geometry as GeoJSON.Polygon).coordinates[0] as [
+        number,
+        number,
+      ][];
+      let w = Infinity, s = Infinity, e = -Infinity, n = -Infinity;
+      for (const [lon, lat] of outer) {
+        if (lon < w) w = lon;
+        if (lon > e) e = lon;
+        if (lat < s) s = lat;
+        if (lat > n) n = lat;
+      }
+      info.bbox = [w, s, e, n];
+      info.ring = outer;
+      return info;
+    });
     marineZones.value = this.zones;
 
     this.map.addSource(SOURCE_ID, { type: "geojson", data: geojson });

@@ -1644,3 +1644,14 @@ html, body, #app {
   font-style: italic;
   color: #475569;
 }
+
+/* Sub-location heading inside the weather panel, shown only when a
+   whole-area zone's forecast is split (e.g. Queen Charlotte Sound
+   northern/southern halves). */
+.weather-subloc {
+  margin: 16px 0 2px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0c4a6e;
+}
+.weather-body > div:first-child .weather-subloc { margin-top: 0; }
