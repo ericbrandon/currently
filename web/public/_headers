@@ -6,6 +6,7 @@
 
 /sw.js
   Cache-Control: no-cache
+  X-SW-Rule: applied
 
 /data/manifest.json
   Cache-Control: no-cache, must-revalidate
@@ -24,6 +25,7 @@
 
 /favicon.ico
   Cache-Control: public, max-age=86400
+  X-Deploy-Marker: sw-headers-2
 
 /favicon-96x96.png
   Cache-Control: public, max-age=86400
