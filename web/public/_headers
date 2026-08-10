@@ -4,8 +4,6 @@
 /
   Cache-Control: no-cache
 
-# The service worker must never be HTTP-cached: a stale sw.js is a stale
-# app, invisible to the browser's update check.
 /sw.js
   Cache-Control: no-cache
 
