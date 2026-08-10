@@ -1664,3 +1664,45 @@ html, body, #app {
   color: #9a3412;
   margin: 0 0 10px;
 }
+
+/* ------------------------------------------------------------------
+   Service-worker update toast
+   z-index 95: above the weather panel scrim (90) so a parked update is
+   claimable wherever the user is, below the TOS/info modals (100).
+   ------------------------------------------------------------------ */
+.update-toast {
+  position: absolute;
+  bottom: calc(var(--scrubber-h, 0px) + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 8px 14px;
+  background: #0f172a;
+  color: #f8fafc;
+  font-size: 14px;
+  border-radius: 999px;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.35);
+  z-index: 95;
+  white-space: nowrap;
+}
+.update-toast-refresh {
+  border: none;
+  border-radius: 999px;
+  padding: 6px 14px;
+  background: #0ea5e9;
+  color: #f8fafc;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.update-toast-dismiss {
+  border: none;
+  background: none;
+  color: #94a3b8;
+  font-size: 18px;
+  line-height: 1;
+  padding: 4px 6px;
+  cursor: pointer;
+}

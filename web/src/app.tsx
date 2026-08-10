@@ -30,6 +30,7 @@ import {
 } from "./state/store";
 import { fetchManifest, loadAllYears } from "./data/loader";
 import { initMarineWeather } from "./data/marineForecast";
+import { registerServiceWorker } from "./pwa/registerSW";
 import { createMap, getSavedMapView, attachMapViewPersistence } from "./map/map";
 import { TideStationLayer } from "./map/stationLayer";
 import { CurrentStationLayer } from "./map/currentStationLayer";
@@ -53,6 +54,17 @@ export function App() {
   const marineLayerRef = useRef<MarineZoneLayer | null>(null);
   const userLocMarkerRef = useRef<UserLocationMarker | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Service worker: prod only; `applySwUpdate` holds the apply callback
+  // while the update toast is up. Dismissing is fine — the still-waiting
+  // worker is re-offered when the app returns to the foreground, and the
+  // next cold launch activates it naturally.
+  const [applySwUpdate, setApplySwUpdate] = useState<(() => void) | null>(null);
+  useEffect(() => {
+    if (import.meta.env.PROD) {
+      registerServiceWorker((apply) => setApplySwUpdate(() => apply));
+    }
+  }, []);
 
   // Marine weather polling — runs for everyone (it also feeds the
   // Weather button's alert dot; each round is a few KB).
@@ -347,6 +359,21 @@ export function App() {
       <Scrubber />
       <Controls />
       <WeatherPanel />
+      {applySwUpdate && (
+        <div class="update-toast" role="status">
+          <span class="update-toast-msg">Update available</span>
+          <button class="update-toast-refresh" onClick={() => applySwUpdate()}>
+            Refresh
+          </button>
+          <button
+            class="update-toast-dismiss"
+            aria-label="Dismiss"
+            onClick={() => setApplySwUpdate(null)}
+          >
+            ×
+          </button>
+        </div>
+      )}
       {!tosAccepted.value && <TosModal />}
       {infoModalOpen.value && <InfoModal />}
     </div>

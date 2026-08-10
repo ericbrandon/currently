@@ -106,6 +106,9 @@ Create `web/public/_headers` with this content:
 /
   Cache-Control: no-cache
 
+/sw.js
+  Cache-Control: no-cache
+
 /data/manifest.json
   Cache-Control: no-cache, must-revalidate
 
@@ -352,3 +355,18 @@ CF Pages free tier — current usage is well under all of these, but worth knowi
 The two limits with future relevance: **build minutes** (if a CI loop ever pushes too aggressively) and **per-file size** (if `current_primary.json` ever grows past 25 MB once Vols 1–4 are added — see [app_implementation.md §4.1](app_implementation.md#L106)). Neither is close today.
 
 The domain itself costs whatever the registrar lists — Cloudflare sells `.com` at wholesale (around USD $10/yr), no markup. That's the only recurring cost of this entire stack.
+
+## 12. PWA / service worker
+
+The app ships a hand-rolled service worker (ported from the sidestream project) so it installs to the home screen and works offline. Three moving parts:
+
+- **[web/src/pwa/sw.js](../web/src/pwa/sw.js)** — the worker itself; the entire caching policy is the header comment of that file. Summary: the app shell (JS/CSS/HTML/icons, ~320 KB gzip) is precached at install; `/data/<year>/…` files are cached on first fetch (they're content-hashed and immutable); `data/manifest.json` and `marine_zones.geojson` are network-first with a 2.5 s deadline and cached fallback; basemap tiles are cache-first with a 600-entry cap; weather APIs are network-first (10 s) with cached fallback. Prediction data therefore works fully offline after one online session; the basemap works offline for areas previously viewed.
+- **[web/scripts/vite-plugin-sw.ts](../web/scripts/vite-plugin-sw.ts)** — build plugin that injects the precache list and a content-hash cache name into the worker and emits it as `/sw.js`. Any shell change rolls the cache name; data-only deploys don't.
+- **[web/src/pwa/registerSW.ts](../web/src/pwa/registerSW.ts)** — registration + update flow. When a new build is deployed, users with the app open get a bottom-center toast ("Update available — Refresh"); tapping it swaps workers and reloads once. Ignoring it is fine — the next cold launch updates naturally. The worker script is also re-checked when the app returns to the foreground (throttled to 15 min).
+
+Operational notes:
+
+- `/sw.js` **must** stay `Cache-Control: no-cache` in `_headers` (§5). A stale worker is a stale app that the browser's update check can't see past.
+- The annual data drop (§9) needs **no** service-worker changes: `manifest.json` is network-first, so online clients pick up the new year exactly as before. An *offline* launch in early January serves the cached previous manifest — the app works, it just can't scrub into the new year until its next online launch.
+- **Version skew rule:** a cached shell (old JS) can fetch a fresh `manifest.json`, so manifest schema changes must stay backward-compatible for one release, or the manifest URL must be versioned.
+- Rollbacks (§10) work unchanged — a rollback deploy is just another "new" sw.js as far as clients are concerned.
