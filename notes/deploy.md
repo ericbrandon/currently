@@ -366,7 +366,7 @@ The app ships a hand-rolled service worker (ported from the sidestream project) 
 
 Operational notes:
 
-- `/sw.js` **must** stay `Cache-Control: no-cache` in `_headers` (§5). A stale worker is a stale app that the browser's update check can't see past.
+- `/sw.js` should stay `Cache-Control: no-cache` in `_headers` (§5) — but note the **zone's Browser Cache TTL setting silently rewrites it**. With the default ("4 hours"), Cloudflare's edge overrides any *lower* origin TTL on edge-cacheable extensions (`.js`), so `/sw.js` serves `max-age=14400` no matter what `_headers` says; `/assets/*.js` (1 year) is untouched because it's higher, and HTML/JSON aren't edge-cacheable extensions at all. Fix: dashboard → **Caching → Configuration → Browser Cache TTL → "Respect Existing Headers"**. This is cosmetic either way: since ~2018 every browser's service-worker update check bypasses the HTTP cache for the worker script (`updateViaCache` defaults to `'imports'`), so updates propagate promptly regardless.
 - The annual data drop (§9) needs **no** service-worker changes: `manifest.json` is network-first, so online clients pick up the new year exactly as before. An *offline* launch in early January serves the cached previous manifest — the app works, it just can't scrub into the new year until its next online launch.
 - **Version skew rule:** a cached shell (old JS) can fetch a fresh `manifest.json`, so manifest schema changes must stay backward-compatible for one release, or the manifest URL must be versioned.
 - Rollbacks (§10) work unchanged — a rollback deploy is just another "new" sw.js as far as clients are concerned.
