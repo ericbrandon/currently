@@ -57,13 +57,27 @@ const fullPartsFormatter = new Intl.DateTimeFormat("en-CA", {
   hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
 });
 
-/** Returns the UTC ms instant of midnight on the *local* date of `forUtcMs`
- *  in `America/Vancouver`. Uses an iterative resolution that converges in
- *  two passes — robust across DST transitions and BC's permanent UTC-7
- *  switch on Nov 1 2026. */
-export function localMidnightUtcMs(forUtcMs: number): number {
-  const localDateStr = dateOnlyFormatter.format(new Date(forUtcMs));
-  const targetLocalUtcMs = Date.parse(`${localDateStr}T00:00:00Z`);
+export type LocalDate = { year: number; month: number; day: number };
+
+/** Calendar date (1-based month) of `utcMs` on BC's wall clock. */
+export function localDateOf(utcMs: number): LocalDate {
+  const [y, m, d] = dateOnlyFormatter.format(new Date(utcMs)).split("-");
+  return { year: +y, month: +m, day: +d };
+}
+
+/** Compare two calendar dates: negative, zero, or positive. */
+export function compareLocalDates(a: LocalDate, b: LocalDate): number {
+  return a.year - b.year || a.month - b.month || a.day - b.day;
+}
+
+/** Resolve wall-clock `hour`:00:00 on the local calendar date to a UTC
+ *  instant. Iterative: start from the naive "as if UTC" instant, measure
+ *  the zone offset there, correct, and repeat once — converges in two
+ *  passes and is robust across DST transitions and BC's permanent UTC-7
+ *  switch on Nov 1 2026. If the wall-clock time doesn't exist (the
+ *  spring-forward gap) the result lands on the nearest real instant. */
+function resolveLocalUtcMs(date: LocalDate, hour: number): number {
+  const targetLocalUtcMs = Date.UTC(date.year, date.month - 1, date.day, hour);
 
   let guess = targetLocalUtcMs;
   for (let i = 0; i < 2; i++) {
@@ -77,4 +91,15 @@ export function localMidnightUtcMs(forUtcMs: number): number {
     guess = targetLocalUtcMs - offsetMs;
   }
   return guess;
+}
+
+/** Returns the UTC ms instant of midnight on the *local* date of `forUtcMs`
+ *  in `America/Vancouver`. */
+export function localMidnightUtcMs(forUtcMs: number): number {
+  return resolveLocalUtcMs(localDateOf(forUtcMs), 0);
+}
+
+/** UTC ms instant of 12:00 on the given local calendar date. */
+export function localNoonUtcMs(date: LocalDate): number {
+  return resolveLocalUtcMs(date, 12);
 }

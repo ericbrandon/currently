@@ -34,6 +34,7 @@ import {
   loadedData,
   WINDOW_MS,
   THUMB_FRACTION,
+  datePickerOpen,
 } from "../state/store";
 import { valueAt } from "../interp/valueAt";
 import { classifyHiLow } from "../interp/secondaryTides";
@@ -168,10 +169,17 @@ export function TideChart() {
         </div>
       ))}
       {thumbValue !== null && (
-        <div class="tide-chart-thumb-label" style={{ left: `${thumbX}%` }}>
+        <button
+          type="button"
+          class="tide-chart-thumb-label scrubber-pill"
+          style={{ left: `${thumbX}%` }}
+          title="Choose a date"
+          aria-haspopup="dialog"
+          onClick={() => { datePickerOpen.value = true; }}
+        >
           <span class="tide-chart-extreme-time">{formatThumb(ms)}</span>
           <span class="tide-chart-extreme-val">{formatTideHeight(thumbValue)}</span>
-        </div>
+        </button>
       )}
     </div>
   );

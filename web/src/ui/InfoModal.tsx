@@ -50,6 +50,7 @@ export function InfoModal() {
             <li>Show tides and currents with the top right corner buttons</li>
             <li>Click on a station to see its chart</li>
             <li>Drag the timeline left or right</li>
+            <li>Tap the date above the timeline dot to jump to another day</li>
             <li>To see a station's information as a table, press "Table" at the top left of the chart box</li>
           </ul>
 

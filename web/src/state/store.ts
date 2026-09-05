@@ -194,6 +194,12 @@ export const userLocationActive = signal<boolean>(false);
 export const userLocationFollowing = signal<boolean>(false);
 export const userLocation = signal<{ lat: number; lon: number } | null>(null);
 
+// Calendar popover anchored above the date/time pill on the scrubber
+// thumb. Opened by tapping the pill; closed by tapping outside it,
+// pressing Escape, or picking a day (which recenters the thumb on local
+// noon of that day). Rendered by DatePicker.tsx.
+export const datePickerOpen = signal<boolean>(false);
+
 // Info modal: copyright/contact + basemap and data attributions. Opened
 // from the "i" button in the Controls panel; dismissed by tapping the
 // backdrop, the close button, or pressing Escape.

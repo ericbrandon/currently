@@ -1706,3 +1706,128 @@ html, body, #app {
   padding: 4px 6px;
   cursor: pointer;
 }
+
+/* ------------------------------------------------------------------
+   Date picker popover (DatePicker.tsx)
+   Opened from the date/time pill above the thumb. Fixed-positioned so
+   it escapes the scrubber's stacking context; `bottom` rides the
+   --scrubber-h variable app.tsx maintains, `left` centres on the thumb
+   (--cal-x, measured on open) and clamps to the viewport. z-index 50/51:
+   above the scrubber (5) and controls, below the weather scrim (90).
+   ------------------------------------------------------------------ */
+.scrubber-pill {
+  pointer-events: auto;
+  cursor: pointer;
+  border: 0;
+  font-family: inherit;
+  line-height: inherit;
+  text-align: center;
+}
+
+.datepicker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: transparent;
+  /* No browser gestures while the calendar is up: a double-tap on the
+     backdrop, a blank grid cell, or a disabled day must not trigger
+     Safari's double-tap-to-zoom on the whole app. */
+  touch-action: none;
+}
+
+.datepicker {
+  position: fixed;
+  bottom: calc(var(--scrubber-h, 120px) + 8px);
+  left: clamp(0.5rem, calc(var(--cal-x, 50vw) - 140px), calc(100vw - 280px - 0.5rem));
+  width: 280px;
+  z-index: 51;
+  padding: 0.5rem;
+  background: #ffffff;
+  color: #0f172a;
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.datepicker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+}
+
+.datepicker-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.datepicker-nav {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #0c4a6e;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.datepicker-nav:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.datepicker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.datepicker-weekday {
+  text-align: center;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #6b7280;
+  padding: 2px 0;
+}
+
+.datepicker-day {
+  height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #0f172a;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.datepicker-day:disabled {
+  color: #cbd5e1;
+  cursor: default;
+}
+.datepicker-day.is-today {
+  font-weight: 700;
+  color: #b91c1c;
+}
+.datepicker-day.is-selected {
+  background: #0c4a6e;
+  color: #ffffff;
+  font-weight: 700;
+}
+.datepicker-day:focus-visible,
+.datepicker-nav:focus-visible {
+  outline: 2px solid #0284c7;
+  outline-offset: 1px;
+}
+
+@media (hover: hover) {
+  .datepicker-day:not(:disabled):hover,
+  .datepicker-nav:not(:disabled):hover {
+    background: #e0f2fe;
+  }
+  .datepicker-day.is-selected:hover {
+    background: #0c4a6e;
+  }
+}

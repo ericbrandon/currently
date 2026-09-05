@@ -24,6 +24,7 @@ import {
   userLocationFollowing,
   tosAccepted,
   infoModalOpen,
+  datePickerOpen,
   nowLocked,
   selectedZoneId,
   mapViewBounds,
@@ -39,6 +40,7 @@ import { UserLocationMarker } from "./map/userLocationMarker";
 import { rafCoalesce } from "./util/rafCoalesce";
 import { startGeolocation, stopGeolocation } from "./util/geolocation";
 import { Scrubber } from "./ui/Scrubber";
+import { DatePicker } from "./ui/DatePicker";
 import { TidePanel } from "./ui/TidePanel";
 import { CurrentPanel } from "./ui/CurrentPanel";
 import { Controls } from "./ui/Controls";
@@ -357,6 +359,7 @@ export function App() {
       <TidePanel />
       <CurrentPanel />
       <Scrubber />
+      {datePickerOpen.value && <DatePicker />}
       <Controls />
       <WeatherPanel />
       {applySwUpdate && (

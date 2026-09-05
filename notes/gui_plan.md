@@ -4,6 +4,17 @@ This document tracks UI/UX changes to the *Currently* webapp as they're made. Th
 
 When a decision here contradicts `app_implementation.md`, this file wins for the latest entry — `app_implementation.md` should be updated to match if the change is durable.
 
+## 2026-09-04 — Calendar popover on the date/time pill
+
+Tapping the date/time pill above the thumb (bare scrubber, tide chart, or current chart — all three pills carry the `.scrubber-pill` class) opens a month calendar just above the scrubber panel ([`DatePicker.tsx`](../web/src/ui/DatePicker.tsx), state in `datePickerOpen`). Decisions:
+
+- **Pick = noon.** Choosing a day recenters the thumb on 12:00 BC wall-clock of that day (`localNoonUtcMs` in [`util/time.ts`](../web/src/util/time.ts), which shares the two-pass zone-offset resolver with `localMidnightUtcMs`). Going through `recenterAt` clears the Now lock and clamps to the data range like any other pan.
+- **Range-limited.** Days before the first / after the last extreme in the loaded data are disabled, and month navigation stops at those months, so the user can never land somewhere the "no data for this time" warning would fire.
+- **Outside tap closes without side effects.** A transparent fixed backdrop (z 50) sits under the popover (z 51). Without it, the closing tap would also reach the map (selecting a station or dismissing the chart) or the scrubber (starting a pan). Escape closes too.
+- **Positioning.** Fixed, `bottom` = `--scrubber-h` + 8 px (so it rides above the chart when one is open), `left` centred on the thumb via a `--cal-x` measured from `.scrubber-main` on open and clamped to the viewport in CSS. Width 280 px; 32 px day cells.
+- **Browser gestures off while open.** Both the backdrop and the popover set `touch-action: none`. Without it, a double-tap on a blank grid cell, a disabled day, or the backdrop triggered iOS Safari's double-tap-to-zoom on the whole app.
+- **Pills are now real buttons** (`<button class="… scrubber-pill">`), with `pointer-events: auto` overriding the chart pills' `none`. The scrubber's pointerdown guard skips `.scrubber-pill` so a tap doesn't also begin a drag.
+
 ## 2026-07-25 — Marine weather layer (ECCC + NWS)
 
 New Weather toggle under Currents; design record in [`weather_plan.md`](weather_plan.md), architecture in [`app_implementation.md`](app_implementation.md) §16. The UI decisions, briefly:

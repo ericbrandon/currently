@@ -19,6 +19,7 @@ import {
   tableOpen,
   panWindowTo,
   nowLocked,
+  datePickerOpen,
   WINDOW_MS,
   STEP_MS,
   THUMB_FRACTION,
@@ -141,11 +142,12 @@ export function Scrubber() {
   // Handlers are attached at the .scrubber level so the gesture activates
   // anywhere in the white panel — chart area included — and not just over
   // the timeline track itself. The `closest('.scrubber-btn')` guard lets
-  // button clicks (Now) pass through normally.
+  // button clicks (Now) pass through normally, as does a tap on the
+  // date/time pill (which opens the calendar popover).
 
   function handlePointerDown(e: PointerEvent) {
     const target = e.target as Element | null;
-    if (target?.closest(".scrubber-btn, .chart-close, .table-open")) return;
+    if (target?.closest(".scrubber-btn, .chart-close, .table-open, .scrubber-pill")) return;
     e.preventDefault();
     const rect = trackRef.current!.getBoundingClientRect();
     const startedOnChart = !!target?.closest(".tide-chart, .current-chart");
@@ -312,12 +314,16 @@ export function Scrubber() {
           {isCurrentSel && <CurrentChart />}
           {!hasChart && (
             <div class="scrubber-thumb-pill-area">
-              <div
-                class="scrubber-thumb-pill-label"
+              <button
+                type="button"
+                class="scrubber-thumb-pill-label scrubber-pill"
                 style={{ left: `${THUMB_FRACTION * 100}%` }}
+                title="Choose a date"
+                aria-haspopup="dialog"
+                onClick={() => { datePickerOpen.value = true; }}
               >
                 {formatThumb(ms)}
-              </div>
+              </button>
             </div>
           )}
           <div class="scrubber-track" ref={trackRef}>

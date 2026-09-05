@@ -22,6 +22,7 @@ import {
   loadedData,
   WINDOW_MS,
   THUMB_FRACTION,
+  datePickerOpen,
 } from "../state/store";
 import { currentValueAt } from "../interp/valueAt";
 import { formatCurrentSpeed } from "../util/units";
@@ -196,12 +197,19 @@ export function CurrentChart() {
         </div>
       ))}
       {thumbValue !== null && (
-        <div class="current-chart-thumb-label" style={{ left: `${thumbX}%` }}>
+        <button
+          type="button"
+          class="current-chart-thumb-label scrubber-pill"
+          style={{ left: `${thumbX}%` }}
+          title="Choose a date"
+          aria-haspopup="dialog"
+          onClick={() => { datePickerOpen.value = true; }}
+        >
           <span class="current-chart-extreme-time">{formatThumb(ms)}</span>
           <span class="current-chart-extreme-val">
             {formatCurrentSpeed(Math.abs(thumbValue))}
           </span>
-        </div>
+        </button>
       )}
     </div>
   );
