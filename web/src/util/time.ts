@@ -103,3 +103,22 @@ export function localMidnightUtcMs(forUtcMs: number): number {
 export function localNoonUtcMs(date: LocalDate): number {
   return resolveLocalUtcMs(date, 12);
 }
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** First and last local calendar dates the date picker may offer for a
+ *  data range [minMs, maxMs]: a day qualifies only if 12:00 on that day
+ *  falls inside the range, since picking a day jumps to its noon. This
+ *  also trims boundary stubs — the data's last extreme sits just after
+ *  local midnight, which would otherwise expose a whole extra month
+ *  with one (or zero, depending on the device's zone tables) live day. */
+export function selectableDateBounds(
+  minMs: number,
+  maxMs: number,
+): { first: LocalDate; last: LocalDate } {
+  let first = localDateOf(minMs);
+  if (localNoonUtcMs(first) < minMs) first = localDateOf(localNoonUtcMs(first) + DAY_MS);
+  let last = localDateOf(maxMs);
+  if (localNoonUtcMs(last) > maxMs) last = localDateOf(localNoonUtcMs(last) - DAY_MS);
+  return { first, last };
+}

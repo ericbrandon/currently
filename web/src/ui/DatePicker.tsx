@@ -9,9 +9,10 @@
 // timeline). Escape closes it too.
 //
 // Picking a day closes the popover and recenters the thumb on 12:00 BC
-// wall-clock time of that day. Days outside the loaded data range are
-// disabled, and month navigation stops at the range's first/last months,
-// so the user can never land on a date we have no predictions for.
+// wall-clock time of that day. A day is offered only if its noon lies
+// inside the loaded data range (see selectableDateBounds), and month
+// navigation stops at the first/last months containing such a day, so
+// the user can never land on a date we have no predictions for.
 
 import { useEffect, useRef, useState } from "preact/hooks";
 import {
@@ -25,6 +26,7 @@ import {
   localDateOf,
   localNoonUtcMs,
   compareLocalDates,
+  selectableDateBounds,
   type LocalDate,
 } from "../util/time";
 
@@ -91,8 +93,7 @@ export function DatePicker() {
   }, []);
 
   if (!range) return null;
-  const minDate = localDateOf(range.min);
-  const maxDate = localDateOf(range.max);
+  const { first: minDate, last: maxDate } = selectableDateBounds(range.min, range.max);
   const canPrev = compareMonths(view, minDate) > 0;
   const canNext = compareMonths(view, maxDate) < 0;
 

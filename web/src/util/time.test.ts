@@ -4,6 +4,7 @@ import {
   localNoonUtcMs,
   localMidnightUtcMs,
   compareLocalDates,
+  selectableDateBounds,
 } from "./time";
 
 const CHECK = new Intl.DateTimeFormat("en-CA", {
@@ -54,5 +55,28 @@ describe("compareLocalDates", () => {
     expect(compareLocalDates(a, { year: 2026, month: 3, day: 10 })).toBeLessThan(0);
     expect(compareLocalDates(a, { year: 2026, month: 2, day: 28 })).toBeGreaterThan(0);
     expect(compareLocalDates(a, { year: 2025, month: 12, day: 31 })).toBeGreaterThan(0);
+  });
+});
+
+describe("selectableDateBounds", () => {
+  it("keeps days whose noon lies inside the range", () => {
+    const min = Date.parse("2026-01-01T08:30:00Z"); // Jan 1 00:30 PST
+    const max = Date.parse("2026-12-31T20:00:00Z"); // Dec 31 12:00 or 13:00 local
+    expect(selectableDateBounds(min, max)).toEqual({
+      first: { year: 2026, month: 1, day: 1 },
+      last: { year: 2026, month: 12, day: 31 },
+    });
+  });
+  it("drops a boundary stub just past local midnight (the real 2026 manifest)", () => {
+    // 07:59Z is Dec 31 23:59 under PST or Jan 1 00:59 under permanent
+    // UTC-7 — either way noon on Jan 1 2027 is past the range.
+    const min = Date.parse("2026-01-01T08:04:00Z");
+    const max = Date.parse("2027-01-01T07:59:00Z");
+    expect(selectableDateBounds(min, max).last).toEqual({ year: 2026, month: 12, day: 31 });
+  });
+  it("drops a first day whose data starts after noon", () => {
+    const min = Date.parse("2026-01-01T22:00:00Z"); // Jan 1 14:00 PST
+    const max = Date.parse("2026-06-01T00:00:00Z");
+    expect(selectableDateBounds(min, max).first).toEqual({ year: 2026, month: 1, day: 2 });
   });
 });
