@@ -370,3 +370,25 @@ Operational notes:
 - The annual data drop (§9) needs **no** service-worker changes: `manifest.json` is network-first, so online clients pick up the new year exactly as before. An *offline* launch in early January serves the cached previous manifest — the app works, it just can't scrub into the new year until its next online launch.
 - **Version skew rule:** a cached shell (old JS) can fetch a fresh `manifest.json`, so manifest schema changes must stay backward-compatible for one release, or the manifest URL must be versioned.
 - Rollbacks (§10) work unchanged — a rollback deploy is just another "new" sw.js as far as clients are concerned.
+
+## 13. Testing a local build from a phone
+
+Iterating on `main` and checking the preview URL is fine for most changes, but touch-only behaviour (double-tap zoom, gesture conflicts, safe-area insets) and device-specific data (newer time-zone tables — see [gui_plan.md](gui_plan.md) 2026-09-04) only show up on a real phone. You don't need to deploy for that: the Vite dev server is reachable on the LAN.
+
+**Why it works from the Parallels VM.** `web/vite.config.ts` sets `server: { host: true, port: 5173 }`, so Vite listens on every interface, not just localhost, and prints one `Network:` line per interface at startup. The development VM runs Parallels in **bridged** networking mode — its Ethernet interface holds a `192.168.1.x` address with the house router (`192.168.1.254`) as its gateway, so it is a first-class device on the LAN rather than NAT'd behind the host Mac. (If Parallels were in *shared* mode the VM would sit on `10.211.55.x` and the phone couldn't reach it; switch the VM's network adapter to "Bridged Network → Default Adapter" in Parallels' configuration.) The VM also runs Tailscale, so it has a `100.x.y.z` address that works from any network the phone's Tailscale is on.
+
+```bash
+cd web
+npm run dev              # prints Local: and Network: URLs
+# ➜ Network: http://192.168.1.91:5173/   ← phone on the same Wi-Fi
+# ➜ Network: http://100.101.210.75:5173/ ← phone on the tailnet
+```
+
+Open the `Network:` URL in the phone's browser. Vite's HMR works over the LAN, so CSS/TSX edits show up on the phone without a reload. Stop with `lsof -ti:5173 -sTCP:LISTEN | xargs kill` — killing the `npm` wrapper alone can leave the Vite child listening.
+
+Caveats of the dev build over plain HTTP:
+
+- **No service worker** — `registerServiceWorker` only runs under `import.meta.env.PROD`, so offline behaviour and the update toast are untestable this way (use `npm run build && npm run preview -- --host` for a production-mode build on the LAN; still HTTP, so the worker registers only if the browser treats the LAN origin as secure — it doesn't, except on `localhost`).
+- **No geolocation** — `navigator.geolocation` requires a secure context; the location button silently fails. Everything else (map, stations, charts, weather fetches, date picker) behaves as in production.
+- **Firewall.** If the phone can't connect: same Wi-Fi (not a guest/isolated SSID)? macOS firewall on the VM allowing inbound on 5173? Try the Tailscale URL to rule out the LAN.
+- The `Network:` IPs are DHCP/Tailscale assignments and can change; always read them off the Vite banner rather than from this doc.

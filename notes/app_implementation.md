@@ -376,6 +376,7 @@ Steps:
 - Keyboard: arrow keys = ±15 min, Shift+arrow = ±1 h. Native `<input type=range>` supports this for free.
 - **Title row**: when a station is selected, shows the station's name in a small dark-blue pill. Nothing else lives in the title row — the displayed time/date moved to the thumb-pill (next bullet).
 - **Always-visible thumb pill (date/time, plus value in chart mode)**: a dark-blue pill sits directly above the blue thumb, with a vertical line dropping from the pill to the dot. With no station selected the pill shows `formatThumb(ms)` ("Sat, May 2 13:25"); with a tide or current chart mounted the pill is rendered by the chart with the same date/time prefix plus the interpolated value ("Sat, May 2 13:25  2.9 kt"). The line and pill arrangement is the same metaphor in both modes — chart mode just makes the pill content richer.
+- **Date picker (tap the thumb pill)**: all three thumb pills (bare scrubber, tide chart, current chart) are `<button class="… scrubber-pill">`s that set `datePickerOpen`; `DatePicker.tsx` renders a month calendar fixed-positioned just above the scrubber (`bottom` rides the `--scrubber-h` CSS variable, `left` centres on the thumb via a `--cal-x` measured from `.scrubber-main` on open, clamped to the viewport). A transparent full-screen backdrop closes it on any outside tap *without* the tap reaching the map or scrubber — otherwise closing the calendar would also select a station or start a pan. Escape closes too. Picking a day calls `recenterAt(localNoonUtcMs(day))`, which clears the Now lock and clamps like any pan. A day is offered only if its noon lies inside `scrubberRange` (`selectableDateBounds` in `util/time.ts`), and month navigation stops at the first/last months containing such a day. The noon rule deliberately trims the manifest's boundary stub (last extreme 07:59Z on Jan 1 — Dec 31 23:59 under PST, but Jan 1 00:59 on devices whose zone tables already know BC's permanent UTC-7), which otherwise exposed an all-grey January page on newer phones. Backdrop and popover set `touch-action: none` so a double-tap on a blank cell can't trigger Safari's page zoom. See `gui_plan.md` 2026-09-04.
 - **THUMB_FRACTION** is a constant decided once at module load: `3/15` (3 h past, 12 h future) on standard viewports, `4/15` (4 h past, 11 h future) when `window.innerWidth < 500`. The narrow-viewport shift gives the centred thumb-pill enough left-side budget to avoid clipping on phones, where 20% of viewport-width is less than half the pill width. Not reactive to resize — phones don't change width and the iPad's zoom-induced 595 px doesn't cross the threshold.
 
 ### 10.3 Tide chart
@@ -625,7 +626,7 @@ No app code changes. No version bump.
 - `interp/valueAt`: the six sanity checks listed in `calculating_primary_tides_and_currents.md` §"Sanity checks for testing".
 - `interp/stationTimeToUtcMs`: PST/PDT/permanent-PDT conversion cases.
 - `data/merge`: multi-year merge produces a sorted Extreme[] across year boundaries; metadata-conflict resolution prefers latest year.
-- `util/time`: 15-min snapping and clamping at range edges.
+- `util/time`: 15-min snapping and clamping at range edges. As built (`util/time.test.ts`): `localNoonUtcMs` / `localMidnightUtcMs` resolve the right wall-clock instant on dates straddling both 2026 DST transitions; `selectableDateBounds` drops boundary days whose noon is outside the range (including the real 2027-01-01T07:59Z manifest edge).
 
 ### 13.2 Integration / visual
 
@@ -635,7 +636,11 @@ No app code changes. No version bump.
   - Drags the scrubber and asserts `getRequestCount` for `setData()` is rAF-bounded.
   - Taps a station and asserts the sheet appears with the expected extremes.
 
+**As practised (2026-09):** a throwaway Playwright script against the Vite dev server, installed outside the repo (Playwright's cached Chromium under `~/Library/Caches/ms-playwright` is reused with `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`). Pass `timezoneId: "America/Vancouver"` to `newPage` so pill text is deterministic. Two limits worth knowing: headless Chromium has **no WebGL**, so MapLibre logs a `webglcontextcreationerror`, the map stays blank, and nothing that needs a station tap (charts, chart pills) can be driven this way — assert on scrubber/popover DOM instead; and the bundled Chromium's ICU may carry **older zone tables** than a current phone (see §10.2's date-picker note), so anything near BC's Nov 2026 permanent-UTC-7 switch needs a real device too.
+
 ### 13.3 Real-device checks (manual)
+
+Testing a local build from a phone is described in [deploy.md §13](deploy.md#L374).
 
 Pre-ship checklist on a real iPhone and a real Android mid-tier:
 - Cold load < 3 s on a throttled-4G profile.
