@@ -56,7 +56,11 @@ export function InfoModal() {
 
           <h3>Legend</h3>
           <ul class="info-legend">
-            <li>Times are BC local time (UTC&minus;7 all year)</li>
+            <li>
+              Times are BC local time (UTC&minus;7 all year). In winter,
+              displayed times are 1 hour later than Washington State local
+              time: an event shown at 07:00 happens at 06:00 on a WA clock.
+            </li>
             <li>Current speed is in knots</li>
             <li>Tide heights are in meters or feet (user selectable)</li>
           </ul>
