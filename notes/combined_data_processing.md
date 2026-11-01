@@ -254,6 +254,8 @@ After `apply_coord_overrides.py` finishes, `build_manifest.py` is the second ste
 1. **Ingest mode** (when `--year` is given): reads each parser-output JSON from `--source`, strips it to the fields the webapp actually reads, serialises the result compactly, content-hashes the published bytes, writes the hashed file into `web/public/data/{year}/`, and removes any stale hashed siblings of the same kind. Then rebuilds the manifest.
 2. **Rescan mode** (when `--year` is omitted): only rebuilds the manifest by scanning the existing data tree. Useful after manual file moves.
 
+Ingest mode also takes `--from-date YYYY-MM-DD` (same year as `--year`): days before that station-local date are dropped from every file with a `days[]` array before hashing, so an outgoing year can be republished as a tail (`--year 2026 --from-date 2026-10-31` keeps Oct 31 – Dec 31). Secondary files have no days and pass through; the loader derives their extremes from the trimmed primaries. `first_extreme_utc` is recomputed from the trimmed file, so the scrubber range follows. `tideDataInvariants.test.ts` accepts either a full year or a contiguous tail ending Dec 31.
+
 Both modes are idempotent: re-running with the same inputs yields no diff (the strip is deterministic, so identical source content produces identical published bytes and therefore an identical hash). `process_combined.sh` invokes ingest mode for the year being processed.
 
 The manifest at `web/public/data/manifest.json` lists each year's content-hashed file paths plus the first/last UTC extreme times. Together with the content-hashed filenames, this gives the cache-invalidation story noted in "Pipeline integration" above: long-lived immutable cache on hashed files, no-cache on `manifest.json`.

@@ -287,35 +287,48 @@ The R2 bucket is independent of the Pages project — you can set it up whenever
 
 ## 9. Annual data drop
 
-When CHS publishes the next year's tables (typically late autumn):
+When CHS publishes the next year's tables (typically late autumn). The full
+walk-through for the 2026 → 2027 drop, including what changed in the books and
+why each step exists, is in [2027_transition_plan.md](2027_transition_plan.md).
 
 ```bash
-# 1. Place the new PDFs in repo root (vol5_2027.pdf, etc.)
-# 2. Re-run the parser + manifest build
-./process_tct.sh
+# 0. Source files: the three TCT PDFs go in canada_data/ (gitignored *.pdf).
+#    read_tct.py discovers them by filename: must contain "tct", the year, and volN.
 
-# 3. Verify locally
-ls web/public/data/2027/                     # four JSONs should appear
-cat web/public/data/manifest.json            # 2027 entry should be present
+# 1. Canada: re-parse + refresh the IWLS-seeded coord block, then parse for real
+./canada_data/refresh_seeded_overrides.sh --year 2027   # inspect: expect few/no changes
+./canada_data/process_canadian.sh --year 2027           # → 2027_tct_*_stations.json at repo root
 
-# 4. Smoke-test in dev
-cd web && npm run dev                        # check the new year scrubs cleanly
+# 2. US: catalog refresh, anomaly check, fetch, convert
+./us_data/process_us.sh --year 2027                     # halts on anomalies; fix picks, re-run
+
+# 3. Publish the new year, then republish the outgoing year as a tail
+./process_combined.sh --year 2027                       # overrides (expect 0 flagged) + ingest + manifest
+venv/bin/python build_manifest.py --year 2026 --from-date 2026-10-31
+
+# 4. Verify locally
+cat web/public/data/manifest.json            # 2026 first_extreme ≈ Oct 31; 2027 last ≈ Jan 1 2028 06:59Z
+cd web && npm test && npm run dev            # scrub the Oct 31 → Nov 1 and Dec 31 → Jan 1 seams
 
 # 5. Commit to main and push
 cd ..
-git add web/public/data/2027/ web/public/data/manifest.json
-git commit -m "Add 2027 CHS tables"
+git add canada_data us_data web/public/data *.json notes
+git commit -m "Add 2027 tables; trim 2026 to Oct 31 onward"
 git push origin main
 
 # 6. Smoke-test the preview deploy
-#    Open https://main.currently.pages.dev — confirm 2027 scrubs cleanly
-#    on the live build (not just `npm run dev`).
+#    Open https://main.currently.pages.dev — confirm both seams scrub cleanly
+#    on the live build (not just `npm run dev`), ideally on a phone.
 
 # 7. Promote to production
 git push origin main:release
 ```
 
-Pushing to `release` triggers CF Pages automatically. About 90 seconds later `currentlybc.com` is serving 2027 data. Browsers with a stale `manifest.json` revalidate on next load (the no-cache header earns its keep here) and pick up the new year without a force-refresh.
+Pushing to `release` triggers CF Pages automatically. About 90 seconds later `currentlybc.com` is serving the new year. Browsers with a stale `manifest.json` revalidate on next load (the no-cache header earns its keep here) and pick up the new year without a force-refresh.
+
+Why the outgoing year is trimmed rather than dropped or kept whole: the app merges years per station, so keeping a two-month tail of the old year lets the scrubber run back through the recent past, while dropping the first ten months keeps the download (~1.8 MB gz for Nov 2026 – Dec 2027 vs ~3 MB for two full years) and the runtime heap near single-year levels. The cutoff is one day before the first day you want to show, because the interpolator needs the extreme preceding an instant.
+
+Consecutive books can overlap by an hour at New Year when CHS changes the printed time zone (2026 was PST, 2027 is PDT): events in that hour are printed in both years. `loader.ts` dedupes equal timestamps when it merges years, so nothing is needed at publish time.
 
 No app code changes. No Pages settings change. No version bump.
 

@@ -207,12 +207,11 @@
       "placename": "Hood Canal \u2014 Quilcene / Dabob Bay",
       "id": "9445272",
       "name": "Quilcene, Quilcene Bay, Dabob Bay",
-      "type": "S",
+      "type": "R",
       "additional": [
         "9445246",
         "9445269"
       ],
-      "reference_id": "9447130",
       "NOAA_short_name": "Quilcene Bay"
     },
     {

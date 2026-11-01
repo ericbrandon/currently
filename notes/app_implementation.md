@@ -182,6 +182,7 @@ Summary:
    - Sort by `t` ascending.
    - The sinusoidal interpolator from `calculating_primary_tides_and_currents.md` works unchanged.
 4. **Stations may differ across years**: a station in 2026 but not 2027 simply has no 2027 extremes — `valueAt` returns null past Dec 31 2026 for that station. A station added in 2027 has no 2026 extremes — same outcome on the other side. Both correct.
+   **Years may overlap by an hour**: CHS printed 2026 in PST (ends 07:59Z Jan 1) and 2027 in PDT (starts 07:00Z Jan 1), so an event in that hour is in both files. `flattenPerYear` dedupes equal `t` after the sort, keeping the later year's copy.
 5. **Metadata conflicts**: if a station exists in both years with slightly different `latitude` / `longitude` / `flood_direction_true`, **prefer the latest year's metadata.**
 6. **Scrubber range** = union of `[first_extreme_utc, last_extreme_utc]` across all loaded years.
 7. **Default scrubber position** = `Date.now()`, clamped to the loaded range. If clamping was needed (i.e. "now" is outside the range), show the `Banner` ("2026 data ends Dec 31; 2027 not yet published").
@@ -609,13 +610,12 @@ On Cloudflare Pages and Netlify this is a `web/public/_headers` file that ships 
 
 ### 12.7 Annual data drop workflow
 
-When the 2027 PDF is published (typically late autumn):
-
-1. Download the PDF; place in repo root.
-2. Run `./process_tct.sh` (which also runs `build_manifest.py`).
-3. Verify the new files appear in `web/public/data/2027/` and that `manifest.json` lists 2027.
-4. `git add web/public/data/2027 web/public/data/manifest.json && git commit && git push`.
-5. Scenario A: re-run the manual deploy. Scenario B: the push triggers CI and users see 2027 data within a couple minutes.
+When the next year's PDFs are published (typically late autumn), follow
+[deploy.md §9](deploy.md#9-annual-data-drop): PDFs into `canada_data/`, the
+Canadian and US pipelines, `process_combined.sh` for the new year, then
+`build_manifest.py --year <old> --from-date <old>-10-31` to republish the
+outgoing year as a Nov–Dec tail. The 2026 → 2027 run is written up in
+[2027_transition_plan.md](2027_transition_plan.md).
 
 No app code changes. No version bump.
 

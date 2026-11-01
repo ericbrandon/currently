@@ -218,3 +218,46 @@ serves high/low and slack/max predictions for the 22 + 22 primaries and the
 Table 3 / Table 4 offsets (or an equivalent), then write a `read_iwls.py` that
 emits the same four JSON shapes so `process_combined.sh` and the app stay as
 they are. Budget this for spring 2027, not autumn.
+
+## 7. Run log (2026-11-01)
+
+Everything in §3 was executed on 2026-11-01. What differed from the plan:
+
+- **Parser fix needed a second pass.** Ordering `extract_text_lines()` by `top`
+  was right, but the first version of the regex required a space before
+  `(UTC…)` and so missed the French right-hand pages (`TABLE DES COURANTS
+  HNP(UTC-8h)` / `HAP(UTC-7h) TABLE DES COURANTS`), silently halving every
+  current station to 182 days. Fixed by making the zone token optional and
+  mapping `HNP`/`HAP` alongside `PST`/`PDT`. Regression check: old vs new
+  parser on the 2026 books, all four JSONs byte-identical.
+- **Seeder bug.** `seed_iwls_overrides.py` only knew four `_block_*` markers,
+  so the eight hand-placed entries under `_block_table4_continuation_restored`
+  were attributed to the IWLS block and deleted as "no longer in IWLS" on the
+  first 2027 run. The file was restored from git and the seeder now treats any
+  unknown `_block_*` marker as a hand-curated block. Re-run: "Nothing to write"
+  (292 unchanged, 41 manual skipped, 27 not in IWLS).
+- **NOAA anomaly.** Quilcene 9445272 was promoted from subordinate (`S`) to
+  reference (`R`) in the 2027 catalog; `stations_tides.json` updated (type `R`,
+  `reference_id` dropped). Fetch: 59 tide + 48 current stations, 0 errors.
+- **Overrides on 2027 CHS data:** 355 stations, 5 suppressed, 332 overridden,
+  2 CSV, 21 PDF, 0 flagged. Exactly as the scratch run predicted.
+- **Bonus from the dedupe.** Port Renfrew (8525) is printed in both vol 5 and
+  vol 6, so the loader has always pushed its extremes twice; `dedupeEqualT`
+  now collapses those as well as the New Year overlap (the two copies are
+  identical in both years).
+
+Published result (`web/public/data/manifest.json`):
+
+| Year | Range (UTC) | gz total |
+|---|---|---|
+| 2026 (Oct 31 →) | `2026-10-31T08:00Z` – `2027-01-01T07:59Z` | ~0.28 MB |
+| 2027 | `2027-01-01T07:01Z` – `2028-01-01T07:56Z` | ~1.60 MB |
+
+Checks run: `tsc -b` clean; `npm test` 98/98 (new `loader.test.ts` for the
+dedupe; `tideDataInvariants` now accepts a contiguous tail); a throwaway
+vitest over the published files confirmed every CHS/NOAA primary is in both
+years, merged arrays are strictly increasing, and no seam gap exceeds 16 h;
+in the dev server the date picker offers Oct 31 2026 – Dec 31 2027 and
+Jan 1 2027 renders with no "no data" warning and no console warnings.
+
+Not yet done: the on-phone check and the `main:release` promotion (§3.3).

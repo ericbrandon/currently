@@ -87,6 +87,23 @@ export function suffixAlias(name: string): string | null {
   return m ? m[1] : null;
 }
 
+/** Drop entries that repeat the previous entry's `t`, keeping the later
+ *  one. Consecutive CHS books can overlap by an hour at New Year: the 2026
+ *  volumes are printed in PST and end at 07:59Z on Jan 1 2027, while the
+ *  2027 volumes are printed in PDT and start at 07:00Z, so an event in that
+ *  hour appears in both years' files with the same time and value. Without
+ *  this, the merged array holds a zero-length segment that the panels list
+ *  twice and that breaks HW/LW alternation at the seam. The sort is stable,
+ *  so for equal `t` the later year's copy comes second and wins. */
+export function dedupeEqualT(sorted: Extreme[]): Extreme[] {
+  const out: Extreme[] = [];
+  for (const e of sorted) {
+    if (out.length > 0 && out[out.length - 1].t === e.t) out[out.length - 1] = e;
+    else out.push(e);
+  }
+  return out;
+}
+
 /** Fetch and merge every year listed in the manifest. */
 export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
   // Years sorted ascending so the "latest year wins" loop reads naturally.
@@ -426,7 +443,7 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
         id,
         perYear.length === 1
           ? perYear[0]
-          : perYear.flat().sort((a: Extreme, b: Extreme) => a.t - b.t),
+          : dedupeEqualT(perYear.flat().sort((a: Extreme, b: Extreme) => a.t - b.t)),
       );
     }
     return out;

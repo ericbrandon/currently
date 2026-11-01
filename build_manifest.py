@@ -6,7 +6,12 @@ Two modes:
 1. Ingest mode: when --year is given, copy the parser's output JSONs from
    --source into web/public/data/{year}/, renaming them with a content
    hash, and remove any stale hashed siblings of the same kind. Then
-   rebuild the manifest.
+   rebuild the manifest. With --from-date YYYY-MM-DD (same year), days
+   before that station-local date are dropped from every file that has a
+   days[] array, so an outgoing year can be published as a tail (e.g.
+   2026 from Oct 31 onward alongside all of 2027). Secondary files carry
+   no days and pass through unchanged; the webapp derives their extremes
+   from the trimmed primaries.
 
 2. Rescan mode: when --year is omitted, only rebuild the manifest by
    scanning the existing data tree. Useful after manual file moves.
@@ -167,6 +172,20 @@ def strip_for_publish(data: dict, stem: str) -> dict:
     return {"year": data.get("year"), "stations": out_stations}
 
 
+def trim_days(data: dict, from_md: tuple[int, int]) -> dict:
+    """Return `data` with every station's days[] restricted to station-local
+    (month, day) >= from_md. Stations without days[] (secondaries) pass
+    through. Keep one day of runway before the first day you want to
+    show: the interpolator needs the extreme preceding an instant, so a
+    cutoff of Oct 31 makes Nov 1 complete from local midnight."""
+    out_stations: list[dict] = []
+    for s in data.get("stations", []):
+        if "days" in s:
+            s = {**s, "days": [d for d in s["days"] if (d["month"], d["day"]) >= from_md]}
+        out_stations.append(s)
+    return {**data, "stations": out_stations}
+
+
 @dataclass
 class YearEntry:
     year: int
@@ -175,7 +194,8 @@ class YearEntry:
     last_extreme_utc: str | None
 
 
-def ingest(source: Path, data_dir: Path, year: int) -> None:
+def ingest(source: Path, data_dir: Path, year: int,
+           from_md: tuple[int, int] | None = None) -> None:
     """Strip parser outputs to publish-only fields and write into
     data_dir/{year}/ with content-hashed names. Idempotent: same source
     content → same stripped bytes → same hash → same filename → no-op.
@@ -195,6 +215,8 @@ def ingest(source: Path, data_dir: Path, year: int) -> None:
         found_any = True
         data = json.loads(src.read_text())
         stripped = strip_for_publish(data, kind.stem)
+        if from_md is not None:
+            stripped = trim_days(stripped, from_md)
         # Compact serialisation: no indents, no key spacing. The published
         # file isn't human-edited, and gzip on top of compact JSON beats
         # gzip on indented JSON by a meaningful margin.
@@ -331,13 +353,32 @@ def main() -> None:
     ap.add_argument("--data-dir", type=Path, default=Path("web/public/data"),
                     help="Destination data dir (default: web/public/data)")
     ap.add_argument("--year", type=int, help="Year being ingested")
+    ap.add_argument("--from-date", type=str, default=None, metavar="YYYY-MM-DD",
+                    help="Ingest only days on/after this station-local date "
+                         "(must fall in --year). Use it to publish an outgoing "
+                         "year as a tail.")
     args = ap.parse_args()
+
+    from_md: tuple[int, int] | None = None
+    if args.from_date is not None:
+        if args.year is None:
+            ap.error("--from-date requires --year")
+        m = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", args.from_date)
+        if not m:
+            ap.error("--from-date must be YYYY-MM-DD")
+        fy, fm, fd = (int(g) for g in m.groups())
+        if fy != args.year:
+            ap.error(f"--from-date year {fy} does not match --year {args.year}")
+        if not (1 <= fm <= 12 and 1 <= fd <= calendar.monthrange(fy, fm)[1]):
+            ap.error(f"--from-date {args.from_date} is not a valid date")
+        from_md = (fm, fd)
 
     args.data_dir.mkdir(parents=True, exist_ok=True)
 
     if args.year is not None:
-        print(f"Ingesting year={args.year} from {args.source}/")
-        ingest(args.source, args.data_dir, args.year)
+        tail = f" from {args.from_date} onward" if from_md else ""
+        print(f"Ingesting year={args.year} from {args.source}/{tail}")
+        ingest(args.source, args.data_dir, args.year, from_md)
 
     print(f"Rebuilding manifest in {args.data_dir}/manifest.json")
     manifest = build_manifest(args.data_dir)

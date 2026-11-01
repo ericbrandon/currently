@@ -86,6 +86,10 @@ read_tct.py --year YEAR
     [-v|--verbose]            # pretty-print all primary tide stations to stdout
 ```
 
+### Header parsing is position-based, not stream-order-based
+
+The 2027 PDFs emit the current-table zone line (`PDT (UTC-7h) CURRENT TABLES`, or the French `TABLE DES COURANTS HAP(UTC-7h)` on right-hand pages) later in the content stream than 2026 did, so `extract_text()` no longer returns it as line 3 even though it sits in the same place on the page. `_parse_current_header` therefore orders `extract_text_lines()` by `top` and searches the header band for `(UTC±Nh)`, with or without a preceding `PST`/`PDT`/`HNP`/`HAP` token. Both spellings map onto the tide-page label (`PST-HNP` / `PDT-HAP`). The 2026 books parse byte-identically under either approach.
+
 ## CHS source data in `canada_data/`
 
 ### CHS station inventory CSV
@@ -119,7 +123,7 @@ What's still missing from IWLS: BC current *secondaries* (~24 in our roster — 
 - **Refresh** — existing IWLS-block entry whose IWLS coord has changed
 - **Remove** — IWLS-block entry for a station no longer in IWLS, or no longer in the parser output (CHS dropped it from the PDF)
 
-Manual / null / us-cross-border entries are never touched — human curation always wins. The IWLS block is rewritten in sorted-by-index order on each run. There is no "ignore changes < N metres" floor — IWLS is treated as authoritative when it has a station, so any difference between PDF and IWLS results in an IWLS-block entry.
+Manual / null / us-cross-border entries are never touched — human curation always wins. Block membership is read textually from the `_block_*` markers; any marker the seeder doesn't specifically know (e.g. `_block_table4_continuation_restored`) starts a hand-curated block. (Before 2026-11 an unknown marker was ignored, so the eight hand-placed Table 4 continuation entries that follow the IWLS block were attributed to it and deleted as "no longer in IWLS" on the first 2027 run.) The IWLS block is rewritten in sorted-by-index order on each run. There is no "ignore changes < N metres" floor — IWLS is treated as authoritative when it has a station, so any difference between PDF and IWLS results in an IWLS-block entry.
 
 When to run it:
 - After a new PDF year is processed — picks up any new stations CHS has added to the catalog, refreshes any updated coords, and removes stragglers.

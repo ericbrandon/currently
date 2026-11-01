@@ -50,8 +50,22 @@ function loadYears(): YearData[] {
 
 const years = loadYears();
 
-function daysInYear(y: number): number {
-  return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0 ? 366 : 365;
+/** A published primary holds either the whole calendar year or, for an
+ *  outgoing year republished with `build_manifest.py --from-date`, a
+ *  contiguous tail of it. Either way the days must be consecutive
+ *  calendar dates ending on Dec 31, and a tail must be long enough to be
+ *  worth shipping (two months). Returns a description of the first
+ *  violation, or null. */
+function describeDayCoverage(year: number, days: { month: number; day: number }[]): string | null {
+  if (days.length < 60) return `only ${days.length} days`;
+  const last = days[days.length - 1];
+  if (last.month !== 12 || last.day !== 31) return `ends ${last.month}/${last.day}, not 12/31`;
+  for (let i = 1; i < days.length; i++) {
+    const prev = Date.UTC(year, days[i - 1].month - 1, days[i - 1].day);
+    const cur = Date.UTC(year, days[i].month - 1, days[i].day);
+    if (cur - prev !== 86_400_000) return `gap between ${days[i - 1].month}/${days[i - 1].day} and ${days[i].month}/${days[i].day}`;
+  }
+  return null;
 }
 
 /** Reference lookup mirroring the loader: exact name, then suffix alias. */
@@ -72,11 +86,11 @@ describe("published tide data", () => {
     expect(years.length).toBeGreaterThan(0);
   });
 
-  it("primaries have a full year of clean, alternating readings", () => {
+  it("primaries have a contiguous run of clean, alternating readings ending Dec 31", () => {
     for (const { year, primaries } of years) {
       expect(primaries.length, `${year}: primary count`).toBeGreaterThanOrEqual(20);
       for (const p of primaries) {
-        expect(p.days.length, `${year} ${p.name}: day count`).toBe(daysInYear(p.year));
+        expect(describeDayCoverage(p.year, p.days), `${year} ${p.name}: day coverage`).toBeNull();
         const ext = tideExtremes(p);
         const isHi = classifyHiLow(ext);
         // Printed readings alternate HW/LW; allow a small tie budget from

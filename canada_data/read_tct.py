@@ -959,21 +959,41 @@ FLOOD_EBB_PATTERN = re.compile(
 )
 
 
-def _parse_current_header(page: pdfplumber.page.Page) -> tuple[str, int, int] | None:
-    """Returns (name, utc_offset, year) if this looks like a current-table page."""
-    text = page.extract_text() or ""
-    lines = text.split("\n")
+# Current-table pages print a bare zone token — English on the left-hand
+# page ("PST (UTC-8h) CURRENT TABLES"), French on the right-hand page
+# ("TABLE DES COURANTS HNP(UTC-8h)", no space before the parenthesis).
+# Tide pages print the bilingual pair ("PST-HNP"). Map either token onto
+# the tide-page spelling so both station kinds carry the same label.
+_CURRENT_TZ_LABELS = {"PST": "PST-HNP", "HNP": "PST-HNP",
+                      "PDT": "PDT-HAP", "HAP": "PDT-HAP"}
+
+
+def _parse_current_header(page: pdfplumber.page.Page) -> tuple[str, str, int, int] | None:
+    """Returns (name, timezone, utc_offset, year) if this looks like a
+    current-table page.
+
+    Lines are ordered by their y position rather than by extract_text()'s
+    content-stream order: the 2027 PDFs emit the "PDT (UTC-7h) CURRENT
+    TABLES" line after the column headers, so it is no longer line 3 of
+    extract_text() even though it sits at the same place on the page. The
+    year is the first line, the name the second, and the UTC line is
+    searched for within the header band below them."""
+    lines = [l["text"].strip()
+             for l in sorted(page.extract_text_lines(), key=lambda l: l["top"])]
     if len(lines) < 3:
         return None
-    year_line, name_line, tz_line = (lines[0].strip(), lines[1].strip(), lines[2].strip())
+    year_line, name_line = lines[0], lines[1]
     if not (year_line.isdigit() and len(year_line) == 4):
         return None
     if not name_line or not name_line[0].isupper():
         return None
-    m = re.search(r"\(UTC([+-]\d+)h?\)", tz_line)
-    if not m:
-        return None
-    return name_line, int(m.group(1)), int(year_line)
+    for tz_line in lines[2:8]:
+        m = re.search(r"(?:(?P<tz>[A-Z]{3})\s*)?\(UTC(?P<offset>[+-]\d+)h?\)", tz_line)
+        if m:
+            tok = m.group("tz") or ""
+            tz = _CURRENT_TZ_LABELS.get(tok, tok or "UTC")
+            return name_line, tz, int(m.group("offset")), int(year_line)
+    return None
 
 
 def _parse_flood_ebb(page: pdfplumber.page.Page) -> tuple[int | None, int | None]:
@@ -1110,12 +1130,12 @@ def parse_current_station(
             f"Expected current-station header on PDF page {start_idx + 1} "
             f"for TOC entry {entry.name!r} (printed page {entry.page})"
         )
-    name, utc_offset, year = header
+    name, timezone, utc_offset, year = header
     flood_dir, ebb_dir = _parse_flood_ebb(pdf.pages[start_idx])
 
     station = CurrentStation(
         name=name,
-        timezone="PST-HNP",
+        timezone=timezone,
         utc_offset=utc_offset,
         year=year,
         flood_direction_true=flood_dir,

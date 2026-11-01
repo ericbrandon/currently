@@ -105,6 +105,13 @@ def identify_blocks(overrides_path: Path) -> dict[str, str]:
         if ('"_format' in line or '"_source_url' in line
                 or '"_block_suppressed' in line or '"_suppress_index_nos' in line):
             continue
+        if '"_block_' in line:
+            # Any other section marker (e.g. _block_table4_continuation_restored,
+            # or one added later) starts a hand-curated block. Without this
+            # the entries after it inherit the preceding block — and if that
+            # is the IWLS block, the seeder deletes them as "no longer in
+            # IWLS" (it did exactly that on the 2027 run).
+            block = "manual"; continue
         s = line.strip()
         if s.startswith('"') and ":" in s:
             k = s.split('"')[1]

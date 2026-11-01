@@ -1,16 +1,27 @@
 {
-  "generated_at": "2026-07-06T01:21:09Z",
+  "generated_at": "2026-11-01T22:08:39Z",
   "years": [
     {
       "year": 2026,
-      "current_primary": "2026/current_primary.86d78bf3.json",
+      "current_primary": "2026/current_primary.2310555c.json",
       "current_secondary": "2026/current_secondary.088d5ed2.json",
-      "noaa_current_primary": "2026/noaa_current_primary.03dc93fe.json",
-      "noaa_tidal_primary": "2026/noaa_tidal_primary.405cf208.json",
-      "tidal_primary": "2026/tidal_primary.477a7ba9.json",
+      "noaa_current_primary": "2026/noaa_current_primary.cb75e84e.json",
+      "noaa_tidal_primary": "2026/noaa_tidal_primary.eb2de90d.json",
+      "tidal_primary": "2026/tidal_primary.2d716e38.json",
       "tidal_secondary": "2026/tidal_secondary.5072d993.json",
-      "first_extreme_utc": "2026-01-01T08:01:00Z",
+      "first_extreme_utc": "2026-10-31T08:00:00Z",
       "last_extreme_utc": "2027-01-01T07:59:00Z"
+    },
+    {
+      "year": 2027,
+      "current_primary": "2027/current_primary.15b808a5.json",
+      "current_secondary": "2027/current_secondary.4f170e57.json",
+      "noaa_current_primary": "2027/noaa_current_primary.03708855.json",
+      "noaa_tidal_primary": "2027/noaa_tidal_primary.fdef53cc.json",
+      "tidal_primary": "2027/tidal_primary.a24cf032.json",
+      "tidal_secondary": "2027/tidal_secondary.260e9ddf.json",
+      "first_extreme_utc": "2027-01-01T07:01:00Z",
+      "last_extreme_utc": "2028-01-01T07:56:00Z"
     }
   ]
 }
