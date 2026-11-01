@@ -211,6 +211,8 @@ from the data drop.
 
 ## 6. 2028 and the final edition
 
+> Superseded 2026-11-01 by [iwls_api.md](iwls_api.md): the API has been surveyed, a fetcher and comparers exist, and the 2027 books match IWLS event for event. The paragraph below is kept for the record.
+
 CHS says 2027 is the last regional compendium. The replacement source is the
 Canadian Tide and Current Tables website / IWLS API (`api-iwls.dfo-mpo.gc.ca`),
 which the seeder already uses for station metadata. During 2027: confirm IWLS

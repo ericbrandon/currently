@@ -4,6 +4,8 @@ Notes for everything in `canada_data/` and the `process_canadian.sh` pipeline. C
 
 ## What lives in `canada_data/`
 
+> 2027 is the last printed edition. The IWLS API replaces the PDFs from 2028; see [iwls_api.md](iwls_api.md) for the API, `fetch_iwls.py`, and the book-versus-API comparison.
+
 - The four CHS source PDFs (TCT vol 5/6/7 for the year, plus the 2016 atlas vol3 reference). Gitignored by the repo-wide `*.pdf` rule.
 - `tide and water level station.csv` — the CHS station inventory CSV.
 - `read_tct.py` — the PDF parser invoked by `process_canadian.sh`.
