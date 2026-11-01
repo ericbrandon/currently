@@ -16,7 +16,7 @@
 // Per-station rows go to the console and to
 // canada_data/iwls_raw/<year>/secondary_comparison.tsv (gitignored).
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -40,7 +40,9 @@ import {
 
 const enabled = process.env.IWLS_COMPARE === "1";
 const year = Number(process.env.IWLS_YEAR ?? "2027");
-const root = fileURLToPath(new URL("../../", import.meta.url));
+// IWLS_ROOT points the report at another directory of {year}_* files, e.g.
+// a scratch fetch that includes --add-currents stations not published.
+const root = process.env.IWLS_ROOT ?? fileURLToPath(new URL("../../", import.meta.url));
 const rawDir = join(root, "canada_data", "iwls_raw", String(year));
 
 function loadJson<T>(name: string): T | null {
@@ -153,6 +155,7 @@ describe.skipIf(!enabled)(`IWLS vs derived secondaries (${year})`, () => {
       "dh_med_m", "dh_p90_m", "dh_max_m", "dh_bias_m"];
     const tsv = [header.join("\t"), ...rows.map((r) => [r.idx, r.name, r.ref, r.n, r.unpaired, f1(r.dtMed), f1(r.dtP90),
       f1(r.dtMax), f1(r.dtBias), f2(r.dhMed), f2(r.dhP90), f2(r.dhMax), f2(r.dhBias)].join("\t"))].join("\n");
+    mkdirSync(rawDir, { recursive: true });
     writeFileSync(join(rawDir, "secondary_comparison.tsv"), tsv + "\n");
 
     const all = rows.flatMap((r) => [r]);
@@ -183,6 +186,9 @@ describe.skipIf(!enabled)(`IWLS vs derived secondaries (${year})`, () => {
     if (!prim || !sec || !tidePrim || !iwls) return;
 
     const curRefByName = new Map(prim.stations.map((c) => [c.name, classifyCurrentEvents(c)]));
+    const curScaleByName = new Map(prim.stations.map((c) => [c.name, {
+      maxFlood: Math.abs(c.max_flood_knots), maxEbb: Math.abs(c.max_ebb_knots),
+    }]));
     const tideRefByName = new Map<string, { extremes: Extreme[]; classified: boolean[] }>();
     for (const s of tidePrim.stations) {
       const ext = tideExtremes(s);
@@ -215,7 +221,10 @@ describe.skipIf(!enabled)(`IWLS vs derived secondaries (${year})`, () => {
       if (s.turn_reference_primary) {
         turnRef = curRefByName.get(CURRENT_REF_ALIASES[s.turn_reference_primary] ?? s.turn_reference_primary) ?? refClassified;
       }
-      const derived = secondaryCurrentExtremes(s, refClassified, turnRef);
+      const refScale = s.offsets_from_tides
+        ? null
+        : curScaleByName.get(CURRENT_REF_ALIASES[s.reference_primary] ?? s.reference_primary) ?? null;
+      const derived = secondaryCurrentExtremes(s, refClassified, turnRef, refScale);
       const direct = currentExtremes(target);
       if (process.env.IWLS_DEBUG_CURRENT === String(s.index_no)) {
         console.log("DEBUG Table 4 record:", JSON.stringify({ ...s, days: undefined }));

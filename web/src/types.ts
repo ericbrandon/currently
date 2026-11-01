@@ -12,6 +12,10 @@ export type ManifestYearEntry = {
   year: number;
   tidal_primary?: string;
   tidal_secondary?: string;
+  // Direct IWLS hi/lo predictions for Table 3 ports (fetch_iwls.py
+  // --secondaries). The loader uses these in place of the Table 3
+  // derivation for every port present; ports absent are still derived.
+  tidal_secondary_direct?: string;
   current_primary?: string;
   current_secondary?: string;
   // NOAA US stations (per us_data/convert_to_tct.py). NOAA combines what
@@ -35,6 +39,18 @@ export type Manifest = {
 
 export type TideReading = { time: string; metres: number };
 export type TideDay = { month: number; day: number; readings: TideReading[] };
+
+/** A Table 3 port with its own published hi/lo predictions (IWLS). Same
+ *  day/reading shape as a primary; metadata still comes from the Table 3
+ *  record, so only the fields the extreme builder needs are kept. */
+export type TideSecondaryDirectStation = {
+  name: string;
+  index_no: number;
+  year: number;
+  utc_offset: number;
+  days: TideDay[];
+};
+export type TideSecondaryDirectFile = { year: number; stations: TideSecondaryDirectStation[] };
 
 export type TidePrimaryStation = {
   name: string;

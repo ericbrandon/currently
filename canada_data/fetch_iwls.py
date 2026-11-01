@@ -16,9 +16,10 @@ What it fetches, per station in the roster:
                                      MLLW, LLWLT, MWL, HRWL, LRWL) and, for
                                      currents, floodDirection/ebbDirection
   --secondaries      wlp-hilo for every Table 3 secondary port IWLS has
-                     (256 of 263 in 2027). Written to a separate file; the
-                     webapp does not read it yet, it is for validating the
-                     Table 3 derivation and as the 2028 upgrade path.
+                     (256 of 263 in 2027). Written to a separate file that
+                     build_manifest.py publishes as tidal_secondary_direct;
+                     the loader uses these instead of the Table 3
+                     derivation wherever a port has them.
 
 Metadata the books carry and IWLS does not is taken from the roster file
 when present (--metadata-from roster, the default): the Table 4 reference
@@ -381,16 +382,20 @@ def main() -> int:
                 log(f"    {i}/{len(avail)} fetched")
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
-    def write(name: str, stations: list[dict]) -> None:
+    def write(name: str, stations: list[dict], compact: bool = False) -> None:
         p = args.out_dir / name
-        p.write_text(json.dumps({"year": year, "source": "iwls", "generated_at": iso_z(dt.datetime.now(dt.timezone.utc)),
-                                 "stations": stations}, indent=2) + "\n")
+        doc = {"year": year, "source": "iwls", "generated_at": iso_z(dt.datetime.now(dt.timezone.utc)),
+               "stations": stations}
+        # The Table 3 port file is ~45 MB indented; it is machine-read only
+        # (build_manifest.py), so write it compactly.
+        body = json.dumps(doc, separators=(",", ":")) if compact else json.dumps(doc, indent=2)
+        p.write_text(body + "\n")
         log(f"    wrote {p} ({len(stations)} stations)")
 
     write(f"{year}_iwls_tidal_primary_stations.json", tide_out)
     write(f"{year}_iwls_current_primary_stations.json", cur_out)
     if args.secondaries:
-        write(f"{year}_iwls_tidal_secondary_predictions.json", sec_out)
+        write(f"{year}_iwls_tidal_secondary_predictions.json", sec_out, compact=True)
     return 0
 
 

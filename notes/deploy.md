@@ -297,7 +297,8 @@ why each step exists, is in [2027_transition_plan.md](2027_transition_plan.md).
 
 # 1. Canada. Primaries come from the IWLS API (notes/iwls_api.md); the Table 3/4
 #    secondary files come from the 2027 books and are carried forward unchanged.
-./canada_data/fetch_iwls.py --year 2028 --roster-year 2027      # → 2028_iwls_*_primary_stations.json
+./canada_data/fetch_iwls.py --year 2028 --roster-year 2027 --secondaries
+#    → 2028_iwls_{tidal,current}_primary_stations.json and 2028_iwls_tidal_secondary_predictions.json
 cp 2027_tct_tidal_secondary_stations.json   2028_tct_tidal_secondary_stations.json
 cp 2027_tct_current_secondary_stations.json 2028_tct_current_secondary_stations.json
 #    (While printed books existed: refresh_seeded_overrides.sh + process_canadian.sh
@@ -307,11 +308,13 @@ cp 2027_tct_current_secondary_stations.json 2028_tct_current_secondary_stations.
 ./us_data/process_us.sh --year 2028                     # halts on anomalies; fix picks, re-run
 
 # 3. Publish the new year, then republish the outgoing year as a tail
-./process_combined.sh --year 2028                       # overrides (expect 0 flagged) + ingest + manifest
+./process_combined.sh --year 2028 --to-date 2028-10-31  # overrides (expect 0 flagged) + ingest + manifest
 venv/bin/python build_manifest.py --year 2027 --from-date 2027-10-31
+#    The app publishes a rolling 12-month window (today Oct 31 2026 – Oct 31 2027) to keep
+#    the download near 2 MB gz now that Table 3 ports ship their own predictions.
 
 # 4. Verify locally
-cat web/public/data/manifest.json            # old year first_extreme ≈ Oct 31; new year last ≈ Jan 1
+cat web/public/data/manifest.json            # old year first_extreme ≈ Oct 31; new year last ≈ Oct 31
 cd web && npm test && npm run dev            # scrub the Oct 31 → Nov 1 and Dec 31 → Jan 1 seams
 
 # 5. Commit to main and push

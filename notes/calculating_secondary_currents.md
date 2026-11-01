@@ -39,7 +39,7 @@ Per the PDF:
 2. **Times of turn-of-tide and max rate** are obtained by adding Table 4's per-event time differences to the corresponding events in the reference's daily predictions.
 3. **Magnitude** is obtained one of two ways:
    - **Percentage**: multiply each ref-station max by Table 4's flood/ebb percentage. (E.g. RIVER JORDAN = 70 % of JUAN DE FUCA-EAST.)
-   - **Absolute max at large tides**: if percentages are blank, Table 4 prints flood/ebb maximum knots directly. These are large-tide values; the PDF explicitly says "a consistent method of calculating speeds from the Reference Station has not been established" for non-large tides. We use the published number flat.
+   - **Absolute max at large tides**: if percentages are blank, Table 4 prints flood/ebb maximum knots directly. These are large-tide values; the PDF explicitly says "a consistent method of calculating speeds from the Reference Station has not been established" for non-large tides. Until 2026-11 we used the published number flat. **Now, for rows referenced to a current primary, the printed speed is scaled by the reference's actual max over its own Table 4 large-tide max** (so the row behaves like a percentage row with pct = sec_max / ref_max). IWLS's direct prediction for Dent Rapids, the one such row the API carries, confirmed this to within a few tenths of a knot where the flat value was off by 4–7 kn (`iwls_api.md` §5). Weak reference maxes and tide-referenced rows still use the flat value; square-root scaling by tidal range is the researched candidate for the latter (`iwls_api.md` §9).
 
 So at a high level, every secondary current decomposes into two independent choices:
 

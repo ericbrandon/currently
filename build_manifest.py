@@ -44,6 +44,10 @@ class Kind:
 KINDS: list[Kind] = [
     Kind("tidal_primary",        "{year}_{primaries}_tidal_primary_stations.json"),
     Kind("tidal_secondary",      "{year}_tct_tidal_secondary_stations.json"),
+    # Direct IWLS hi/lo predictions for the Table 3 ports that have them
+    # (fetch_iwls.py --secondaries). The loader prefers these over the
+    # Table 3 derivation per port; ports absent here are still derived.
+    Kind("tidal_secondary_direct", "{year}_iwls_tidal_secondary_predictions.json"),
     Kind("current_primary",      "{year}_{primaries}_current_primary_stations.json"),
     Kind("current_secondary",    "{year}_tct_current_secondary_stations.json"),
     Kind("noaa_tidal_primary",   "{year}_noaa_tidal_primary_stations.json"),
@@ -74,6 +78,10 @@ _PUBLISH_KEEP: dict[str, dict[str, set[str]]] = {
             "lower_low_water_mean_tide", "lower_low_water_large_tide",
             "days",
         },
+        "day": {"month", "day", "readings"},
+    },
+    "tidal_secondary_direct": {
+        "station": {"name", "index_no", "year", "utc_offset", "days"},
         "day": {"month", "day", "readings"},
     },
     "tidal_secondary": {
@@ -176,16 +184,22 @@ def strip_for_publish(data: dict, stem: str) -> dict:
     return {"year": data.get("year"), "stations": out_stations}
 
 
-def trim_days(data: dict, from_md: tuple[int, int]) -> dict:
+def trim_days(data: dict, from_md: tuple[int, int] | None,
+              to_md: tuple[int, int] | None = None) -> dict:
     """Return `data` with every station's days[] restricted to station-local
-    (month, day) >= from_md. Stations without days[] (secondaries) pass
-    through. Keep one day of runway before the first day you want to
-    show: the interpolator needs the extreme preceding an instant, so a
-    cutoff of Oct 31 makes Nov 1 complete from local midnight."""
+    from_md <= (month, day) <= to_md (either bound may be None). Stations
+    without days[] (Table 3/4 offset files) pass through. Keep one day of
+    runway outside the window you want to show: the interpolator needs the
+    extreme on the far side of an instant, so a cutoff of Oct 31 makes
+    Nov 1 complete from local midnight, and an end of Oct 31 keeps Oct 31
+    itself complete to local midnight."""
+    def keep(d: dict) -> bool:
+        md = (d["month"], d["day"])
+        return (from_md is None or md >= from_md) and (to_md is None or md <= to_md)
     out_stations: list[dict] = []
     for s in data.get("stations", []):
         if "days" in s:
-            s = {**s, "days": [d for d in s["days"] if (d["month"], d["day"]) >= from_md]}
+            s = {**s, "days": [d for d in s["days"] if keep(d)]}
         out_stations.append(s)
     return {**data, "stations": out_stations}
 
@@ -199,7 +213,8 @@ class YearEntry:
 
 
 def ingest(source: Path, data_dir: Path, year: int,
-           from_md: tuple[int, int] | None = None, primaries: str = "iwls") -> None:
+           from_md: tuple[int, int] | None = None, primaries: str = "iwls",
+           to_md: tuple[int, int] | None = None) -> None:
     """Strip parser outputs to publish-only fields and write into
     data_dir/{year}/ with content-hashed names. Idempotent: same source
     content → same stripped bytes → same hash → same filename → no-op.
@@ -222,8 +237,8 @@ def ingest(source: Path, data_dir: Path, year: int,
         found_any = True
         data = json.loads(src.read_text())
         stripped = strip_for_publish(data, kind.stem)
-        if from_md is not None:
-            stripped = trim_days(stripped, from_md)
+        if from_md is not None or to_md is not None:
+            stripped = trim_days(stripped, from_md, to_md)
         # Compact serialisation: no indents, no key spacing. The published
         # file isn't human-edited, and gzip on top of compact JSON beats
         # gzip on indented JSON by a meaningful margin.
@@ -366,28 +381,42 @@ def main() -> None:
                     help="Ingest only days on/after this station-local date "
                          "(must fall in --year). Use it to publish an outgoing "
                          "year as a tail.")
+    ap.add_argument("--to-date", type=str, default=None, metavar="YYYY-MM-DD",
+                    help="Ingest only days on/before this station-local date "
+                         "(must fall in --year). Use it to publish a rolling "
+                         "window shorter than the year.")
     args = ap.parse_args()
 
-    from_md: tuple[int, int] | None = None
-    if args.from_date is not None:
+    def parse_md(label: str, value: str | None) -> tuple[int, int] | None:
+        if value is None:
+            return None
         if args.year is None:
-            ap.error("--from-date requires --year")
-        m = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", args.from_date)
+            ap.error(f"{label} requires --year")
+        m = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", value)
         if not m:
-            ap.error("--from-date must be YYYY-MM-DD")
+            ap.error(f"{label} must be YYYY-MM-DD")
         fy, fm, fd = (int(g) for g in m.groups())
         if fy != args.year:
-            ap.error(f"--from-date year {fy} does not match --year {args.year}")
+            ap.error(f"{label} year {fy} does not match --year {args.year}")
         if not (1 <= fm <= 12 and 1 <= fd <= calendar.monthrange(fy, fm)[1]):
-            ap.error(f"--from-date {args.from_date} is not a valid date")
-        from_md = (fm, fd)
+            ap.error(f"{label} {value} is not a valid date")
+        return (fm, fd)
+
+    from_md = parse_md("--from-date", args.from_date)
+    to_md = parse_md("--to-date", args.to_date)
+    if from_md and to_md and from_md > to_md:
+        ap.error("--from-date is after --to-date")
 
     args.data_dir.mkdir(parents=True, exist_ok=True)
 
     if args.year is not None:
-        tail = f" from {args.from_date} onward" if from_md else ""
-        print(f"Ingesting year={args.year} from {args.source}/{tail} (CHS primaries: {args.primaries})")
-        ingest(args.source, args.data_dir, args.year, from_md, args.primaries)
+        window = ""
+        if from_md:
+            window += f" from {args.from_date}"
+        if to_md:
+            window += f" to {args.to_date}"
+        print(f"Ingesting year={args.year} from {args.source}/{window} (CHS primaries: {args.primaries})")
+        ingest(args.source, args.data_dir, args.year, from_md, args.primaries, to_md)
 
     print(f"Rebuilding manifest in {args.data_dir}/manifest.json")
     manifest = build_manifest(args.data_dir)

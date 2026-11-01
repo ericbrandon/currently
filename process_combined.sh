@@ -13,11 +13,13 @@
 # and notes/US_data_processing.md.
 #
 # Usage: ./process_combined.sh [--year YYYY] [--primaries iwls|tct]
+#                              [--from-date YYYY-MM-DD] [--to-date YYYY-MM-DD]
 
 set -euo pipefail
 
 YEAR=2026
 PRIMARIES=iwls
+DATE_ARGS=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -37,13 +39,17 @@ while [[ $# -gt 0 ]]; do
             PRIMARIES="${1#*=}"
             shift
             ;;
+        --from-date|--to-date)
+            DATE_ARGS+=("$1" "$2")
+            shift 2
+            ;;
         -h|--help)
             sed -n '2,20p' "$0"
             exit 0
             ;;
         *)
             echo "unknown argument: $1" >&2
-            echo "usage: ./process_combined.sh [--year YYYY]" >&2
+            echo "usage: ./process_combined.sh [--year YYYY] [--primaries iwls|tct] [--from-date D] [--to-date D]" >&2
             exit 1
             ;;
     esac
@@ -81,4 +87,4 @@ echo "=== process_combined.sh: year=$YEAR primaries=$PRIMARIES ==="
 
 # Copy parser outputs into web/public/data/{year}/ with content-hashed
 # names, then regenerate the client-side manifest.
-"$PYTHON" build_manifest.py --year "$YEAR" --primaries "$PRIMARIES"
+"$PYTHON" build_manifest.py --year "$YEAR" --primaries "$PRIMARIES" "${DATE_ARGS[@]+"${DATE_ARGS[@]}"}"

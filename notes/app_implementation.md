@@ -184,7 +184,9 @@ Summary:
 4. **Stations may differ across years**: a station in 2026 but not 2027 simply has no 2027 extremes — `valueAt` returns null past Dec 31 2026 for that station. A station added in 2027 has no 2026 extremes — same outcome on the other side. Both correct.
    **Years may overlap by an hour**: CHS printed 2026 in PST (ends 07:59Z Jan 1) and 2027 in PDT (starts 07:00Z Jan 1), so an event in that hour is in both files. `flattenPerYear` dedupes equal `t` after the sort, keeping the later year's copy.
 5. **Metadata conflicts**: if a station exists in both years with slightly different `latitude` / `longitude` / `flood_direction_true`, **prefer the latest year's metadata.**
-6. **Scrubber range** = union of `[first_extreme_utc, last_extreme_utc]` across all loaded years.
+6. **Scrubber range** = union of `[first_extreme_utc, last_extreme_utc]` across all loaded years. Since 2026-11 that is a rolling window rather than whole years: `build_manifest.py --from-date/--to-date` trims the published files (Oct 31 2026 – Oct 31 2027 today).
+   **Table 3 ports with direct predictions**: each year may carry a `tidal_secondary_direct` file (IWLS hi/lo for the ports that have them). The loader uses it in place of `secondaryTideExtremes` for those ports and keeps the Table 3 record for metadata; ports without one are still derived. See `iwls_api.md`.
+   **Absolute-knots current secondaries** referenced to a current primary scale the printed large-tide speed by the reference's actual-over-large-tide ratio (`secondaryCurrentExtremes` with `refScale`); see `calculating_secondary_currents.md`.
 7. **Default scrubber position** = `Date.now()`, clamped to the loaded range. If clamping was needed (i.e. "now" is outside the range), show the `Banner` ("2026 data ends Dec 31; 2027 not yet published").
 8. **Year transitions are invisible**: scrubbing across midnight Jan 1 looks identical to scrubbing across any other midnight; the merged extreme array doesn't know about year boundaries.
 

@@ -26,6 +26,7 @@ import type {
   StationMeta,
   TidePrimaryFile,
   TidePrimaryStation,
+  TideSecondaryDirectFile,
   TideSecondaryFile,
 } from "../types";
 import { currentExtremes, tideExtremes } from "../interp/extremes";
@@ -122,6 +123,7 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
   const [
     tidePrimaryFiles,
     tideSecondaryFiles,
+    tideSecondaryDirectFiles,
     currentPrimaryFiles,
     currentSecondaryFiles,
     noaaTidePrimaryFiles,
@@ -129,6 +131,7 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
   ] = await Promise.all([
     Promise.all(yearEntries.map((y) => fetchSlot<TidePrimaryFile>(y.tidal_primary, "tide primary"))),
     Promise.all(yearEntries.map((y) => fetchSlot<TideSecondaryFile>(y.tidal_secondary, "tide secondary"))),
+    Promise.all(yearEntries.map((y) => fetchSlot<TideSecondaryDirectFile>(y.tidal_secondary_direct, "tide secondary direct"))),
     Promise.all(yearEntries.map((y) => fetchSlot<CurrentPrimaryFile>(y.current_primary, "current primary"))),
     Promise.all(yearEntries.map((y) => fetchSlot<CurrentSecondaryFile>(y.current_secondary, "current secondary"))),
     Promise.all(yearEntries.map((y) => fetchSlot<NoaaTidePrimaryFile>(y.noaa_tidal_primary, "noaa tide primary"))),
@@ -186,6 +189,17 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
       pushExtremes(id, ext);
     }
 
+    // Direct hi/lo predictions for Table 3 ports (IWLS). Where a port has
+    // them they replace the Table 3 derivation outright: CHS's own
+    // harmonic prediction for the port beats a time/height offset from a
+    // reference. Metadata (coords, kind, chart bounds) still comes from
+    // the Table 3 record so the map is unchanged. Ports IWLS lacks (7 in
+    // 2027) fall through to the derivation.
+    const directFile = tideSecondaryDirectFiles[i];
+    const directById = new Map(
+      (directFile?.stations ?? []).map((d) => [d.index_no, d] as const),
+    );
+
     const secFile = tideSecondaryFiles[i];
     if (secFile) {
       for (const sec of secFile.stations) {
@@ -196,7 +210,10 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
           );
           continue;
         }
-        const ext = secondaryTideExtremes(sec, ref.extremes, ref.station, ref.classified);
+        const direct = directById.get(sec.index_no);
+        const ext = direct
+          ? tideExtremes(direct)
+          : secondaryTideExtremes(sec, ref.extremes, ref.station, ref.classified);
 
         // At large tide, secondaryTideExtremes degenerates to ref.X_large + sec.X_large_diff:
         // dh = dhMean + (hLarge - hMean) * slope = dhMean + (dhLarge - dhMean) = dhLarge.
@@ -258,7 +275,12 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
       for (const sec of curSecFile.stations) {
         // Resolve the reference. Either a current primary (with optional
         // alias) or — for offsets_from_tides — a tide primary, adapted.
+        // For a current primary also hand over its Table 4 large-tide
+        // maxima: absolute-knots rows scale their printed large-tide
+        // speed by the reference's actual-over-large ratio (see
+        // secondaryCurrentExtremes). Tide-referenced rows get no scale.
         let refClassified: ClassifiedCurrentEvent[] | null = null;
+        let refScale: { maxFlood: number; maxEbb: number } | null = null;
         if (sec.offsets_from_tides) {
           const tideRef = refByName.get(sec.reference_primary);
           if (tideRef) {
@@ -278,7 +300,13 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
         } else {
           const aliased = CURRENT_REF_ALIASES[sec.reference_primary] ?? sec.reference_primary;
           const curRef = curRefByName.get(aliased);
-          if (curRef) refClassified = curRef.classified;
+          if (curRef) {
+            refClassified = curRef.classified;
+            refScale = {
+              maxFlood: Math.abs(curRef.station.max_flood_knots),
+              maxEbb: Math.abs(curRef.station.max_ebb_knots),
+            };
+          }
         }
         if (!refClassified) {
           console.warn(
@@ -349,7 +377,7 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
           current_max_knots: bound,
         });
 
-        const ext = secondaryCurrentExtremes(sec, refClassified, turnRefClassified);
+        const ext = secondaryCurrentExtremes(sec, refClassified, turnRefClassified, refScale);
         if (ext.length > 0) pushTo(currentExtremesByStation, id, ext);
       }
     }

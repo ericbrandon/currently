@@ -291,10 +291,61 @@ function byT(a: { t: number }, b: { t: number }): number {
  *  (Table 4 vol 6 footnote (a): ALERT BAY / PULTENEY POINT turns come
  *  from SEYMOUR NARROWS while maxes stay on Johnstone Strait-Central).
  *  Defaults to refClassified — one reference for both, the normal case. */
+/** The reference current primary's Table 4 "maximum at large tides"
+ *  speeds, used by the proportional rule below. */
+export type RefScale = { maxFlood: number; maxEbb: number };
+
+/** Proportional rule for absolute-knots rows referenced to a current
+ *  primary. Table 4 prints the secondary's speed at large tides only and
+ *  says a method for other tides "has not been established"; rendering
+ *  that number on every tide overstates ordinary ones badly (Dent Rapids
+ *  shows 11 kn where CHS's own prediction has 3–7 kn). Scaling the printed
+ *  large-tide speed by the reference's actual-over-large-tide ratio,
+ *  i.e. treating the row as a percentage row with pct = sec_max/ref_max,
+ *  reproduces the IWLS prediction for Dent Rapids to within a few tenths
+ *  of a knot (notes/iwls_api.md §5). Returns null when the rule does not
+ *  apply (no scale, weak reference max, zero/absent maxima) so the caller
+ *  falls back to the flat printed value. */
+function scaledKnots(
+  secMax: number | null,
+  refV: number,
+  refWeak: boolean,
+  refMax: number | undefined,
+): number | null {
+  if (secMax === null || secMax === 0) return null;
+  if (refWeak || !refMax || refMax <= 0 || refV === 0) return null;
+  return secMax * (Math.abs(refV) / refMax);
+}
+
+/** Nearest reference max of a given kind to time `t`, for the midpoint
+ *  synthesis (sorted input, binary search). */
+function nearestRefMax(
+  sorted: ClassifiedCurrentEvent[],
+  t: number,
+): ClassifiedCurrentEvent | null {
+  if (sorted.length === 0) return null;
+  let lo = 0;
+  let hi = sorted.length - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (sorted[mid].t <= t) lo = mid;
+    else hi = mid;
+  }
+  const a = sorted[lo];
+  const b = sorted[hi];
+  return Math.abs(a.t - t) <= Math.abs(b.t - t) ? a : b;
+}
+
+/** A synthesised peak may only borrow a reference max from the same
+ *  half-cycle; beyond this it is a different tide and we fall back to
+ *  the flat printed value. */
+const SYNTH_MATCH_WINDOW_MS = 4 * 3600_000;
+
 export function secondaryCurrentExtremes(
   sec: CurrentSecondaryStation,
   refClassified: ClassifiedCurrentEvent[],
   turnRefClassified: ClassifiedCurrentEvent[] = refClassified,
+  refScale: RefScale | null = null,
 ): Extreme[] {
   if (!hasMagnitudeData(sec)) return [];
 
@@ -373,7 +424,7 @@ export function secondaryCurrentExtremes(
             pctF !== null
               ? (pctF / 100) * ev.v          // ev.v > 0 → result > 0
               : fMag !== null
-              ? fMag
+              ? scaledKnots(fMag, ev.v, ev.weak, refScale?.maxFlood) ?? fMag
               : 0;
           events.push({ t: ev.t + fmd, v, weak: false, kind: "max-flood" });
         }
@@ -390,7 +441,7 @@ export function secondaryCurrentExtremes(
             pctE !== null
               ? (pctE / 100) * ev.v          // ev.v < 0 → result < 0
               : eMag !== null
-              ? -eMag                        // emit signed
+              ? -(scaledKnots(eMag, ev.v, ev.weak, refScale?.maxEbb) ?? eMag)  // emit signed
               : 0;
           events.push({ t: ev.t + emd, v, weak: false, kind: "max-ebb" });
         }
@@ -408,6 +459,13 @@ export function secondaryCurrentExtremes(
   // opposite-kind slack pairs and insert a peak at the midpoint with
   // the published large-tide magnitude.
   if (fmd === null || emd === null) {
+    // With a current reference the synthesised peak still scales by the
+    // reference's max in the same half-cycle (proportional rule); the
+    // secondary's slacks sit near the reference's, so the reference max
+    // nearest the midpoint (shifted back by the mean turn offset) is it.
+    const refFloods = refScale ? refClassified.filter((e) => e.kind === "max-flood") : [];
+    const refEbbs = refScale ? refClassified.filter((e) => e.kind === "max-ebb") : [];
+    const turnShift = (ttf + tte) / 2;
     const synth: EmittedEvent[] = [];
     for (let i = 0; i < events.length - 1; i++) {
       const a = events[i];
@@ -417,9 +475,15 @@ export function secondaryCurrentExtremes(
       if (a.kind === b.kind) continue;       // same-direction slacks → no half-cycle to peak
       const t = (a.t + b.t) / 2;
       if (a.kind === "slack-to-flood" && fMag !== null && fMag !== 0) {
-        synth.push({ t, v: fMag, weak: false, kind: "max-flood" });
+        const r = nearestRefMax(refFloods, t - turnShift);
+        const near = r !== null && Math.abs(r.t - (t - turnShift)) <= SYNTH_MATCH_WINDOW_MS;
+        const v = (near ? scaledKnots(fMag, r.v, r.weak, refScale?.maxFlood) : null) ?? fMag;
+        synth.push({ t, v, weak: false, kind: "max-flood" });
       } else if (a.kind === "slack-to-ebb" && eMag !== null && eMag !== 0) {
-        synth.push({ t, v: -eMag, weak: false, kind: "max-ebb" });
+        const r = nearestRefMax(refEbbs, t - turnShift);
+        const near = r !== null && Math.abs(r.t - (t - turnShift)) <= SYNTH_MATCH_WINDOW_MS;
+        const v = (near ? scaledKnots(eMag, r.v, r.weak, refScale?.maxEbb) : null) ?? eMag;
+        synth.push({ t, v: -v, weak: false, kind: "max-ebb" });
       }
     }
     if (synth.length > 0) {

@@ -279,3 +279,24 @@ book's DST-day Campbell River low now at 02:16 PDT instead of 03:16, and
 the Winter Harbour / Fulford 2026 revisions included. Both years are at
 UTC−7, so the 2026 tail ends at 23:59 PDT Dec 31 and 2027 begins at 00:00:
 no overlap hour. Tests 98/98.
+
+## 9. Direct port predictions, proportional rule, rolling window (2026-11-01, evening)
+
+Decided and shipped together ([iwls_api.md](iwls_api.md) §7–§9):
+
+- **Window is now Oct 31 2026 – Oct 31 2027.** `build_manifest.py --to-date`
+  trims the far end; `process_combined.sh --year 2027 --to-date 2027-10-31`
+  and `build_manifest.py --year 2026 --from-date 2026-10-31` produced it.
+  Roll it forward when 2028 data lands (deploy.md §9).
+- **Table 3 ports from IWLS.** `fetch_iwls.py --secondaries` for both years
+  (UTC−7) → a new `tidal_secondary_direct` file per year, 256 of 263 ports.
+  The loader prefers it per port; the seven ports IWLS lacks (7194, 7196,
+  7240, 7771, 9090, 9470, 9960) still use the Table 3 derivation.
+- **Proportional rule** for the 14 absolute-knots rows referenced to a
+  current primary. Dent Rapids against IWLS: median speed error 3.64 kn →
+  0.15 kn, p90 6.17 → 0.39 kn, bias −0.06 kn. Tide-referenced rows unchanged
+  pending the square-root decision (iwls_api.md §9).
+
+Payload (gz): 3.86 MB for the window, of which the port predictions are
+2.16 MB; the rest is 1.70 MB. Before today the app shipped 1.88 MB for
+Nov 2026 – Dec 2027 without port predictions. Tests 103/103.

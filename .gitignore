@@ -32,5 +32,3 @@ canada_data/marine_zones_raw/
 # IWLS API raw cache (fetch_iwls.py)
 canada_data/iwls_raw/
 
-# IWLS Table 3 port predictions (44 MB, report-only; regenerate with fetch_iwls.py --secondaries)
-*_iwls_tidal_secondary_predictions.json

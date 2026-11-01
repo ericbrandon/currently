@@ -112,6 +112,7 @@ self.addEventListener("activate", (event) => {
 const MANIFEST_YEAR_FILE_KEYS = [
   "tidal_primary",
   "tidal_secondary",
+  "tidal_secondary_direct",
   "current_primary",
   "current_secondary",
   "noaa_tidal_primary",

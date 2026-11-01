@@ -221,15 +221,71 @@ from the 2027 book parse. The book parse remains the cross-check
 now correct, the Winter Harbour and Fulford revisions are in the 2026 tail,
 and the Jan 1 step at Winter Harbour is gone.
 
-## 8. 2028 plan
+### Second step, later on 2026-11-01
 
-1. `fetch_iwls.py --year 2028 --roster-year 2027` once current events for
-   2028 appear in holdings (check `/holdings` for a current primary; tides
-   are already held to 2029).
+Opportunities 2 and 3 were taken as well, and the published window was
+shortened to **Oct 31 2026 – Oct 31 2027** to hold the download down:
+
+- `tidal_secondary_direct`: `fetch_iwls.py --secondaries` output is
+  published as a sixth CHS file per year. The loader uses a port's direct
+  IWLS prediction wherever one exists (256 of 263) and falls back to the
+  Table 3 derivation for the rest; metadata still comes from the Table 3
+  record. Both years were fetched at UTC−7.
+- Proportional rule (`secondaryCurrents.ts`): the 14 absolute-knots rows
+  referenced to a current primary now scale the printed large-tide speed
+  by the reference's actual-over-large-tide ratio, on direct and
+  synthesised maxes alike; weak reference maxes and the 13 tide-referenced
+  rows keep the flat value. The reference maxima come from the Table 4
+  rows carried onto the IWLS primaries.
+- `build_manifest.py --to-date` trims the far end the way `--from-date`
+  trims the near end; `process_combined.sh` passes both through.
+
+## 9. Research: scaling for the 13 tide-referenced rows
+
+Question: for a Table 4 row like Malibu Rapids (9 kn at large tides,
+referenced to Point Atkinson's HW/LW), is it reasonable to scale the
+printed speed by the reference tide's range? There is no IWLS current
+station to check such a row against directly, but we have fifteen current
+*primaries* that sit next to a tide primary and are the same kind of
+feature as the tide-referenced rows: sill rapids filling an inlet
+(Sechelt Rapids / Point Atkinson, the Owen Bay rapids), inlet entrances
+(First and Second Narrows / Vancouver, Quatsino / Winter Harbour, Masset),
+strait passes (Dodd, Active, Porlier / Fulford), channels (Hiekish /
+Prince Rupert). For each 2027 max at the current station, take the range
+of the reference's tide cycle around it and compare the actual speed with
+three predictors built only from the printed large-tide speed `S` and the
+reference's large-tide range `R_large`:
+
+| predictor | median error, as a fraction of `S` (30 station-directions) |
+|---|---|
+| flat `S` (what the app did) | 0.39 |
+| linear `S · R/R_large` | 0.11 |
+| square root `S · √(R/R_large)` | 0.11 |
+
+Either scaling removes about three quarters of the error. The fitted
+exponent of speed against range runs from ~0.3 (strait passes, Seymour)
+through ~0.5 (the Owen Bay sill rapids, Sechelt ebb) to ~1.0 (First
+Narrows, Quatsino, Hiekish). Linear under-predicts at the sill rapids by
+1–2 kn; square root over-predicts there by about 1 kn and is high at 29 of
+the 30 cases, which is the safe direction for a passage planner. Per-pair
+numbers are in the scratch run of 2026-11-01 (reproduce with the script
+in §3 of the plan note's run log).
+
+Recommendation for the tide-referenced rows: square-root scaling by the
+reference's cycle range over `HHWLT − LLWLT`, labelled as an estimate.
+Not yet implemented; `secondaryCurrentExtremes` falls back to the flat
+value when no `refScale` is supplied.
+
+## 10. 2028 plan
+
+1. `fetch_iwls.py --year 2028 --roster-year 2027 --secondaries` once
+   current events for 2028 appear in holdings (check `/holdings` for a
+   current primary; tides are already held to 2029).
 2. Copy the 2027 Table 3 / Table 4 secondary files to the 2028 names;
    they hold offsets, not predictions, and the fetcher keeps the book's
    station names so every reference still resolves.
-3. `process_us.sh --year 2028`, `process_combined.sh --year 2028`, then
-   `build_manifest.py --year 2027 --from-date 2027-10-31`. Full sequence in
-   deploy.md §9.
-4. Decide on opportunities 2 and 3 before then; both change the loader.
+3. `process_us.sh --year 2028`, `process_combined.sh --year 2028
+   --to-date 2028-10-31`, then `build_manifest.py --year 2027 --from-date
+   2027-10-31` (the window is rolling; move both ends when you refresh).
+   Full sequence in deploy.md §9.
+4. Decide on square-root scaling for the tide-referenced rows (§9).

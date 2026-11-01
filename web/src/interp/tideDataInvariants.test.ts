@@ -14,6 +14,8 @@ import { describe, expect, it } from "vitest";
 import type {
   Extreme,
   TidePrimaryFile,
+  TideSecondaryDirectFile,
+  TideSecondaryDirectStation,
   TidePrimaryStation,
   TideSecondaryFile,
   TideSecondaryStation,
@@ -28,6 +30,7 @@ type YearData = {
   year: string;
   primaries: TidePrimaryStation[];
   secondaries: TideSecondaryStation[];
+  direct: TideSecondaryDirectStation[];
 };
 
 function loadYears(): YearData[] {
@@ -38,11 +41,15 @@ function loadYears(): YearData[] {
     const files = readdirSync(yearDir);
     const pf = files.find((f) => f.startsWith("tidal_primary."));
     const sf = files.find((f) => f.startsWith("tidal_secondary."));
+    const df = files.find((f) => f.startsWith("tidal_secondary_direct."));
     if (!pf || !sf) continue;
     out.push({
       year,
       primaries: (JSON.parse(readFileSync(join(yearDir, pf), "utf8")) as TidePrimaryFile).stations,
       secondaries: (JSON.parse(readFileSync(join(yearDir, sf), "utf8")) as TideSecondaryFile).stations,
+      direct: df
+        ? (JSON.parse(readFileSync(join(yearDir, df), "utf8")) as TideSecondaryDirectFile).stations
+        : [],
     });
   }
   return out;
@@ -50,16 +57,14 @@ function loadYears(): YearData[] {
 
 const years = loadYears();
 
-/** A published primary holds either the whole calendar year or, for an
- *  outgoing year republished with `build_manifest.py --from-date`, a
- *  contiguous tail of it. Either way the days must be consecutive
- *  calendar dates ending on Dec 31, and a tail must be long enough to be
- *  worth shipping (two months). Returns a description of the first
- *  violation, or null. */
+/** A published station holds either the whole calendar year or, for a
+ *  rolling window published with `build_manifest.py --from-date` /
+ *  `--to-date`, a contiguous slice of it. Either way the days must be
+ *  consecutive calendar dates and the slice long enough to be worth
+ *  shipping (two months). Returns a description of the first violation,
+ *  or null. */
 function describeDayCoverage(year: number, days: { month: number; day: number }[]): string | null {
   if (days.length < 60) return `only ${days.length} days`;
-  const last = days[days.length - 1];
-  if (last.month !== 12 || last.day !== 31) return `ends ${last.month}/${last.day}, not 12/31`;
   for (let i = 1; i < days.length; i++) {
     const prev = Date.UTC(year, days[i - 1].month - 1, days[i - 1].day);
     const cur = Date.UTC(year, days[i].month - 1, days[i].day);
@@ -86,7 +91,7 @@ describe("published tide data", () => {
     expect(years.length).toBeGreaterThan(0);
   });
 
-  it("primaries have a contiguous run of clean, alternating readings ending Dec 31", () => {
+  it("primaries have a contiguous run of clean, alternating readings", () => {
     for (const { year, primaries } of years) {
       expect(primaries.length, `${year}: primary count`).toBeGreaterThanOrEqual(20);
       for (const p of primaries) {
@@ -101,6 +106,27 @@ describe("published tide data", () => {
         for (const e of ext) {
           expect(e.v, `${year} ${p.name}: height out of range`).toBeGreaterThan(-1);
           expect(e.v, `${year} ${p.name}: height out of range`).toBeLessThan(16);
+        }
+      }
+    }
+  });
+
+  it("direct secondary predictions cover known Table 3 ports with clean readings", () => {
+    for (const { year, secondaries, direct } of years) {
+      if (direct.length === 0) continue;
+      const known = new Set(secondaries.map((s) => s.index_no));
+      expect(direct.length, `${year}: direct port count`).toBeGreaterThanOrEqual(200);
+      for (const d of direct) {
+        expect(known.has(d.index_no), `${year} ${d.name}: direct port not in Table 3`).toBe(true);
+        expect(describeDayCoverage(d.year, d.days), `${year} ${d.name}: day coverage`).toBeNull();
+        const ext = tideExtremes(d);
+        const isHi = classifyHiLow(ext);
+        let same = 0;
+        for (let i = 1; i < isHi.length; i++) if (isHi[i] === isHi[i - 1]) same++;
+        expect(same, `${year} ${d.name}: non-alternating readings`).toBeLessThanOrEqual(20);
+        for (const e of ext) {
+          expect(e.v, `${year} ${d.name}: height out of range`).toBeGreaterThan(-2);
+          expect(e.v, `${year} ${d.name}: height out of range`).toBeLessThan(16);
         }
       }
     }
