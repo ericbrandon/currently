@@ -20,6 +20,13 @@ What it fetches, per station in the roster:
                      webapp does not read it yet, it is for validating the
                      Table 3 derivation and as the 2028 upgrade path.
 
+Metadata the books carry and IWLS does not is taken from the roster file
+when present (--metadata-from roster, the default): the Table 4 reference
+rows' "maximum at large tides" knots and the Table 2 tidal heights that
+the Table 3 derivation was computed against. IWLS's own values are kept
+alongside as iwls_* fields (stripped at publish). --metadata-from iwls
+uses the API's values throughout.
+
 Roster: by default the index_nos in {roster-year}_tct_tidal_primary and
 {roster-year}_tct_current_primary at the repo root (roster-year defaults
 to --year). For a year with no printed tables, pass --roster-year 2027 and
@@ -154,19 +161,39 @@ def group_days(year: int, utc_offset: int, items: list[tuple[dt.datetime, dict]]
 
 # ------------------------------------------------------------- roster -----
 
-def book_roster(roster_year: int, source: Path) -> tuple[dict[int, str], dict[int, str], dict[int, str]]:
+def book_roster(roster_year: int, source: Path) -> tuple[dict[int, dict], dict[int, dict], dict[int, dict]]:
     """(tide primaries, current primaries, tide secondaries) as
-    {index_no: book name} from the parser outputs."""
-    def load(kind: str) -> dict[int, str]:
+    {index_no: book station record minus days} from the parser outputs."""
+    def load(kind: str) -> dict[int, dict]:
         p = source / f"{roster_year}_tct_{kind}_stations.json"
         if not p.exists():
             raise SystemExit(f"roster file not found: {p} (run process_canadian.sh "
                              f"--year {roster_year}, or pass --roster-year)")
-        out: dict[int, str] = {}
+        out: dict[int, dict] = {}
         for s in json.loads(p.read_text())["stations"]:
-            out.setdefault(s["index_no"], s["name"])
+            out.setdefault(s["index_no"], {k: v for k, v in s.items() if k != "days"})
         return out
     return load("tidal_primary"), load("current_primary"), load("tidal_secondary")
+
+
+# Book fields carried over from the roster record when --metadata-from roster.
+TIDE_CARRY = ["higher_high_water_large_tide", "higher_high_water_mean_tide",
+              "lower_low_water_mean_tide", "lower_low_water_large_tide", "mean_water_level",
+              "highest_recorded_high_water", "lowest_recorded_low_water"]
+CURRENT_CARRY = ["max_flood_knots", "max_ebb_knots", "flood_direction_true", "ebb_direction_true"]
+
+
+def carry_over(s: dict, book: dict | None, fields: list[str]) -> None:
+    """Replace IWLS-derived `fields` on `s` with the book's values where the
+    book has them, keeping the IWLS value under an iwls_ prefix."""
+    if not book:
+        return
+    for f in fields:
+        if book.get(f) is None:
+            continue
+        if f in s:
+            s[f"iwls_{f}"] = s[f]
+        s[f] = book[f]
 
 
 # ------------------------------------------------------------ builders ----
@@ -263,6 +290,8 @@ def main() -> int:
     ap.add_argument("--out-dir", type=Path, default=REPO_ROOT)
     ap.add_argument("--utc-offset", type=int, default=-7,
                     help="Station-local offset used to group days (default -7, as the 2027 book prints)")
+    ap.add_argument("--metadata-from", choices=["roster", "iwls"], default="roster",
+                    help="Source for large-tide max knots / Table 2 heights (default roster = the book)")
     ap.add_argument("--secondaries", action="store_true",
                     help="Also fetch wlp-hilo for every Table 3 secondary port IWLS has")
     ap.add_argument("--add-tides", default="", help="Extra tide station codes, comma-separated (e.g. 07607)")
@@ -280,7 +309,7 @@ def main() -> int:
 
     tides, currents, secondaries = book_roster(roster_year, args.source)
     for c in filter(None, args.add_tides.split(",")):
-        tides.setdefault(int(c), None)  # name filled from IWLS below
+        tides.setdefault(int(c), None)  # no book record: name and metadata from IWLS
     for c in filter(None, args.add_currents.split(",")):
         currents.setdefault(int(c), None)
 
@@ -296,7 +325,8 @@ def main() -> int:
 
     def fetch_series(st: dict, ts_code: str, tag: str) -> list[dict]:
         q = urllib.parse.urlencode({"time-series-code": ts_code, "from": iso_z(start), "to": iso_z(end)})
-        data = get_json(f"{BASE}/stations/{st['id']}/data?{q}", raw / f"{tag}_{st['code']}_{ts_code}.json", args.refresh)
+        cache = raw / f"{tag}_{st['code']}_{ts_code}_utc{args.utc_offset:+d}.json"
+        data = get_json(f"{BASE}/stations/{st['id']}/data?{q}", cache, args.refresh)
         # [start, end): IWLS treats `to` as inclusive.
         return [r for r in data if start <= parse_z(r["eventDate"]) < end]
 
@@ -306,35 +336,41 @@ def main() -> int:
     # ---- tide primaries
     tide_out: list[dict] = []
     log(f"--> {len(tides)} tide primaries (wlp-hilo + metadata)")
-    for code, name in sorted(tides.items()):
+    for code, book in sorted(tides.items()):
         st = station_for(code)
+        name = book["name"] if book else st["officialName"].strip().upper() if st else f"{code:05d}"
         if st is None or not has_series(st, "wlp-hilo"):
             log(f"    SKIP {code:05d} {name}: not in IWLS or no wlp-hilo")
             continue
         hilo = fetch_series(st, "wlp-hilo", "tide")
         meta = fetch_meta(st)
-        nm = name or st["officialName"].strip().upper()
-        tide_out.append(build_tide_station(code, nm, st, meta, hilo, year, args.utc_offset, tz_label))
-        log(f"    {code:05d} {nm:<24} {len(hilo):>5} hi/lo")
+        rec = build_tide_station(code, name, st, meta, hilo, year, args.utc_offset, tz_label)
+        if args.metadata_from == "roster":
+            carry_over(rec, book, TIDE_CARRY)
+        tide_out.append(rec)
+        log(f"    {code:05d} {name:<24} {len(hilo):>5} hi/lo")
 
     # ---- current primaries
     cur_out: list[dict] = []
     log(f"--> {len(currents)} current primaries (wcp1-events + metadata)")
-    for code, name in sorted(currents.items()):
+    for code, book in sorted(currents.items()):
         st = station_for(code)
+        name = book["name"] if book else st["officialName"].strip().upper() if st else f"{code:05d}"
         if st is None or not has_series(st, "wcp1-events"):
             log(f"    SKIP {code:05d} {name}: not in IWLS or no wcp1-events")
             continue
         ev = fetch_series(st, "wcp1-events", "current")
         meta = fetch_meta(st)
-        nm = name or st["officialName"].strip().upper()
-        cur_out.append(build_current_station(code, nm, st, meta, ev, year, args.utc_offset, tz_label))
-        log(f"    {code:05d} {nm:<24} {len(ev):>5} events")
+        rec = build_current_station(code, name, st, meta, ev, year, args.utc_offset, tz_label)
+        if args.metadata_from == "roster":
+            carry_over(rec, book, CURRENT_CARRY)
+        cur_out.append(rec)
+        log(f"    {code:05d} {name:<24} {len(ev):>5} events")
 
     # ---- Table 3 secondaries (optional)
     sec_out: list[dict] = []
     if args.secondaries:
-        avail = [(c, n) for c, n in sorted(secondaries.items())
+        avail = [(c, r["name"]) for c, r in sorted(secondaries.items())
                  if station_for(c) is not None and has_series(station_for(c), "wlp-hilo")]
         log(f"--> {len(avail)} of {len(secondaries)} Table 3 secondary ports have wlp-hilo in IWLS")
         for i, (code, name) in enumerate(avail, 1):

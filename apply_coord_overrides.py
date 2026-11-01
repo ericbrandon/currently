@@ -41,8 +41,15 @@ MAX_OFFSET_GROSS_M = 5000       # CSV at any precision disagreeing by > this →
                                 # (catches PDF typos even when the CSV is too coarse to use)
 
 
-def parser_filename(year: int, kind: str) -> str:
-    return f"{year}_tct_{kind}_stations.json"
+# Which pipeline supplies the two primary kinds. "iwls" = fetch_iwls.py
+# (the API, the source from 2027 on); "tct" = read_tct.py (the printed
+# tables). Secondaries always come from the printed tables' Table 3/4.
+PRIMARY_SOURCES = ("iwls", "tct")
+
+
+def parser_filename(year: int, kind: str, primaries: str = "tct") -> str:
+    src = primaries if kind.endswith("_primary") else "tct"
+    return f"{year}_{src}_{kind}_stations.json"
 
 
 def decimal_places(s: str) -> int:
@@ -201,6 +208,9 @@ def main() -> None:
     ap.add_argument("--overrides", type=Path,
                     default=REPO_ROOT / "coord_overrides.json",
                     help="Manual override file (default: ./coord_overrides.json)")
+    ap.add_argument("--primaries", choices=PRIMARY_SOURCES, default="iwls",
+                    help="Where the tidal/current primary files come from: "
+                         "iwls (fetch_iwls.py, default) or tct (read_tct.py)")
     args = ap.parse_args()
 
     if not args.csv.exists():
@@ -218,8 +228,11 @@ def main() -> None:
     all_big_diffs: list[tuple[str, int, str, float, int]] = []
 
     for kind in KINDS:
-        path = args.source / parser_filename(args.year, kind)
+        path = args.source / parser_filename(args.year, kind, args.primaries)
         if not path.exists():
+            if kind.endswith("_primary"):
+                raise SystemExit(f"  {kind}: no input file at {path}. Run canada_data/fetch_iwls.py "
+                                 f"--year {args.year} (or pass --primaries tct for the printed tables).")
             print(f"  {kind}: (no input file at {path})")
             continue
         n, ns, no, nc, nk, big = process_file(path, csv_data, overrides, suppressed)

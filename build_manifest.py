@@ -38,14 +38,18 @@ class Kind:
     stem: str
     source_template: str
 
+# {primaries} is "iwls" (fetch_iwls.py, the API — the source from 2027 on)
+# or "tct" (read_tct.py, the printed tables); see --primaries. Secondaries
+# always come from the printed tables' Table 3/4.
 KINDS: list[Kind] = [
-    Kind("tidal_primary",        "{year}_tct_tidal_primary_stations.json"),
+    Kind("tidal_primary",        "{year}_{primaries}_tidal_primary_stations.json"),
     Kind("tidal_secondary",      "{year}_tct_tidal_secondary_stations.json"),
-    Kind("current_primary",      "{year}_tct_current_primary_stations.json"),
+    Kind("current_primary",      "{year}_{primaries}_current_primary_stations.json"),
     Kind("current_secondary",    "{year}_tct_current_secondary_stations.json"),
     Kind("noaa_tidal_primary",   "{year}_noaa_tidal_primary_stations.json"),
     Kind("noaa_current_primary", "{year}_noaa_current_primary_stations.json"),
 ]
+PRIMARY_SOURCES = ("iwls", "tct")
 KIND_STEMS = {k.stem for k in KINDS}
 
 HASHED_FILENAME_RE = re.compile(r"^(?P<stem>[a-z_]+)\.(?P<hash>[0-9a-f]{8})\.json$")
@@ -195,7 +199,7 @@ class YearEntry:
 
 
 def ingest(source: Path, data_dir: Path, year: int,
-           from_md: tuple[int, int] | None = None) -> None:
+           from_md: tuple[int, int] | None = None, primaries: str = "iwls") -> None:
     """Strip parser outputs to publish-only fields and write into
     data_dir/{year}/ with content-hashed names. Idempotent: same source
     content → same stripped bytes → same hash → same filename → no-op.
@@ -209,8 +213,11 @@ def ingest(source: Path, data_dir: Path, year: int,
 
     found_any = False
     for kind in KINDS:
-        src = source / kind.source_template.format(year=year)
+        src = source / kind.source_template.format(year=year, primaries=primaries)
         if not src.exists():
+            if kind.stem in ("tidal_primary", "current_primary"):
+                raise SystemExit(f"{src} not found. Run canada_data/fetch_iwls.py --year {year} "
+                                 f"(or pass --primaries tct to publish the printed tables).")
             continue
         found_any = True
         data = json.loads(src.read_text())
@@ -353,6 +360,8 @@ def main() -> None:
     ap.add_argument("--data-dir", type=Path, default=Path("web/public/data"),
                     help="Destination data dir (default: web/public/data)")
     ap.add_argument("--year", type=int, help="Year being ingested")
+    ap.add_argument("--primaries", choices=PRIMARY_SOURCES, default="iwls",
+                    help="Where the CHS primary files come from (default iwls; tct = printed tables)")
     ap.add_argument("--from-date", type=str, default=None, metavar="YYYY-MM-DD",
                     help="Ingest only days on/after this station-local date "
                          "(must fall in --year). Use it to publish an outgoing "
@@ -377,8 +386,8 @@ def main() -> None:
 
     if args.year is not None:
         tail = f" from {args.from_date} onward" if from_md else ""
-        print(f"Ingesting year={args.year} from {args.source}/{tail}")
-        ingest(args.source, args.data_dir, args.year, from_md)
+        print(f"Ingesting year={args.year} from {args.source}/{tail} (CHS primaries: {args.primaries})")
+        ingest(args.source, args.data_dir, args.year, from_md, args.primaries)
 
     print(f"Rebuilding manifest in {args.data_dir}/manifest.json")
     manifest = build_manifest(args.data_dir)

@@ -1,7 +1,7 @@
 {
   "year": 2027,
   "source": "iwls",
-  "generated_at": "2026-11-01T22:45:50Z",
+  "generated_at": "2026-11-01T23:21:33Z",
   "stations": [
     {
       "name": "SOOKE",
@@ -14,13 +14,13 @@
       "latitude": 48.3695,
       "longitude": -123.726,
       "source": "iwls",
-      "higher_high_water_large_tide": 3.42,
-      "highest_recorded_high_water": 3.93,
-      "mean_water_level": 1.94,
-      "lower_low_water_large_tide": 0.05,
-      "higher_high_water_mean_tide": 2.78,
-      "lower_low_water_mean_tide": 0.87,
-      "lowest_recorded_low_water": -0.18,
+      "higher_high_water_large_tide": 3.4,
+      "highest_recorded_high_water": 3.9,
+      "mean_water_level": 1.9,
+      "lower_low_water_large_tide": 0.1,
+      "higher_high_water_mean_tide": 2.8,
+      "lower_low_water_mean_tide": 0.9,
+      "lowest_recorded_low_water": -0.2,
       "days": [
         {
           "month": 1,
@@ -7453,7 +7453,14 @@
             }
           ]
         }
-      ]
+      ],
+      "iwls_higher_high_water_large_tide": 3.42,
+      "iwls_higher_high_water_mean_tide": 2.78,
+      "iwls_lower_low_water_mean_tide": 0.87,
+      "iwls_lower_low_water_large_tide": 0.05,
+      "iwls_mean_water_level": 1.94,
+      "iwls_highest_recorded_high_water": 3.93,
+      "iwls_lowest_recorded_low_water": -0.18
     },
     {
       "name": "VICTORIA HARBOUR",
@@ -7466,13 +7473,13 @@
       "latitude": 48.424363,
       "longitude": -123.370828,
       "source": "iwls",
-      "higher_high_water_large_tide": 3.13,
-      "highest_recorded_high_water": 3.76,
-      "mean_water_level": 1.88,
-      "lower_low_water_large_tide": -0.09,
-      "higher_high_water_mean_tide": 2.62,
-      "lower_low_water_mean_tide": 0.77,
-      "lowest_recorded_low_water": -0.46,
+      "higher_high_water_large_tide": 3.1,
+      "highest_recorded_high_water": 3.8,
+      "mean_water_level": 1.9,
+      "lower_low_water_large_tide": -0.1,
+      "higher_high_water_mean_tide": 2.6,
+      "lower_low_water_mean_tide": 0.8,
+      "lowest_recorded_low_water": -0.5,
       "days": [
         {
           "month": 1,
@@ -14473,7 +14480,14 @@
             }
           ]
         }
-      ]
+      ],
+      "iwls_higher_high_water_large_tide": 3.13,
+      "iwls_higher_high_water_mean_tide": 2.62,
+      "iwls_lower_low_water_mean_tide": 0.77,
+      "iwls_lower_low_water_large_tide": -0.09,
+      "iwls_mean_water_level": 1.88,
+      "iwls_highest_recorded_high_water": 3.76,
+      "iwls_lowest_recorded_low_water": -0.46
     },
     {
       "name": "FULFORD HARBOUR",
@@ -14486,13 +14500,13 @@
       "latitude": 48.769,
       "longitude": -123.451,
       "source": "iwls",
-      "higher_high_water_large_tide": 3.68,
-      "highest_recorded_high_water": 4.38,
-      "mean_water_level": 2.26,
-      "lower_low_water_large_tide": -0.06,
-      "higher_high_water_mean_tide": 3.26,
-      "lower_low_water_mean_tide": 0.86,
-      "lowest_recorded_low_water": -0.45,
+      "higher_high_water_large_tide": 3.7,
+      "highest_recorded_high_water": 4.4,
+      "mean_water_level": 2.3,
+      "lower_low_water_large_tide": -0.1,
+      "higher_high_water_mean_tide": 3.3,
+      "lower_low_water_mean_tide": 0.9,
+      "lowest_recorded_low_water": -0.5,
       "days": [
         {
           "month": 1,
@@ -22525,7 +22539,14 @@
             }
           ]
         }
-      ]
+      ],
+      "iwls_higher_high_water_large_tide": 3.68,
+      "iwls_higher_high_water_mean_tide": 3.26,
+      "iwls_lower_low_water_mean_tide": 0.86,
+      "iwls_lower_low_water_large_tide": -0.06,
+      "iwls_mean_water_level": 2.26,
+      "iwls_highest_recorded_high_water": 4.38,
+      "iwls_lowest_recorded_low_water": -0.45
     },
     {
       "name": "VANCOUVER",
@@ -22538,12 +22559,12 @@
       "latitude": 49.2863,
       "longitude": -123.0997,
       "source": "iwls",
-      "higher_high_water_large_tide": 5.01,
-      "highest_recorded_high_water": 5.75,
-      "mean_water_level": 3.06,
-      "lower_low_water_large_tide": 0.06,
-      "higher_high_water_mean_tide": 4.47,
-      "lower_low_water_mean_tide": 1.17,
+      "higher_high_water_large_tide": 5.0,
+      "highest_recorded_high_water": 5.6,
+      "mean_water_level": 3.1,
+      "lower_low_water_large_tide": 0.1,
+      "higher_high_water_mean_tide": 4.5,
+      "lower_low_water_mean_tide": 1.2,
       "lowest_recorded_low_water": -0.3,
       "days": [
         {
@@ -30745,7 +30766,14 @@
             }
           ]
         }
-      ]
+      ],
+      "iwls_higher_high_water_large_tide": 5.01,
+      "iwls_higher_high_water_mean_tide": 4.47,
+      "iwls_lower_low_water_mean_tide": 1.17,
+      "iwls_lower_low_water_large_tide": 0.06,
+      "iwls_mean_water_level": 3.06,
+      "iwls_highest_recorded_high_water": 5.75,
+      "iwls_lowest_recorded_low_water": -0.3
     },
     {
       "name": "POINT ATKINSON",
@@ -30759,11 +30787,11 @@
       "longitude": -123.253583,
       "source": "iwls",
       "higher_high_water_large_tide": 5.0,
-      "highest_recorded_high_water": 5.7,
-      "mean_water_level": 3.09,
-      "lower_low_water_large_tide": 0.09,
-      "higher_high_water_mean_tide": 4.46,
-      "lower_low_water_mean_tide": 1.24,
+      "highest_recorded_high_water": 5.6,
+      "mean_water_level": 3.1,
+      "lower_low_water_large_tide": 0.1,
+      "higher_high_water_mean_tide": 4.5,
+      "lower_low_water_mean_tide": 1.2,
       "lowest_recorded_low_water": -0.4,
       "days": [
         {
@@ -38965,7 +38993,14 @@
             }
           ]
         }
-      ]
+      ],
+      "iwls_higher_high_water_large_tide": 5.0,
+      "iwls_higher_high_water_mean_tide": 4.46,
+      "iwls_lower_low_water_mean_tide": 1.24,
+      "iwls_lower_low_water_large_tide": 0.09,
+      "iwls_mean_water_level": 3.09,
+      "iwls_highest_recorded_high_water": 5.7,
+      "iwls_lowest_recorded_low_water": -0.4
     },
     {
       "name": "CAMPBELL RIVER",
@@ -38978,13 +39013,13 @@
       "latitude": 50.042,
       "longitude": -125.247,
       "source": "iwls",
-      "higher_high_water_large_tide": 4.42,
-      "highest_recorded_high_water": 5.21,
-      "mean_water_level": 2.78,
-      "lower_low_water_large_tide": 0.21,
+      "higher_high_water_large_tide": 4.4,
+      "highest_recorded_high_water": 5.4,
+      "mean_water_level": 2.8,
+      "lower_low_water_large_tide": 0.2,
       "higher_high_water_mean_tide": 4.0,
-      "lower_low_water_mean_tide": 1.22,
-      "lowest_recorded_low_water": -0.34,
+      "lower_low_water_mean_tide": 1.2,
+      "lowest_recorded_low_water": -0.2,
       "days": [
         {
           "month": 1,
@@ -47129,7 +47164,14 @@
             }
           ]
         }
-      ]
+      ],
+      "iwls_higher_high_water_large_tide": 4.42,
+      "iwls_higher_high_water_mean_tide": 4.0,
+      "iwls_lower_low_water_mean_tide": 1.22,
+      "iwls_lower_low_water_large_tide": 0.21,
+      "iwls_mean_water_level": 2.78,
+      "iwls_highest_recorded_high_water": 5.21,
+      "iwls_lowest_recorded_low_water": -0.34
     },
     {
       "name": "OWEN BAY",
@@ -47142,11 +47184,11 @@
       "latitude": 50.31045,
       "longitude": -125.22343,
       "source": "iwls",
-      "higher_high_water_large_tide": 4.64,
-      "mean_water_level": 2.63,
-      "lower_low_water_large_tide": 0.05,
-      "higher_high_water_mean_tide": 3.85,
-      "lower_low_water_mean_tide": 1.04,
+      "higher_high_water_large_tide": 4.6,
+      "mean_water_level": 2.6,
+      "lower_low_water_large_tide": 0.1,
+      "higher_high_water_mean_tide": 3.9,
+      "lower_low_water_mean_tide": 1.0,
       "days": [
         {
           "month": 1,
@@ -55307,7 +55349,14 @@
             }
           ]
         }
-      ]
+      ],
+      "iwls_higher_high_water_large_tide": 4.64,
+      "iwls_higher_high_water_mean_tide": 3.85,
+      "iwls_lower_low_water_mean_tide": 1.04,
+      "iwls_lower_low_water_large_tide": 0.05,
+      "iwls_mean_water_level": 2.63,
+      "highest_recorded_high_water": 4.8,
+      "lowest_recorded_low_water": -0.1
     },
     {
       "name": "ALERT BAY",
@@ -55320,12 +55369,12 @@
       "latitude": 50.587,
       "longitude": -126.931,
       "source": "iwls",
-      "higher_high_water_large_tide": 5.37,
-      "highest_recorded_high_water": 5.89,
-      "mean_water_level": 2.86,
-      "lower_low_water_large_tide": 0.06,
-      "higher_high_water_mean_tide": 4.47,
-      "lower_low_water_mean_tide": 1.08,
+      "higher_high_water_large_tide": 5.4,
+      "highest_recorded_high_water": 5.9,
+      "mean_water_level": 2.9,
+      "lower_low_water_large_tide": 0.1,
+      "higher_high_water_mean_tide": 4.5,
+      "lower_low_water_mean_tide": 1.1,
       "lowest_recorded_low_water": -0.2,
       "days": [
         {
@@ -63527,7 +63576,14 @@
             }
           ]
         }
-      ]
+      ],
+      "iwls_higher_high_water_large_tide": 5.37,
+      "iwls_higher_high_water_mean_tide": 4.47,
+      "iwls_lower_low_water_mean_tide": 1.08,
+      "iwls_lower_low_water_large_tide": 0.06,
+      "iwls_mean_water_level": 2.86,
+      "iwls_highest_recorded_high_water": 5.89,
+      "iwls_lowest_recorded_low_water": -0.2
     },
     {
       "name": "PORT RENFREW",
@@ -63540,13 +63596,13 @@
       "latitude": 48.555,
       "longitude": -124.421,
       "source": "iwls",
-      "higher_high_water_large_tide": 3.71,
-      "highest_recorded_high_water": 4.26,
-      "mean_water_level": 1.94,
-      "lower_low_water_large_tide": 0.03,
-      "higher_high_water_mean_tide": 2.99,
-      "lower_low_water_mean_tide": 0.79,
-      "lowest_recorded_low_water": -0.26,
+      "higher_high_water_large_tide": 3.7,
+      "highest_recorded_high_water": 4.3,
+      "mean_water_level": 1.9,
+      "lower_low_water_large_tide": 0.0,
+      "higher_high_water_mean_tide": 3.0,
+      "lower_low_water_mean_tide": 0.8,
+      "lowest_recorded_low_water": -0.2,
       "days": [
         {
           "month": 1,
@@ -71747,7 +71803,14 @@
             }
           ]
         }
-      ]
+      ],
+      "iwls_higher_high_water_large_tide": 3.71,
+      "iwls_higher_high_water_mean_tide": 2.99,
+      "iwls_lower_low_water_mean_tide": 0.79,
+      "iwls_lower_low_water_large_tide": 0.03,
+      "iwls_mean_water_level": 1.94,
+      "iwls_highest_recorded_high_water": 4.26,
+      "iwls_lowest_recorded_low_water": -0.26
     },
     {
       "name": "PORT ALBERNI",
@@ -71760,13 +71823,13 @@
       "latitude": 49.225621,
       "longitude": -124.813613,
       "source": "iwls",
-      "higher_high_water_large_tide": 3.83,
+      "higher_high_water_large_tide": 3.8,
       "highest_recorded_high_water": 4.4,
-      "mean_water_level": 1.89,
-      "lower_low_water_large_tide": -0.22,
-      "higher_high_water_mean_tide": 3.13,
-      "lower_low_water_mean_tide": 0.54,
-      "lowest_recorded_low_water": -0.49,
+      "mean_water_level": 1.9,
+      "lower_low_water_large_tide": -0.2,
+      "higher_high_water_mean_tide": 3.1,
+      "lower_low_water_mean_tide": 0.5,
+      "lowest_recorded_low_water": -0.5,
       "days": [
         {
           "month": 1,
@@ -79967,7 +80030,14 @@
             }
           ]
         }
-      ]
+      ],
+      "iwls_higher_high_water_large_tide": 3.83,
+      "iwls_higher_high_water_mean_tide": 3.13,
+      "iwls_lower_low_water_mean_tide": 0.54,
+      "iwls_lower_low_water_large_tide": -0.22,
+      "iwls_mean_water_level": 1.89,
+      "iwls_highest_recorded_high_water": 4.4,
+      "iwls_lowest_recorded_low_water": -0.49
     },
     {
       "name": "TOFINO",
@@ -79980,13 +80050,13 @@
       "latitude": 49.154,
       "longitude": -125.913,
       "source": "iwls",
-      "higher_high_water_large_tide": 4.09,
-      "highest_recorded_high_water": 4.75,
-      "mean_water_level": 2.12,
-      "lower_low_water_large_tide": -0.05,
-      "higher_high_water_mean_tide": 3.39,
-      "lower_low_water_mean_tide": 0.74,
-      "lowest_recorded_low_water": -0.31,
+      "higher_high_water_large_tide": 4.1,
+      "highest_recorded_high_water": 4.8,
+      "mean_water_level": 2.1,
+      "lower_low_water_large_tide": 0.0,
+      "higher_high_water_mean_tide": 3.4,
+      "lower_low_water_mean_tide": 0.7,
+      "lowest_recorded_low_water": -0.3,
       "days": [
         {
           "month": 1,
@@ -88187,7 +88257,14 @@
             }
           ]
         }
-      ]
+      ],
+      "iwls_higher_high_water_large_tide": 4.09,
+      "iwls_higher_high_water_mean_tide": 3.39,
+      "iwls_lower_low_water_mean_tide": 0.74,
+      "iwls_lower_low_water_large_tide": -0.05,
+      "iwls_mean_water_level": 2.12,
+      "iwls_highest_recorded_high_water": 4.75,
+      "iwls_lowest_recorded_low_water": -0.31
     },
     {
       "name": "WINTER HARBOUR",
@@ -88200,13 +88277,13 @@
       "latitude": 50.513,
       "longitude": -128.029,
       "source": "iwls",
-      "higher_high_water_large_tide": 4.41,
-      "highest_recorded_high_water": 5.03,
-      "mean_water_level": 2.34,
-      "lower_low_water_large_tide": -0.01,
-      "higher_high_water_mean_tide": 3.64,
-      "lower_low_water_mean_tide": 0.87,
-      "lowest_recorded_low_water": -0.25,
+      "higher_high_water_large_tide": 4.4,
+      "highest_recorded_high_water": 5.0,
+      "mean_water_level": 2.3,
+      "lower_low_water_large_tide": 0.0,
+      "higher_high_water_mean_tide": 3.6,
+      "lower_low_water_mean_tide": 0.8,
+      "lowest_recorded_low_water": -0.2,
       "days": [
         {
           "month": 1,
@@ -96407,7 +96484,14 @@
             }
           ]
         }
-      ]
+      ],
+      "iwls_higher_high_water_large_tide": 4.41,
+      "iwls_higher_high_water_mean_tide": 3.64,
+      "iwls_lower_low_water_mean_tide": 0.87,
+      "iwls_lower_low_water_large_tide": -0.01,
+      "iwls_mean_water_level": 2.34,
+      "iwls_highest_recorded_high_water": 5.03,
+      "iwls_lowest_recorded_low_water": -0.25
     },
     {
       "name": "WADHAMS",
@@ -96420,10 +96504,10 @@
       "latitude": 51.51,
       "longitude": -127.524,
       "source": "iwls",
-      "higher_high_water_large_tide": 5.26,
-      "mean_water_level": 2.76,
-      "lower_low_water_large_tide": 0.01,
-      "higher_high_water_mean_tide": 4.37,
+      "higher_high_water_large_tide": 5.2,
+      "mean_water_level": 2.8,
+      "lower_low_water_large_tide": 0.0,
+      "higher_high_water_mean_tide": 4.4,
       "lower_low_water_mean_tide": 1.0,
       "days": [
         {
@@ -104625,7 +104709,14 @@
             }
           ]
         }
-      ]
+      ],
+      "iwls_higher_high_water_large_tide": 5.26,
+      "iwls_higher_high_water_mean_tide": 4.37,
+      "iwls_lower_low_water_mean_tide": 1.0,
+      "iwls_lower_low_water_large_tide": 0.01,
+      "iwls_mean_water_level": 2.76,
+      "highest_recorded_high_water": 5.5,
+      "lowest_recorded_low_water": -0.2
     },
     {
       "name": "BELLA COOLA",
@@ -104638,12 +104729,12 @@
       "latitude": 52.374,
       "longitude": -126.796,
       "source": "iwls",
-      "higher_high_water_large_tide": 5.83,
-      "highest_recorded_high_water": 5.88,
-      "mean_water_level": 3.05,
-      "lower_low_water_large_tide": 0.07,
-      "higher_high_water_mean_tide": 4.83,
-      "lower_low_water_mean_tide": 1.12,
+      "higher_high_water_large_tide": 5.6,
+      "highest_recorded_high_water": 5.7,
+      "mean_water_level": 2.9,
+      "lower_low_water_large_tide": -0.1,
+      "higher_high_water_mean_tide": 4.7,
+      "lower_low_water_mean_tide": 0.9,
       "lowest_recorded_low_water": -0.3,
       "days": [
         {
@@ -112845,7 +112936,14 @@
             }
           ]
         }
-      ]
+      ],
+      "iwls_higher_high_water_large_tide": 5.83,
+      "iwls_higher_high_water_mean_tide": 4.83,
+      "iwls_lower_low_water_mean_tide": 1.12,
+      "iwls_lower_low_water_large_tide": 0.07,
+      "iwls_mean_water_level": 3.05,
+      "iwls_highest_recorded_high_water": 5.88,
+      "iwls_lowest_recorded_low_water": -0.3
     },
     {
       "name": "BELLA BELLA",
@@ -112858,12 +112956,12 @@
       "latitude": 52.163,
       "longitude": -128.143,
       "source": "iwls",
-      "higher_high_water_large_tide": 5.41,
-      "highest_recorded_high_water": 5.94,
-      "mean_water_level": 2.84,
-      "lower_low_water_large_tide": 0.04,
-      "higher_high_water_mean_tide": 4.49,
-      "lower_low_water_mean_tide": 1.04,
+      "higher_high_water_large_tide": 5.4,
+      "highest_recorded_high_water": 5.9,
+      "mean_water_level": 2.8,
+      "lower_low_water_large_tide": 0.0,
+      "higher_high_water_mean_tide": 4.5,
+      "lower_low_water_mean_tide": 1.0,
       "lowest_recorded_low_water": -0.2,
       "days": [
         {
@@ -121065,7 +121163,14 @@
             }
           ]
         }
-      ]
+      ],
+      "iwls_higher_high_water_large_tide": 5.41,
+      "iwls_higher_high_water_mean_tide": 4.49,
+      "iwls_lower_low_water_mean_tide": 1.04,
+      "iwls_lower_low_water_large_tide": 0.04,
+      "iwls_mean_water_level": 2.84,
+      "iwls_highest_recorded_high_water": 5.94,
+      "iwls_lowest_recorded_low_water": -0.2
     },
     {
       "name": "KITIMAT",
@@ -121078,13 +121183,13 @@
       "latitude": 53.989,
       "longitude": -128.696,
       "source": "iwls",
-      "higher_high_water_large_tide": 6.41,
-      "highest_recorded_high_water": 6.74,
-      "mean_water_level": 3.29,
-      "lower_low_water_large_tide": -0.03,
-      "higher_high_water_mean_tide": 5.33,
-      "lower_low_water_mean_tide": 1.11,
-      "lowest_recorded_low_water": -0.31,
+      "higher_high_water_large_tide": 6.4,
+      "highest_recorded_high_water": 6.7,
+      "mean_water_level": 3.3,
+      "lower_low_water_large_tide": 0.0,
+      "higher_high_water_mean_tide": 5.3,
+      "lower_low_water_mean_tide": 1.1,
+      "lowest_recorded_low_water": -0.2,
       "days": [
         {
           "month": 1,
@@ -129285,7 +129390,14 @@
             }
           ]
         }
-      ]
+      ],
+      "iwls_higher_high_water_large_tide": 6.41,
+      "iwls_higher_high_water_mean_tide": 5.33,
+      "iwls_lower_low_water_mean_tide": 1.11,
+      "iwls_lower_low_water_large_tide": -0.03,
+      "iwls_mean_water_level": 3.29,
+      "iwls_highest_recorded_high_water": 6.74,
+      "iwls_lowest_recorded_low_water": -0.31
     },
     {
       "name": "BONILLA ISLAND",
@@ -129298,13 +129410,13 @@
       "latitude": 53.493806,
       "longitude": -130.636972,
       "source": "iwls",
-      "higher_high_water_large_tide": 6.67,
-      "highest_recorded_high_water": 6.96,
-      "mean_water_level": 3.47,
-      "lower_low_water_large_tide": -0.03,
-      "higher_high_water_mean_tide": 5.58,
-      "lower_low_water_mean_tide": 1.18,
-      "lowest_recorded_low_water": -0.23,
+      "higher_high_water_large_tide": 6.7,
+      "highest_recorded_high_water": 6.9,
+      "mean_water_level": 3.5,
+      "lower_low_water_large_tide": 0.0,
+      "higher_high_water_mean_tide": 5.6,
+      "lower_low_water_mean_tide": 1.2,
+      "lowest_recorded_low_water": -0.2,
       "days": [
         {
           "month": 1,
@@ -137505,7 +137617,14 @@
             }
           ]
         }
-      ]
+      ],
+      "iwls_higher_high_water_large_tide": 6.67,
+      "iwls_higher_high_water_mean_tide": 5.58,
+      "iwls_lower_low_water_mean_tide": 1.18,
+      "iwls_lower_low_water_large_tide": -0.03,
+      "iwls_mean_water_level": 3.47,
+      "iwls_highest_recorded_high_water": 6.96,
+      "iwls_lowest_recorded_low_water": -0.23
     },
     {
       "name": "PRINCE RUPERT",
@@ -137518,13 +137637,13 @@
       "latitude": 54.317,
       "longitude": -130.324,
       "source": "iwls",
-      "higher_high_water_large_tide": 7.41,
-      "highest_recorded_high_water": 7.98,
-      "mean_water_level": 3.85,
+      "higher_high_water_large_tide": 7.4,
+      "highest_recorded_high_water": 8.0,
+      "mean_water_level": 3.8,
       "lower_low_water_large_tide": 0.0,
-      "higher_high_water_mean_tide": 6.17,
-      "lower_low_water_mean_tide": 1.32,
-      "lowest_recorded_low_water": -0.38,
+      "higher_high_water_mean_tide": 6.2,
+      "lower_low_water_mean_tide": 1.3,
+      "lowest_recorded_low_water": -0.4,
       "days": [
         {
           "month": 1,
@@ -145725,7 +145844,14 @@
             }
           ]
         }
-      ]
+      ],
+      "iwls_higher_high_water_large_tide": 7.41,
+      "iwls_higher_high_water_mean_tide": 6.17,
+      "iwls_lower_low_water_mean_tide": 1.32,
+      "iwls_lower_low_water_large_tide": 0.0,
+      "iwls_mean_water_level": 3.85,
+      "iwls_highest_recorded_high_water": 7.98,
+      "iwls_lowest_recorded_low_water": -0.38
     },
     {
       "name": "HUNGER HARBOUR",
@@ -145738,11 +145864,11 @@
       "latitude": 52.766,
       "longitude": -132.047,
       "source": "iwls",
-      "higher_high_water_large_tide": 4.76,
-      "mean_water_level": 2.63,
-      "lower_low_water_large_tide": 0.28,
-      "higher_high_water_mean_tide": 3.97,
-      "lower_low_water_mean_tide": 1.16,
+      "higher_high_water_large_tide": 4.8,
+      "mean_water_level": 2.6,
+      "lower_low_water_large_tide": 0.0,
+      "higher_high_water_mean_tide": 4.0,
+      "lower_low_water_mean_tide": 1.2,
       "days": [
         {
           "month": 1,
@@ -153943,7 +154069,14 @@
             }
           ]
         }
-      ]
+      ],
+      "iwls_higher_high_water_large_tide": 4.76,
+      "iwls_higher_high_water_mean_tide": 3.97,
+      "iwls_lower_low_water_mean_tide": 1.16,
+      "iwls_lower_low_water_large_tide": 0.28,
+      "iwls_mean_water_level": 2.63,
+      "highest_recorded_high_water": 4.8,
+      "lowest_recorded_low_water": 0.3
     },
     {
       "name": "ROSE HARBOUR",
@@ -153956,13 +154089,13 @@
       "latitude": 52.1552,
       "longitude": -131.0909,
       "source": "iwls",
-      "higher_high_water_large_tide": 4.87,
-      "highest_recorded_high_water": 5.11,
-      "mean_water_level": 2.59,
-      "lower_low_water_large_tide": 0.08,
-      "higher_high_water_mean_tide": 4.05,
-      "lower_low_water_mean_tide": 0.98,
-      "lowest_recorded_low_water": -0.11,
+      "higher_high_water_large_tide": 4.9,
+      "highest_recorded_high_water": 5.1,
+      "mean_water_level": 2.6,
+      "lower_low_water_large_tide": 0.1,
+      "higher_high_water_mean_tide": 4.1,
+      "lower_low_water_mean_tide": 1.0,
+      "lowest_recorded_low_water": -0.1,
       "days": [
         {
           "month": 1,
@@ -162163,7 +162296,14 @@
             }
           ]
         }
-      ]
+      ],
+      "iwls_higher_high_water_large_tide": 4.87,
+      "iwls_higher_high_water_mean_tide": 4.05,
+      "iwls_lower_low_water_mean_tide": 0.98,
+      "iwls_lower_low_water_large_tide": 0.08,
+      "iwls_mean_water_level": 2.59,
+      "iwls_highest_recorded_high_water": 5.11,
+      "iwls_lowest_recorded_low_water": -0.11
     },
     {
       "name": "DAAJING GIIDS",
@@ -162176,13 +162316,13 @@
       "latitude": 53.252,
       "longitude": -132.072,
       "source": "iwls",
-      "higher_high_water_large_tide": 7.58,
-      "highest_recorded_high_water": 8.15,
-      "mean_water_level": 3.99,
-      "lower_low_water_large_tide": -0.08,
-      "higher_high_water_mean_tide": 6.33,
-      "lower_low_water_mean_tide": 1.34,
-      "lowest_recorded_low_water": -0.51,
+      "higher_high_water_large_tide": 7.6,
+      "highest_recorded_high_water": 8.2,
+      "mean_water_level": 4.0,
+      "lower_low_water_large_tide": -0.1,
+      "higher_high_water_mean_tide": 6.3,
+      "lower_low_water_mean_tide": 1.3,
+      "lowest_recorded_low_water": -0.5,
       "days": [
         {
           "month": 1,
@@ -170383,7 +170523,14 @@
             }
           ]
         }
-      ]
+      ],
+      "iwls_higher_high_water_large_tide": 7.58,
+      "iwls_higher_high_water_mean_tide": 6.33,
+      "iwls_lower_low_water_mean_tide": 1.34,
+      "iwls_lower_low_water_large_tide": -0.08,
+      "iwls_mean_water_level": 3.99,
+      "iwls_highest_recorded_high_water": 8.15,
+      "iwls_lowest_recorded_low_water": -0.51
     },
     {
       "name": "LANGARA POINT",
@@ -170396,13 +170543,13 @@
       "latitude": 54.256,
       "longitude": -133.045,
       "source": "iwls",
-      "higher_high_water_large_tide": 5.19,
-      "highest_recorded_high_water": 5.71,
-      "mean_water_level": 2.77,
-      "lower_low_water_large_tide": 0.01,
-      "higher_high_water_mean_tide": 4.37,
+      "higher_high_water_large_tide": 5.2,
+      "highest_recorded_high_water": 5.5,
+      "mean_water_level": 2.8,
+      "lower_low_water_large_tide": 0.0,
+      "higher_high_water_mean_tide": 4.4,
       "lower_low_water_mean_tide": 1.0,
-      "lowest_recorded_low_water": -0.14,
+      "lowest_recorded_low_water": -0.1,
       "days": [
         {
           "month": 1,
@@ -178603,7 +178750,14 @@
             }
           ]
         }
-      ]
+      ],
+      "iwls_higher_high_water_large_tide": 5.19,
+      "iwls_higher_high_water_mean_tide": 4.37,
+      "iwls_lower_low_water_mean_tide": 1.0,
+      "iwls_lower_low_water_large_tide": 0.01,
+      "iwls_mean_water_level": 2.77,
+      "iwls_highest_recorded_high_water": 5.71,
+      "iwls_lowest_recorded_low_water": -0.14
     }
   ]
 }

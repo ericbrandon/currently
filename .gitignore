@@ -32,7 +32,5 @@ canada_data/marine_zones_raw/
 # IWLS API raw cache (fetch_iwls.py)
 canada_data/iwls_raw/
 
-# IWLS fetch outputs kept out of git except the 2027 primaries (validation evidence);
-# regenerate with canada_data/fetch_iwls.py
+# IWLS Table 3 port predictions (44 MB, report-only; regenerate with fetch_iwls.py --secondaries)
 *_iwls_tidal_secondary_predictions.json
-2026_iwls_*.json

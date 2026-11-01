@@ -66,7 +66,14 @@ Table 4 footnote semantics. For 2028 those stay frozen from the 2027 parse
   (local days at the chosen offset, `readings[]` / `events[]`). Raw
   responses cache under `canada_data/iwls_raw/<year>/` (gitignored). Values
   keep IWLS precision (3 dp); `max_flood_knots` / `max_ebb_knots` are the
-  year's largest event, as in the NOAA path.
+  year's largest event, as in the NOAA path. `--metadata-from roster`
+  (default) then carries the book's Table 4 large-tide maxima and Table 2
+  heights onto the records, keeping IWLS's own values as `iwls_*` fields;
+  `--metadata-from iwls` uses the API throughout. The raw cache key
+  includes the local offset.
+- `apply_coord_overrides.py`, `build_manifest.py` and `process_combined.sh`
+  take `--primaries iwls|tct` (default `iwls`): which pipeline supplies the
+  two CHS primary files. Secondaries always come from the `*_tct_*` files.
 - `canada_data/compare_iwls_tct.py --year Y`
   Pairs every book event with the IWLS event at the same UTC minute and
   reports count, same-minute matches, |dt| histogram, value mismatches
@@ -203,19 +210,26 @@ every tide smaller than a large one.
    Winter Harbour and Fulford cases show CHS re-issues predictions inside
    a year.
 
-## 7. 2028 plan
+## 7. Switch made 2026-11-01
 
-1. `fetch_iwls.py --year 2028 --roster-year 2027 --secondaries` once
-   current events for 2028 appear in holdings (check `/holdings` for a
-   current primary; tides are already there).
-2. Carry the 2027 Table 3 / Table 4 secondary files forward unchanged
-   (`cp 2027_tct_*_secondary_stations.json 2028_tct_…` or teach
-   `build_manifest.py` a `--secondaries-from 2027`); they hold offsets,
-   not predictions. Re-point the loader's reference lookup at the IWLS
-   primary names (they are the book names, since the fetcher keeps the
-   roster's names).
-3. `process_us.sh --year 2028`, `process_combined.sh --year 2028` with the
-   IWLS files renamed or symlinked into the `*_tct_*` slots the manifest
-   builder expects (or add `iwls_*` kinds to `KINDS`), then
-   `build_manifest.py --year 2027 --from-date 2027-10-31`.
+Opportunity 1 was taken: the published Oct 31 2026 – Dec 31 2027 CHS
+primaries now come from `fetch_iwls.py` (both years fetched at UTC−7, so
+they meet at local midnight with no overlap), with the book's large-tide
+maxima and Table 2 heights carried over. Table 3/4 secondaries still come
+from the 2027 book parse. The book parse remains the cross-check
+(`compare_iwls_tct.py`). Consequences: the Campbell River DST-day event is
+now correct, the Winter Harbour and Fulford revisions are in the 2026 tail,
+and the Jan 1 step at Winter Harbour is gone.
+
+## 8. 2028 plan
+
+1. `fetch_iwls.py --year 2028 --roster-year 2027` once current events for
+   2028 appear in holdings (check `/holdings` for a current primary; tides
+   are already held to 2029).
+2. Copy the 2027 Table 3 / Table 4 secondary files to the 2028 names;
+   they hold offsets, not predictions, and the fetcher keeps the book's
+   station names so every reference still resolves.
+3. `process_us.sh --year 2028`, `process_combined.sh --year 2028`, then
+   `build_manifest.py --year 2027 --from-date 2027-10-31`. Full sequence in
+   deploy.md §9.
 4. Decide on opportunities 2 and 3 before then; both change the loader.

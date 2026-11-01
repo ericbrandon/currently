@@ -263,3 +263,19 @@ in the dev server the date picker offers Oct 31 2026 – Dec 31 2027 and
 Jan 1 2027 renders with no "no data" warning and no console warnings.
 
 Not yet done: the on-phone check and the `main:release` promotion (§3.3).
+
+## 8. Source switch (2026-11-01, later the same day)
+
+After the IWLS survey ([iwls_api.md](iwls_api.md)) the published CHS
+primaries for Oct 31 2026 – Dec 31 2027 were regenerated from the API:
+`fetch_iwls.py --year 2027` and `--year 2026 --utc-offset -7`, then
+`process_combined.sh --year 2027` and `build_manifest.py --year 2026
+--from-date 2026-10-31` (both default to `--primaries iwls`). Table 3/4
+secondaries are unchanged from the 2027 book parse. The book's large-tide
+maxima and Table 2 heights are carried onto the IWLS records, so the
+published metadata is identical to before; only the predictions changed,
+and `compare_iwls_tct.py` shows how little: same minute everywhere, with the
+book's DST-day Campbell River low now at 02:16 PDT instead of 03:16, and
+the Winter Harbour / Fulford 2026 revisions included. Both years are at
+UTC−7, so the 2026 tail ends at 23:59 PDT Dec 31 and 2027 begins at 00:00:
+no overlap hour. Tests 98/98.

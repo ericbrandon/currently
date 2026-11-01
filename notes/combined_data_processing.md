@@ -17,7 +17,8 @@ For a webapp that pins a marker on a map, this is enough error to put many coast
 
 The pipeline is split across two shell scripts at the repo root:
 
-- **`canada_data/process_canadian.sh --year YEAR`** — runs `canada_data/read_tct.py` to parse the PDFs (sourced from `canada_data/`) into `{year}_tct_*_stations.json` at the repo root. Source-specific; produces nothing else. (Details in [canada_data_processing.md](canada_data_processing.md).)
+- **`canada_data/fetch_iwls.py --year YEAR`** — fetches the CHS tide and current primaries from the IWLS API into `{year}_iwls_*_primary_stations.json` at the repo root. The source since the Oct 2026 – Dec 2027 drop; see [iwls_api.md](iwls_api.md).
+- **`canada_data/process_canadian.sh --year YEAR`** — runs `canada_data/read_tct.py` to parse the PDFs (sourced from `canada_data/`) into `{year}_tct_*_stations.json` at the repo root. The `*_secondary_*` files (Table 3/4 offsets) are still consumed from here; the `*_primary_*` files are now the cross-check against the API, or the published source with `--primaries tct`. 2027 is the last printed edition, so from 2028 the secondary files are copied forward. (Details in [canada_data_processing.md](canada_data_processing.md).)
 - **`process_combined.sh --year YEAR`** (at the repo root) — runs `apply_coord_overrides.py` then `build_manifest.py`. Consumes both the Canadian outputs (above) and the NOAA outputs (`{year}_noaa_*_stations.json` from `us_data/process_us.sh`) and publishes the year's data into `web/public/data/`. `apply_coord_overrides.py` is Canadian-only (NOAA's mdapi already returns precise coords); `build_manifest.py` ingests both feeds — `noaa_tidal_primary` and `noaa_current_primary` are registered kinds with their own `_PUBLISH_KEEP` allowlists and get the same publish-time stripping as the CHS kinds.
 
 End-to-end ordering for a fresh year:
