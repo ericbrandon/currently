@@ -187,7 +187,7 @@ describe.skipIf(!enabled)(`IWLS vs derived secondaries (${year})`, () => {
 
     const curRefByName = new Map(prim.stations.map((c) => [c.name, classifyCurrentEvents(c)]));
     const curScaleByName = new Map(prim.stations.map((c) => [c.name, {
-      maxFlood: Math.abs(c.max_flood_knots), maxEbb: Math.abs(c.max_ebb_knots),
+      kind: "current" as const, maxFlood: Math.abs(c.max_flood_knots), maxEbb: Math.abs(c.max_ebb_knots),
     }]));
     const tideRefByName = new Map<string, { extremes: Extreme[]; classified: boolean[] }>();
     for (const s of tidePrim.stations) {

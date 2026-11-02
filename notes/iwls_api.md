@@ -234,9 +234,10 @@ shortened to **Oct 31 2026 – Oct 31 2027** to hold the download down:
 - Proportional rule (`secondaryCurrents.ts`): the 14 absolute-knots rows
   referenced to a current primary now scale the printed large-tide speed
   by the reference's actual-over-large-tide ratio, on direct and
-  synthesised maxes alike; weak reference maxes and the 13 tide-referenced
-  rows keep the flat value. The reference maxima come from the Table 4
-  rows carried onto the IWLS primaries.
+  synthesised maxes alike; weak reference maxes keep the flat value. The
+  reference maxima come from the Table 4 rows carried onto the IWLS
+  primaries. The 13 tide-referenced rows use square-root range scaling
+  (§9).
 - `build_manifest.py --to-date` trims the far end the way `--from-date`
   trims the near end; `process_combined.sh` passes both through.
 
@@ -271,10 +272,12 @@ the 30 cases, which is the safe direction for a passage planner. Per-pair
 numbers are in the scratch run of 2026-11-01 (reproduce with the script
 in §3 of the plan note's run log).
 
-Recommendation for the tide-referenced rows: square-root scaling by the
-reference's cycle range over `HHWLT − LLWLT`, labelled as an estimate.
-Not yet implemented; `secondaryCurrentExtremes` falls back to the flat
-value when no `refScale` is supplied.
+Implemented 2026-11-01 (same evening): `secondaryCurrentExtremes` takes a
+`RefScale` of kind `tide` (`largeRange = HHWLT − LLWLT` of the reference
+port) and scales each synthesised max by the square root of its
+half-cycle's range over that. The half-cycle range comes from the two
+tide extremes that produced the bracketing slacks. The flat value remains
+the fallback when no scale is supplied.
 
 ## 10. 2028 plan
 
@@ -288,4 +291,4 @@ value when no `refScale` is supplied.
    --to-date 2028-10-31`, then `build_manifest.py --year 2027 --from-date
    2027-10-31` (the window is rolling; move both ends when you refresh).
    Full sequence in deploy.md §9.
-4. Decide on square-root scaling for the tide-referenced rows (§9).
+4. Nothing else pending on the data side; opportunities 4–8 in §6 remain.

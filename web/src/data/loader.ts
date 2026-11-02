@@ -36,6 +36,7 @@ import {
 } from "../interp/secondaryTides";
 import {
   type ClassifiedCurrentEvent,
+  type RefScale,
   classifyCurrentEvents,
   classifyLowerLows,
   classifyTideAsCurrent,
@@ -275,15 +276,21 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
       for (const sec of curSecFile.stations) {
         // Resolve the reference. Either a current primary (with optional
         // alias) or — for offsets_from_tides — a tide primary, adapted.
-        // For a current primary also hand over its Table 4 large-tide
-        // maxima: absolute-knots rows scale their printed large-tide
-        // speed by the reference's actual-over-large ratio (see
-        // secondaryCurrentExtremes). Tide-referenced rows get no scale.
+        // Also hand over a scale for absolute-knots rows (see RefScale in
+        // secondaryCurrents.ts): a current primary's Table 4 large-tide
+        // maxima, or a tide primary's large-tide range.
         let refClassified: ClassifiedCurrentEvent[] | null = null;
-        let refScale: { maxFlood: number; maxEbb: number } | null = null;
+        let refScale: RefScale | null = null;
         if (sec.offsets_from_tides) {
           const tideRef = refByName.get(sec.reference_primary);
           if (tideRef) {
+            // Square-root rule: scale by the half-cycle's range over the
+            // reference port's large-tide range (Table 2).
+            refScale = {
+              kind: "tide",
+              largeRange:
+                tideRef.station.higher_high_water_large_tide - tideRef.station.lower_low_water_large_tide,
+            };
             // Stations with an asymmetric per-LW offset (NITINAT BAR)
             // need each LW tagged higher/lower — skip the extra pass
             // for everyone else.
@@ -303,6 +310,7 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
           if (curRef) {
             refClassified = curRef.classified;
             refScale = {
+              kind: "current",
               maxFlood: Math.abs(curRef.station.max_flood_knots),
               maxEbb: Math.abs(curRef.station.max_ebb_knots),
             };

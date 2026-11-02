@@ -300,3 +300,6 @@ Decided and shipped together ([iwls_api.md](iwls_api.md) §7–§9):
 Payload (gz): 3.86 MB for the window, of which the port predictions are
 2.16 MB; the rest is 1.70 MB. Before today the app shipped 1.88 MB for
 Nov 2026 – Dec 2027 without port predictions. Tests 103/103.
+
+Later still: the 13 tide-referenced absolute-knots rows now use square-root
+range scaling (iwls_api.md §9). 104 tests.

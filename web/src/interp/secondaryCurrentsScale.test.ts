@@ -8,7 +8,8 @@
 
 import { describe, expect, it } from "vitest";
 import type { CurrentPrimaryStation, CurrentSecondaryStation } from "../types";
-import { classifyCurrentEvents, secondaryCurrentExtremes } from "./secondaryCurrents";
+import { classifyCurrentEvents, classifyTideAsCurrent, secondaryCurrentExtremes } from "./secondaryCurrents";
+import { classifyHiLow } from "./secondaryTides";
 
 function gillard(events: { time: string; kind: "slack" | "max"; knots: number; weak?: boolean }[]): CurrentPrimaryStation {
   return {
@@ -38,13 +39,13 @@ const maxes = (xs: { v: number }[]) => xs.filter((e) => e.v !== 0).map((e) => +e
 
 describe("proportional rule for absolute-knots rows", () => {
   it("scales synthesised midpoint maxes by the reference's actual/large ratio", () => {
-    const out = secondaryCurrentExtremes(dent(), ref, ref, { maxFlood: 12.5, maxEbb: 9.5 });
+    const out = secondaryCurrentExtremes(dent(), ref, ref, { kind: "current" as const, maxFlood: 12.5, maxEbb: 9.5 });
     expect(maxes(out)).toEqual([+(11 * 4.7 / 12.5).toFixed(2), -(9.5 * 5.9 / 9.5)]);
   });
 
   it("scales direct max events when Table 4 gives max time diffs", () => {
     const out = secondaryCurrentExtremes(
-      dent({ flood_max_diff: "+00:10", ebb_max_diff: "+00:10" }), ref, ref, { maxFlood: 12.5, maxEbb: 9.5 },
+      dent({ flood_max_diff: "+00:10", ebb_max_diff: "+00:10" }), ref, ref, { kind: "current" as const, maxFlood: 12.5, maxEbb: 9.5 },
     );
     expect(maxes(out)).toEqual([4.14, -5.9]);
     // and the timing is the reference max plus the diff
@@ -52,7 +53,23 @@ describe("proportional rule for absolute-knots rows", () => {
     expect(flood.t).toBe(Date.UTC(2027, 0, 1, 4 + 7, 10));
   });
 
-  it("falls back to the flat printed value without a scale (tide-referenced rows) and on weak reference maxes", () => {
+  it("scales tide-referenced rows by the square root of the half-cycle range over the large-tide range", () => {
+    // Point Atkinson-like reference: LW 1.0 → HW 4.0 (rise 3.0) → LW 0.5 (fall 3.5);
+    // large-tide range 4.9. Malibu Rapids prints 9 kn flood and ebb.
+    const h = (hr: number) => Date.UTC(2027, 0, 1, hr + 7);
+    const tide = [{ t: h(0), v: 1.0 }, { t: h(6), v: 4.0 }, { t: h(12), v: 0.5 }];
+    const ref = classifyTideAsCurrent(tide, classifyHiLow(tide));
+    const malibu = dent({
+      index_no: 7863, name: "MALIBU RAPIDS", reference_primary: "POINT ATKINSON", offsets_from_tides: true,
+      turn_to_flood_diff: "+00:35", turn_to_ebb_diff: "+00:25", max_flood_knots: 9, max_ebb_knots: 9,
+    });
+    const out = secondaryCurrentExtremes(malibu, ref, ref, { kind: "tide", largeRange: 4.9 });
+    expect(maxes(out)).toEqual([+(9 * Math.sqrt(3.0 / 4.9)).toFixed(2), -+(9 * Math.sqrt(3.5 / 4.9)).toFixed(2)]);
+    // flat without a scale
+    expect(maxes(secondaryCurrentExtremes(malibu, ref, ref, null))).toEqual([9, -9]);
+  });
+
+  it("falls back to the flat printed value without a scale and on weak reference maxes", () => {
     expect(maxes(secondaryCurrentExtremes(dent(), ref, ref, null))).toEqual([11, -9.5]);
     const weakRef = classifyCurrentEvents(gillard([
       { time: "01:00", kind: "slack", knots: 0 },
@@ -61,7 +78,7 @@ describe("proportional rule for absolute-knots rows", () => {
       { time: "10:00", kind: "max", knots: -5.9 },
       { time: "13:00", kind: "slack", knots: 0 },
     ]));
-    expect(maxes(secondaryCurrentExtremes(dent(), weakRef, weakRef, { maxFlood: 12.5, maxEbb: 9.5 }))).toEqual([11, -5.9]);
+    expect(maxes(secondaryCurrentExtremes(dent(), weakRef, weakRef, { kind: "current" as const, maxFlood: 12.5, maxEbb: 9.5 }))).toEqual([11, -5.9]);
   });
 
   it("lets the secondary exceed its printed value when the reference exceeds its large-tide max", () => {
@@ -72,7 +89,7 @@ describe("proportional rule for absolute-knots rows", () => {
       { time: "10:00", kind: "max", knots: -10.0 },
       { time: "13:00", kind: "slack", knots: 0 },
     ]));
-    const out = secondaryCurrentExtremes(dent(), big, big, { maxFlood: 12.5, maxEbb: 9.5 });
+    const out = secondaryCurrentExtremes(dent(), big, big, { kind: "current" as const, maxFlood: 12.5, maxEbb: 9.5 });
     expect(maxes(out)).toEqual([+(11 * 13 / 12.5).toFixed(2), -10]);
   });
 });

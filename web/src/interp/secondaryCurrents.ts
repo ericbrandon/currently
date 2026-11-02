@@ -277,6 +277,10 @@ type EmittedEvent = {
   v: number;
   weak: boolean;
   kind: CurrentEventKind;
+  /** For slacks derived from a tide reference: the HW/LW height that
+   *  produced the slack, so the synthesis step can take the half-cycle's
+   *  range. 0 for current-referenced slacks. */
+  refV?: number;
 };
 
 function byT(a: { t: number }, b: { t: number }): number {
@@ -291,9 +295,16 @@ function byT(a: { t: number }, b: { t: number }): number {
  *  (Table 4 vol 6 footnote (a): ALERT BAY / PULTENEY POINT turns come
  *  from SEYMOUR NARROWS while maxes stay on Johnstone Strait-Central).
  *  Defaults to refClassified — one reference for both, the normal case. */
-/** The reference current primary's Table 4 "maximum at large tides"
- *  speeds, used by the proportional rule below. */
-export type RefScale = { maxFlood: number; maxEbb: number };
+/** How an absolute-knots row's printed large-tide speed is scaled to the
+ *  tide at hand (see scaledKnots / rangeScaledKnots):
+ *  - current reference: the reference's Table 4 "maximum at large tides"
+ *    speeds; the row scales by the reference's actual-over-large ratio.
+ *  - tide reference: the reference port's large-tide range
+ *    (HHWLT − LLWLT); the row scales by the square root of the
+ *    half-cycle's range over that. */
+export type RefScale =
+  | { kind: "current"; maxFlood: number; maxEbb: number }
+  | { kind: "tide"; largeRange: number };
 
 /** Proportional rule for absolute-knots rows referenced to a current
  *  primary. Table 4 prints the secondary's speed at large tides only and
@@ -315,6 +326,26 @@ function scaledKnots(
   if (secMax === null || secMax === 0) return null;
   if (refWeak || !refMax || refMax <= 0 || refV === 0) return null;
   return secMax * (Math.abs(refV) / refMax);
+}
+
+/** Square-root rule for absolute-knots rows referenced to a tide primary
+ *  (Malibu Rapids, Nitinat Bar, the Prince Rupert channels…). The row
+ *  prints the speed at large tides only; the physically natural scale is
+ *  the range of the tide driving the half-cycle. Tested on fifteen current
+ *  primaries that sit beside a tide primary (notes/iwls_api.md §9): flat
+ *  printed values miss by a median 39 % of the large-tide speed, linear
+ *  range scaling by 11 % but under-predicts at sill rapids, square-root
+ *  scaling by 11 % and errs high in 29 of 30 cases — the safe side for a
+ *  passage planner. Returns null when the rule cannot apply (no scale,
+ *  degenerate range) so the caller keeps the flat value. */
+function rangeScaledKnots(
+  secMax: number | null,
+  range: number,
+  largeRange: number | undefined,
+): number | null {
+  if (secMax === null || secMax === 0) return null;
+  if (!largeRange || largeRange <= 0 || !(range > 0)) return null;
+  return secMax * Math.sqrt(range / largeRange);
 }
 
 /** Nearest reference max of a given kind to time `t`, for the midpoint
@@ -375,7 +406,7 @@ export function secondaryCurrentExtremes(
       case "slack-to-flood": {
         // Slacks must be strictly v === 0 (currentValueAt branches on it).
         const diff = ttfLower !== null && ev.lowerLW ? ttfLower : ttf;
-        events.push({ t: ev.t + diff, v: 0, weak: false, kind: "slack-to-flood" });
+        events.push({ t: ev.t + diff, v: 0, weak: false, kind: "slack-to-flood", refV: ev.v });
         break;
       }
       case "slack-to-ebb": {
@@ -395,7 +426,7 @@ export function secondaryCurrentExtremes(
             diff += condAdd;
           }
         }
-        events.push({ t: ev.t + diff, v: 0, weak: false, kind: "slack-to-ebb" });
+        events.push({ t: ev.t + diff, v: 0, weak: false, kind: "slack-to-ebb", refV: ev.v });
         break;
       }
     }
@@ -424,7 +455,7 @@ export function secondaryCurrentExtremes(
             pctF !== null
               ? (pctF / 100) * ev.v          // ev.v > 0 → result > 0
               : fMag !== null
-              ? scaledKnots(fMag, ev.v, ev.weak, refScale?.maxFlood) ?? fMag
+              ? scaledKnots(fMag, ev.v, ev.weak, refScale?.kind === "current" ? refScale.maxFlood : undefined) ?? fMag
               : 0;
           events.push({ t: ev.t + fmd, v, weak: false, kind: "max-flood" });
         }
@@ -441,7 +472,7 @@ export function secondaryCurrentExtremes(
             pctE !== null
               ? (pctE / 100) * ev.v          // ev.v < 0 → result < 0
               : eMag !== null
-              ? -(scaledKnots(eMag, ev.v, ev.weak, refScale?.maxEbb) ?? eMag)  // emit signed
+              ? -(scaledKnots(eMag, ev.v, ev.weak, refScale?.kind === "current" ? refScale.maxEbb : undefined) ?? eMag)  // emit signed
               : 0;
           events.push({ t: ev.t + emd, v, weak: false, kind: "max-ebb" });
         }
@@ -463,9 +494,16 @@ export function secondaryCurrentExtremes(
     // reference's max in the same half-cycle (proportional rule); the
     // secondary's slacks sit near the reference's, so the reference max
     // nearest the midpoint (shifted back by the mean turn offset) is it.
-    const refFloods = refScale ? refClassified.filter((e) => e.kind === "max-flood") : [];
-    const refEbbs = refScale ? refClassified.filter((e) => e.kind === "max-ebb") : [];
+    const curScale = refScale?.kind === "current" ? refScale : null;
+    const tideScale = refScale?.kind === "tide" ? refScale : null;
+    const refFloods = curScale ? refClassified.filter((e) => e.kind === "max-flood") : [];
+    const refEbbs = curScale ? refClassified.filter((e) => e.kind === "max-ebb") : [];
     const turnShift = (ttf + tte) / 2;
+    // Tide reference: the half-cycle between two consecutive slacks is the
+    // rise (LW→HW, flood) or fall (HW→LW, ebb) between the two tide
+    // extremes that produced them; its range drives the square-root rule.
+    const halfCycleRange = (a: EmittedEvent, b: EmittedEvent): number =>
+      a.refV !== undefined && b.refV !== undefined ? Math.abs(b.refV - a.refV) : 0;
     const synth: EmittedEvent[] = [];
     for (let i = 0; i < events.length - 1; i++) {
       const a = events[i];
@@ -475,15 +513,25 @@ export function secondaryCurrentExtremes(
       if (a.kind === b.kind) continue;       // same-direction slacks → no half-cycle to peak
       const t = (a.t + b.t) / 2;
       if (a.kind === "slack-to-flood" && fMag !== null && fMag !== 0) {
-        const r = nearestRefMax(refFloods, t - turnShift);
-        const near = r !== null && Math.abs(r.t - (t - turnShift)) <= SYNTH_MATCH_WINDOW_MS;
-        const v = (near ? scaledKnots(fMag, r.v, r.weak, refScale?.maxFlood) : null) ?? fMag;
-        synth.push({ t, v, weak: false, kind: "max-flood" });
+        let v: number | null = null;
+        if (curScale) {
+          const r = nearestRefMax(refFloods, t - turnShift);
+          const near = r !== null && Math.abs(r.t - (t - turnShift)) <= SYNTH_MATCH_WINDOW_MS;
+          v = near ? scaledKnots(fMag, r.v, r.weak, curScale.maxFlood) : null;
+        } else if (tideScale) {
+          v = rangeScaledKnots(fMag, halfCycleRange(a, b), tideScale.largeRange);
+        }
+        synth.push({ t, v: v ?? fMag, weak: false, kind: "max-flood" });
       } else if (a.kind === "slack-to-ebb" && eMag !== null && eMag !== 0) {
-        const r = nearestRefMax(refEbbs, t - turnShift);
-        const near = r !== null && Math.abs(r.t - (t - turnShift)) <= SYNTH_MATCH_WINDOW_MS;
-        const v = (near ? scaledKnots(eMag, r.v, r.weak, refScale?.maxEbb) : null) ?? eMag;
-        synth.push({ t, v: -v, weak: false, kind: "max-ebb" });
+        let v: number | null = null;
+        if (curScale) {
+          const r = nearestRefMax(refEbbs, t - turnShift);
+          const near = r !== null && Math.abs(r.t - (t - turnShift)) <= SYNTH_MATCH_WINDOW_MS;
+          v = near ? scaledKnots(eMag, r.v, r.weak, curScale.maxEbb) : null;
+        } else if (tideScale) {
+          v = rangeScaledKnots(eMag, halfCycleRange(a, b), tideScale.largeRange);
+        }
+        synth.push({ t, v: -(v ?? eMag), weak: false, kind: "max-ebb" });
       }
     }
     if (synth.length > 0) {
