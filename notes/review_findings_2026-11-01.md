@@ -446,7 +446,10 @@ one-line test for it. Low priority.
 | F4 | Decided: on a scaled direction, a half-cycle with no matching reference max yields a weak (0) secondary max, consistent with weak and zero reference maxes; flat only when the direction is not scaled. Test added with explicitly built classified events. |
 
 Flood/ebb symmetry on the JSC rows (scaling a weak-dominated direction by the
-cycle's opposite-direction max) is left for the owner; there is no IWLS
-current series on a JSC-referenced row to validate it against.
+cycle's opposite-direction max) was put to the owner and **declined**: flood
+and ebb through a channel have their own geometry and phase, and one
+direction's strength does not predict the other's. Johnstone Strait Central
+itself, with a suppressed flood beside a normal ebb, is the counter-example.
+The six JSC rows keep the printed flood value; not to be revisited.
 
 Tests: 117 passed, 2 skipped (119 total). `tsc -b` clean.

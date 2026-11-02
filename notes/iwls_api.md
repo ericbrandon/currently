@@ -189,7 +189,9 @@ reference (Juan de Fuca-East floods ~20 %, Race Passage ~7 %, the rest
 ~0 %) and `dataInvariants.test.ts` asserts a 15-point margin. On a scaled
 direction a weak reference max, a 0 kn reference max, or a half-cycle
 with no reference max at all yields a weak (0) secondary max, as the
-percentage rule does.
+percentage rule does. Scaling an exempt direction by the opposite
+direction's ratio was considered in review and declined by the owner:
+flood and ebb in a channel do not track each other.
 
 ## 6. Opportunities, in rough order of value
 
