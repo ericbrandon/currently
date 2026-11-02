@@ -32,6 +32,7 @@ import { CURRENT_REF_ALIASES, suffixAlias } from "../src/data/loader";
 import { currentExtremes, tideExtremes } from "../src/interp/extremes";
 import { classifyHiLow, secondaryTideExtremes } from "../src/interp/secondaryTides";
 import {
+  buildCurrentRefScale,
   classifyCurrentEvents,
   classifyTideAsCurrent,
   hasMagnitudeData,
@@ -186,9 +187,7 @@ describe.skipIf(!enabled)(`IWLS vs derived secondaries (${year})`, () => {
     if (!prim || !sec || !tidePrim || !iwls) return;
 
     const curRefByName = new Map(prim.stations.map((c) => [c.name, classifyCurrentEvents(c)]));
-    const curScaleByName = new Map(prim.stations.map((c) => [c.name, {
-      kind: "current" as const, maxFlood: Math.abs(c.max_flood_knots), maxEbb: Math.abs(c.max_ebb_knots),
-    }]));
+    const curScaleByName = new Map(prim.stations.map((c) => [c.name, buildCurrentRefScale(c, curRefByName.get(c.name)!)]));
     const tideRefByName = new Map<string, { extremes: Extreme[]; classified: boolean[] }>();
     for (const s of tidePrim.stations) {
       const ext = tideExtremes(s);

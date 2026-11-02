@@ -233,6 +233,13 @@ def ingest(source: Path, data_dir: Path, year: int,
             if kind.stem in ("tidal_primary", "current_primary"):
                 raise SystemExit(f"{src} not found. Run canada_data/fetch_iwls.py --year {year} "
                                  f"(or pass --primaries tct to publish the printed tables).")
+            # A kind that is legitimately absent this run must not leave a
+            # stale published file behind: scan_data_dir would list it in the
+            # manifest and the loader would serve it (e.g. an old
+            # tidal_secondary_direct overriding the Table 3 derivation).
+            for stale in dest_dir.glob(f"{kind.stem}.*.json"):
+                stale.unlink()
+                print(f"  - {stale.relative_to(data_dir)}  (source {src.name} absent)")
             continue
         found_any = True
         data = json.loads(src.read_text())

@@ -36,7 +36,9 @@ import {
 } from "../interp/secondaryTides";
 import {
   type ClassifiedCurrentEvent,
+  type CurrentRefScale,
   type RefScale,
+  buildCurrentRefScale,
   classifyCurrentEvents,
   classifyLowerLows,
   classifyTideAsCurrent,
@@ -97,6 +99,36 @@ export function suffixAlias(name: string): string | null {
  *  this, the merged array holds a zero-length segment that the panels list
  *  twice and that breaks HW/LW alternation at the seam. The sort is stable,
  *  so for equal `t` the later year's copy comes second and wins. */
+/** Make consecutive years' arrays non-overlapping before merging: drop
+ *  events of a later year that fall at or before the previous year's last
+ *  event. Today the years meet at local midnight with no overlap (both
+ *  fetched at UTC−7), but a port that was derived in one year and direct
+ *  in the next could produce two near-identical events a few minutes
+ *  apart at the seam, which equal-t dedupe would miss. */
+export function trimOverlaps(perYear: Extreme[][]): Extreme[][] {
+  const out: Extreme[][] = [];
+  let lastT = Number.NEGATIVE_INFINITY;
+  for (const arr of perYear) {
+    const kept = arr.filter((e) => e.t > lastT);
+    out.push(kept);
+    if (kept.length > 0) lastT = kept[kept.length - 1].t;
+  }
+  return out;
+}
+
+/** Chart Y-axis bound for a current station: the printed/derived bound,
+ *  raised to the largest |v| the station actually emits. The proportional
+ *  and square-root rules deliberately allow ratios above 1 (a reference
+ *  exceeding its own large-tide value), and the chart clamps to this
+ *  bound, so without this a 11.4 kn peak at Dent Rapids would flat-top at
+ *  the printed 11. */
+export function currentChartBound(printed: number | undefined, ext: Extreme[]): number | undefined {
+  let observed = 0;
+  for (const e of ext) if (Math.abs(e.v) > observed) observed = Math.abs(e.v);
+  const bound = Math.max(printed ?? 0, observed);
+  return bound > 0 ? bound : undefined;
+}
+
 export function dedupeEqualT(sorted: Extreme[]): Extreme[] {
   const out: Extreme[] = [];
   for (const e of sorted) {
@@ -204,20 +236,42 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
     const secFile = tideSecondaryFiles[i];
     if (secFile) {
       for (const sec of secFile.stations) {
+        const direct = directById.get(sec.index_no);
         const ref = refByName.get(sec.reference_port);
-        if (!ref) {
+        if (!ref && !direct) {
           console.warn(
             `secondary station ${sec.index_no} ${sec.name} references unknown primary "${sec.reference_port}"`,
           );
           continue;
         }
-        const direct = directById.get(sec.index_no);
-        const ext = direct
-          ? tideExtremes(direct)
-          : secondaryTideExtremes(sec, ref.extremes, ref.station, ref.classified);
-
-        // At large tide, secondaryTideExtremes degenerates to ref.X_large + sec.X_large_diff:
-        // dh = dhMean + (hLarge - hMean) * slope = dhMean + (dhLarge - dhMean) = dhLarge.
+        let ext: Extreme[];
+        let lhhw: number | undefined;
+        let lllw: number | undefined;
+        if (direct) {
+          ext = tideExtremes(direct);
+        } else {
+          ext = secondaryTideExtremes(sec, ref!.extremes, ref!.station, ref!.classified);
+        }
+        if (ref) {
+          // At large tide, secondaryTideExtremes degenerates to ref.X_large + sec.X_large_diff:
+          // dh = dhMean + (hLarge - hMean) * slope = dhMean + (dhLarge - dhMean) = dhLarge.
+          lhhw = ref.station.higher_high_water_large_tide + sec.higher_high_water_large_tide_diff;
+          lllw = ref.station.lower_low_water_large_tide + sec.lower_low_water_large_tide_diff;
+        } else if (ext.length > 0) {
+          // Direct predictions but no reference port this year: bound the
+          // chart from the port's own extremes, as the NOAA branch does.
+          console.warn(
+            `secondary station ${sec.index_no} ${sec.name}: reference "${sec.reference_port}" missing; using direct predictions with observed bounds`,
+          );
+          let lo = Infinity;
+          let hi = -Infinity;
+          for (const e of ext) {
+            if (e.v < lo) lo = e.v;
+            if (e.v > hi) hi = e.v;
+          }
+          lhhw = hi + NOAA_TIDE_BOUND_PAD_M;
+          lllw = lo - NOAA_TIDE_BOUND_PAD_M;
+        }
         const id = chsId(sec.index_no);
         stationsById.set(id, {
           station_id: id,
@@ -226,8 +280,8 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
           kind: "tide-secondary",
           latitude: sec.latitude,
           longitude: sec.longitude,
-          tide_lhhw: ref.station.higher_high_water_large_tide + sec.higher_high_water_large_tide_diff,
-          tide_lllw: ref.station.lower_low_water_large_tide + sec.lower_low_water_large_tide_diff,
+          tide_lhhw: lhhw,
+          tide_lllw: lllw,
         });
         pushExtremes(id, ext);
       }
@@ -240,6 +294,8 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
     type CurRefEntry = {
       station: CurrentPrimaryStation;
       classified: ClassifiedCurrentEvent[];
+      /** Shared by every absolute-knots secondary on this reference. */
+      scale: CurrentRefScale;
     };
     const curRefByName = new Map<string, CurRefEntry>();
 
@@ -267,7 +323,8 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
           current_max_knots: maxMag,
         });
         pushTo(currentExtremesByStation, id, ext);
-        curRefByName.set(c.name, { station: c, classified: classifyCurrentEvents(c) });
+        const classified = classifyCurrentEvents(c);
+        curRefByName.set(c.name, { station: c, classified, scale: buildCurrentRefScale(c, classified) });
       }
     }
 
@@ -309,11 +366,7 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
           const curRef = curRefByName.get(aliased);
           if (curRef) {
             refClassified = curRef.classified;
-            refScale = {
-              kind: "current",
-              maxFlood: Math.abs(curRef.station.max_flood_knots),
-              maxEbb: Math.abs(curRef.station.max_ebb_knots),
-            };
+            refScale = curRef.scale;
           }
         }
         if (!refClassified) {
@@ -327,7 +380,14 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
         // turns than the max diffs (ALERT BAY / PULTENEY POINT → SEYMOUR
         // NARROWS). Fall back to the main reference if unresolvable.
         let turnRefClassified = refClassified;
-        if (sec.turn_reference_primary) {
+        if (sec.turn_reference_primary && sec.offsets_from_tides) {
+          // A tide-referenced row's slacks must carry tide heights for the
+          // square-root rule; a current-primary turn reference would
+          // silently flatten it. No such row exists in the 2027 tables.
+          console.warn(
+            `secondary current ${sec.index_no} ${sec.name}: turn reference "${sec.turn_reference_primary}" ignored on a tide-referenced row`,
+          );
+        } else if (sec.turn_reference_primary) {
           const aliased =
             CURRENT_REF_ALIASES[sec.turn_reference_primary] ?? sec.turn_reference_primary;
           const turnRef = curRefByName.get(aliased);
@@ -372,6 +432,8 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
           }
         }
 
+        const ext = secondaryCurrentExtremes(sec, refClassified, turnRefClassified, refScale);
+
         const id = chsId(sec.index_no);
         stationsById.set(id, {
           station_id: id,
@@ -382,10 +444,9 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
           longitude: sec.longitude,
           flood_dir: sec.flood_direction_true,
           ebb_dir: ebbDir,
-          current_max_knots: bound,
+          current_max_knots: currentChartBound(bound, ext),
         });
 
-        const ext = secondaryCurrentExtremes(sec, refClassified, turnRefClassified, refScale);
         if (ext.length > 0) pushTo(currentExtremesByStation, id, ext);
       }
     }
@@ -479,7 +540,7 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
         id,
         perYear.length === 1
           ? perYear[0]
-          : dedupeEqualT(perYear.flat().sort((a: Extreme, b: Extreme) => a.t - b.t)),
+          : dedupeEqualT(trimOverlaps(perYear).flat().sort((a: Extreme, b: Extreme) => a.t - b.t)),
       );
     }
     return out;

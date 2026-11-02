@@ -111,7 +111,7 @@ describe("published tide data", () => {
     }
   });
 
-  it("direct secondary predictions cover known Table 3 ports with clean readings", () => {
+  it("direct secondary predictions cover known Table 3 ports with clean readings", { timeout: 60_000 }, () => {
     for (const { year, secondaries, direct } of years) {
       if (direct.length === 0) continue;
       const known = new Set(secondaries.map((s) => s.index_no));

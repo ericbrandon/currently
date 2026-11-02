@@ -4,7 +4,7 @@
 // a new CHS volume before they silently break classification again.
 // See notes/secondary_current_fix_plan.md.
 
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -44,6 +44,30 @@ const primaries = chsCurrentPrimaries();
 describe("published current-primary data", () => {
   it("has at least one year of stations", () => {
     expect(primaries.length).toBeGreaterThan(0);
+  });
+
+  it("carries the book's Table 4 large-tide maxima on every CHS current primary", () => {
+    // The proportional rule divides by these. Under the IWLS source they
+    // exist only because fetch_iwls.py --metadata-from roster copies the
+    // book's values; a fetch without the carry-over would silently turn
+    // them into the year's largest event. Compare against the book parse
+    // at the repo root when it is available.
+    const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
+    for (const { year, station } of primaries) {
+      // The book prints both as magnitudes; the loader takes Math.abs, so
+      // only non-zero matters here.
+      expect(Math.abs(station.max_flood_knots), `${year} ${station.name}: max_flood_knots`).toBeGreaterThan(0);
+      expect(Math.abs(station.max_ebb_knots), `${year} ${station.name}: max_ebb_knots`).toBeGreaterThan(0);
+      const bookPath = join(repoRoot, `${year}_tct_current_primary_stations.json`);
+      if (existsSync(bookPath)) {
+        const book = (JSON.parse(readFileSync(bookPath, "utf8")) as CurrentPrimaryFile).stations
+          .find((b) => b.index_no === station.index_no);
+        if (book) {
+          expect(station.max_flood_knots, `${year} ${station.name}: flood max vs book`).toBe(book.max_flood_knots);
+          expect(station.max_ebb_knots, `${year} ${station.name}: ebb max vs book`).toBe(book.max_ebb_knots);
+        }
+      }
+    }
   });
 
   it("classifies a balanced flood/ebb split at every station", () => {

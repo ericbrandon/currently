@@ -11,8 +11,16 @@ open.canada.ca lists most BC stations with 3+ decimal places (~110 m or
 better). For stations the CSV is missing or gets wrong, a small
 `coord_overrides.json` keyed by index_no provides a manual escape hatch.
 
-Runs after read_tct.py and before build_manifest.py — see
-notes/tables_processing.md for full rationale.
+Runs before build_manifest.py — see notes/combined_data_processing.md
+for the full rationale.
+
+Since 2026-11 the two primary kinds normally come from the IWLS API
+(fetch_iwls.py, --primaries iwls), whose coordinates are already precise;
+only the Table 3/4 secondary files (and --primaries tct runs) still carry
+the PDF's integer-minute positions. The override/CSV precedence applies
+the same way to both, and every primary has an override entry, so the
+"flagged for review" heuristics below — written for PDF-vs-CSV
+disagreements — only ever fire on PDF-sourced rows.
 
 Idempotent: re-running with the same inputs yields no diff.
 """

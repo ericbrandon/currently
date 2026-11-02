@@ -173,6 +173,19 @@ rendering overstates speeds at Sansum Narrows, Okisollo, Yuculta, Dent,
 Greene Point, Whirlpool Rapids, Nakwakto's neighbours and the rest on
 every tide smaller than a large one.
 
+One exception, found in review: six of the 14 current-referenced rows
+(Alert Bay, Pulteney Point, Camp Point, Current Passage, Masterman
+Islands, Browning Islands) reference Johnstone Strait Central, whose
+flood is structurally suppressed: 585 of its 704 floods are weak and the
+119 real ones peak at 0.51 kn against a printed large-tide 1.5. Scaling
+Alert Bay's real 4 kn flood by that ratio would understate it on real
+days and, with a flat fallback on weak days, invert the row. So the
+proportional rule is switched off for any reference *direction* whose
+maxes are more than 20 % weak (`WEAK_DOMINATED_SHARE`); those six rows'
+floods stay flat as before, their ebbs scale (JSC's ebb is healthy). On a
+scaled direction a weak reference max now yields a weak (0) secondary
+max, as the percentage rule does.
+
 ## 6. Opportunities, in rough order of value
 
 1. **Switch Canadian primaries to IWLS now.** Same shape, same values,
