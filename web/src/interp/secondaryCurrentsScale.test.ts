@@ -10,8 +10,10 @@
 import { describe, expect, it } from "vitest";
 import type { CurrentPrimaryStation, CurrentSecondaryStation, Extreme } from "../types";
 import {
+  WEAK_DOMINATED_SHARE,
   buildCurrentRefScale,
   classifyCurrentEvents,
+  decideScaling,
   classifyLowerLows,
   classifyTideAsCurrent,
   secondaryCurrentExtremes,
@@ -135,6 +137,36 @@ describe("proportional rule, current reference", () => {
     const out = secondaryCurrentExtremes(dent({ flood_max_diff: "+00:00", ebb_max_diff: "+00:00" }), classified, classified, scale);
     expect(out.some((e) => e.v === 11)).toBe(false);
     expect(out.filter((e) => e.weak).length).toBe(1);
+  });
+
+  it("a scaled direction with no reference max in the half-cycle gives a weak max, not the printed speed", () => {
+    // Classified events built directly: a flood half-cycle (slack-to-flood
+    // → slack-to-ebb) with no flood max printed between, then a normal ebb.
+    const classified = [
+      { t: h(1), v: 0, weak: false, kind: "slack-to-flood" as const },
+      { t: h(7), v: 0, weak: false, kind: "slack-to-ebb" as const },
+      { t: h(10), v: -5.9, weak: false, kind: "max-ebb" as const },
+      { t: h(13), v: 0, weak: false, kind: "slack-to-flood" as const },
+    ];
+    const scale = buildCurrentRefScale(primary([]), classified, { scaleFlood: true, scaleEbb: true });
+    const out = secondaryCurrentExtremes(dent(), classified, classified, scale);
+    const flood = out.find((e) => e.t > h(1) && e.t < h(7) && e.v === 0 && e.weak);
+    expect(flood, "synthesised flood peak should be weak/0").toBeTruthy();
+    expect(out.some((e) => e.v === 11)).toBe(false);
+    expect(out.find((e) => e.v < 0)!.v).toBeCloseTo(-5.9, 5);
+  });
+
+  it("the scale decision pools every loaded year, so a short tail cannot disagree with the full year", () => {
+    const tail = classifyCurrentEvents(multiDay((i) => (i < 4 ? { time: "", kind: "max", knots: 0, weak: true } : { time: "", kind: "max", knots: 4.0 })));  // 4 of 6 weak
+    const full = classifyCurrentEvents(multiDay(() => ({ time: "", kind: "max", knots: 4.0 })));                                                            // 0 of 6 weak
+    expect(decideScaling([tail]).scaleFlood).toBe(false);
+    expect(decideScaling([full]).scaleFlood).toBe(true);
+    const pooled = decideScaling([tail, full]);            // 4 of 12 weak → below the majority threshold
+    expect(pooled.scaleFlood).toBe(true);
+    const a = buildCurrentRefScale(primary([]), tail, pooled);
+    const b = buildCurrentRefScale(primary([]), full, pooled);
+    expect(a.scaleFlood).toBe(b.scaleFlood);
+    expect(WEAK_DOMINATED_SHARE).toBe(0.5);
   });
 
   it("Haro Strait style: conditional ebb delay together with a current scale", () => {

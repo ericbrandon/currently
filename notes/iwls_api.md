@@ -181,10 +181,15 @@ flood is structurally suppressed: 585 of its 704 floods are weak and the
 Alert Bay's real 4 kn flood by that ratio would understate it on real
 days and, with a flat fallback on weak days, invert the row. So the
 proportional rule is switched off for any reference *direction* whose
-maxes are more than 20 % weak (`WEAK_DOMINATED_SHARE`); those six rows'
-floods stay flat as before, their ebbs scale (JSC's ebb is healthy). On a
-scaled direction a weak reference max now yields a weak (0) secondary
-max, as the percentage rule does.
+maxes are mostly weak (`WEAK_DOMINATED_SHARE` = 0.5, decided per primary
+over all loaded years pooled, so a two-month tail cannot disagree with
+the full year); those six rows' floods stay flat as before, their ebbs
+scale (JSC's ebb is healthy). A majority sits far from every other
+reference (Juan de Fuca-East floods ~20 %, Race Passage ~7 %, the rest
+~0 %) and `dataInvariants.test.ts` asserts a 15-point margin. On a scaled
+direction a weak reference max, a 0 kn reference max, or a half-cycle
+with no reference max at all yields a weak (0) secondary max, as the
+percentage rule does.
 
 ## 6. Opportunities, in rough order of value
 

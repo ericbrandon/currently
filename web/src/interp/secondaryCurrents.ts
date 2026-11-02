@@ -327,29 +327,54 @@ export type TideRefScale = { kind: "tide"; largeRange: number };
 export type RefScale = CurrentRefScale | TideRefScale;
 
 /** Share of a reference direction's maxes that may be weak before the
- *  proportional rule is switched off for that direction. Real references
- *  sit at 0–1 weak per year; Johnstone Strait Central's floods sit at
- *  83 %. */
-export const WEAK_DOMINATED_SHARE = 0.2;
+ *  proportional rule is switched off for that direction: a majority. The
+ *  decision is meant to separate "this direction carries no usable
+ *  magnitude" (Johnstone Strait Central's floods, 83 % weak, real ones a
+ *  third of the printed value) from references whose occasional weak max
+ *  is a genuinely faded tide (Juan de Fuca-East floods ~20 %, Race Passage
+ *  ~7 %, everything else ~0 %). A majority sits far from every real
+ *  reference on either side, so a re-fetch cannot flip it; the data
+ *  invariant test checks that margin. */
+export const WEAK_DOMINATED_SHARE = 0.5;
 
-/** Build the scale for a current primary once; the loader shares it
- *  across every secondary referenced to that primary. */
+export type ScaleDecision = { scaleFlood: boolean; scaleEbb: boolean };
+
+/** Weak share per direction over one or more classified arrays (pool
+ *  every loaded year of a primary so the decision cannot differ between
+ *  years or hinge on a two-month tail). */
+export function weakShares(classifiedLists: ClassifiedCurrentEvent[][]): { flood: number; ebb: number } {
+  let f = 0; let fw = 0; let e = 0; let ew = 0;
+  for (const list of classifiedLists) {
+    for (const ev of list) {
+      if (ev.kind === "max-flood") { f++; if (ev.weak) fw++; }
+      else if (ev.kind === "max-ebb") { e++; if (ev.weak) ew++; }
+    }
+  }
+  return { flood: f === 0 ? 1 : fw / f, ebb: e === 0 ? 1 : ew / e };
+}
+
+export function decideScaling(classifiedLists: ClassifiedCurrentEvent[][]): ScaleDecision {
+  const share = weakShares(classifiedLists);
+  return { scaleFlood: share.flood <= WEAK_DOMINATED_SHARE, scaleEbb: share.ebb <= WEAK_DOMINATED_SHARE };
+}
+
+/** Build the scale for a current primary once per year; the loader
+ *  shares it across every secondary referenced to that primary. The
+ *  scale/no-scale decision should be the pooled one across all loaded
+ *  years (`decideScaling`); it defaults to this year's events alone. */
 export function buildCurrentRefScale(
   station: { max_flood_knots: number; max_ebb_knots: number },
   classified: ClassifiedCurrentEvent[],
+  decision: ScaleDecision = decideScaling([classified]),
 ): CurrentRefScale {
-  const floods = classified.filter((e) => e.kind === "max-flood");
-  const ebbs = classified.filter((e) => e.kind === "max-ebb");
-  const weakShare = (xs: ClassifiedCurrentEvent[]) =>
-    xs.length === 0 ? 1 : xs.filter((e) => e.weak).length / xs.length;
   return {
     kind: "current",
     maxFlood: Math.abs(station.max_flood_knots),
     maxEbb: Math.abs(station.max_ebb_knots),
-    floods,
-    ebbs,
-    scaleFlood: weakShare(floods) <= WEAK_DOMINATED_SHARE,
-    scaleEbb: weakShare(ebbs) <= WEAK_DOMINATED_SHARE,
+    floods: classified.filter((e) => e.kind === "max-flood"),
+    ebbs: classified.filter((e) => e.kind === "max-ebb"),
+    scaleFlood: decision.scaleFlood,
+    scaleEbb: decision.scaleEbb,
   };
 }
 
@@ -358,9 +383,11 @@ type Dir = "flood" | "ebb";
 /** Unsigned magnitude (and weak flag) for a knots-rule max in direction
  *  `dir`, given the reference max `ev` it keys off (null when none could
  *  be matched). Flat printed value whenever the proportional rule does
- *  not apply; otherwise a weak reference max gives a weak (0) secondary
- *  max, exactly as the percentage rule does, and a reference max of 0 kn
- *  likewise. */
+ *  not apply to this direction. Where it does apply, a weak reference
+ *  max gives a weak (0) secondary max, exactly as the percentage rule
+ *  does; so do a reference max of 0 kn and a half-cycle with no
+ *  reference max at all (the reference printed none, i.e. nothing
+ *  measurable happened), rather than the full printed speed. */
 function knotsRuleMagnitude(
   mag: number,
   ev: { v: number; weak: boolean } | null,
@@ -368,8 +395,8 @@ function knotsRuleMagnitude(
   dir: Dir,
 ): { v: number; weak: boolean } {
   const enabled = scale !== null && (dir === "flood" ? scale.scaleFlood : scale.scaleEbb);
-  if (!enabled || ev === null) return { v: mag, weak: false };
-  if (ev.weak) return { v: 0, weak: true };
+  if (!enabled) return { v: mag, weak: false };
+  if (ev === null || ev.weak) return { v: 0, weak: true };
   const refMax = dir === "flood" ? scale!.maxFlood : scale!.maxEbb;
   if (!(refMax > 0)) return { v: mag, weak: false };
   const v = mag * (Math.abs(ev.v) / refMax);

@@ -15,9 +15,11 @@ import type {
 } from "../types";
 import { CURRENT_REF_ALIASES } from "../data/loader";
 import {
+  WEAK_DOMINATED_SHARE,
   classifyCurrentEvents,
   hasMagnitudeData,
   secondaryCurrentExtremes,
+  weakShares,
 } from "./secondaryCurrents";
 
 const dataDir = fileURLToPath(new URL("../../public/data", import.meta.url));
@@ -44,6 +46,40 @@ const primaries = chsCurrentPrimaries();
 describe("published current-primary data", () => {
   it("has at least one year of stations", () => {
     expect(primaries.length).toBeGreaterThan(0);
+  });
+
+  it("keeps every reference's weak share well clear of the proportional rule's threshold, in every year and pooled", () => {
+    // The weak-dominated exemption (WEAK_DOMINATED_SHARE) must not hinge
+    // on a re-fetch moving a share by a fraction, nor differ between a
+    // two-month tail and the full year beside it. Today only Johnstone
+    // Strait Central's floods are above the line (~83 %); the next highest
+    // is Juan de Fuca-East's floods (~20 %).
+    const MARGIN = 0.15;
+    const byIndex = new Map<number, { years: string[]; lists: ReturnType<typeof classifyCurrentEvents>[] }>();
+    for (const { year, station } of primaries) {
+      const e = byIndex.get(station.index_no) ?? { years: [], lists: [] };
+      e.years.push(year);
+      e.lists.push(classifyCurrentEvents(station));
+      byIndex.set(station.index_no, e);
+    }
+    for (const [idx, { years: ys, lists }] of byIndex) {
+      const pooled = weakShares(lists);
+      for (const dir of ["flood", "ebb"] as const) {
+        expect(
+          Math.abs(pooled[dir] - WEAK_DOMINATED_SHARE),
+          `${idx} ${dir}: pooled weak share ${pooled[dir].toFixed(3)} too close to the threshold`,
+        ).toBeGreaterThan(MARGIN);
+        for (let k = 0; k < lists.length; k++) {
+          const yearly = weakShares([lists[k]]);
+          expect(
+            yearly[dir] <= WEAK_DOMINATED_SHARE,
+            `${idx} ${dir} ${ys[k]}: per-year decision differs from the pooled one`,
+          ).toBe(pooled[dir] <= WEAK_DOMINATED_SHARE);
+        }
+      }
+    }
+    const dominated = [...byIndex].filter(([, { lists }]) => weakShares(lists).flood > WEAK_DOMINATED_SHARE || weakShares(lists).ebb > WEAK_DOMINATED_SHARE).map(([idx]) => idx);
+    expect(dominated, "weak-dominated directions should be Johnstone Strait Central's floods only").toEqual([8246]);
   });
 
   it("carries the book's Table 4 large-tide maxima on every CHS current primary", () => {

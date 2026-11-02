@@ -296,3 +296,157 @@ follows `7c357b0`. Tests went from 104 to 114.
 | 12 | Done: one `synthPeak` helper. |
 | 13 | Done: `buildCurrentRefScale` runs once per primary in the loader and carries the sorted flood/ebb arrays. |
 | 14 | Done: comments updated to describe IWLS-sourced primaries. The heuristics were left in place since they only fire on PDF-sourced rows. |
+
+---
+
+## Follow-up review of `dd276d7` (2026-11-01)
+
+The fixes in `dd276d7` were re-reviewed. `npx tsc -b` is clean, and
+`npx vitest run` shows 114 passed and 2 skipped. The rewritten
+`secondaryCurrentExtremes`, the loader changes and the `build_manifest.py`
+change were all read, not just this resolution table.
+
+### Finding 1: the alternative fix is accepted
+
+The disagreement is correct, and the remedy originally suggested in §1 was
+wrong. Johnstone Strait Central's floods carry no usable magnitude signal:
+83 % are weak, and the real ones peak at 0.49 kn against a printed 1.5. So
+zeroing on weak would erase a real flood, and scaling would understate it.
+Switching the rule off per weak-dominated reference direction
+(`WEAK_DOMINATED_SHARE`) removes the inversion, which was the actual bug.
+
+**Known trade-off, not a blocker.** On the six JSC rows (Camp Point, Current
+Passage, Alert Bay, Pulteney Point, Masterman Islands, Browning Islands),
+floods are now always the full printed value while ebbs scale. JSC's ebbs
+are well behaved: median 1.00 kn against the printed 1.5, maximum 1.52.
+So Alert Bay typically shows an ebb of about 2.7 kn and a flood that is
+always 4.0, which makes the flood look systematically stronger.
+
+**Possible later improvement:** scale a weak-dominated direction by the ratio
+of the adjacent opposite-direction max in the same tidal cycle, since tidal
+strength applies to the whole cycle. That would restore flood/ebb symmetry
+without using the unusable flood magnitudes. Validate it against IWLS before
+adopting it, if any IWLS current series sits on a JSC-referenced row.
+Otherwise leave it for the owner to decide.
+
+### New issues in the fixes
+
+| # | Severity | Where | Issue |
+|---|---|---|---|
+| F1 | **Fix before deploy** | `build_manifest.py` `ingest`, absent-source branch | The stale-file cleanup deletes the published files of *any* missing optional kind |
+| F2 | Fix (cheap) | `buildCurrentRefScale` / loader per-year loop | The weak-dominated decision is made per year, and one reference sits on the threshold |
+| F3 | Fix (cheap) | loader, `currentChartBound` call | The chart bound only considers the last loaded year's extremes |
+| F4 | Minor | `pickRefMax` → `knotsRuleMagnitude` | No matched reference max still falls back to the flat printed value |
+
+#### F1. The stale-file cleanup is broader than intended
+
+The fix for finding 7 removes `{kind.stem}.*.json` whenever a kind's source
+is absent, for every kind except the two primaries. That was meant for
+`tidal_secondary_direct` under `--primaries tct`. It also applies to:
+- `tidal_secondary` and `current_secondary`, the book Table 3/4 files;
+- `noaa_tidal_primary` and `noaa_current_primary`.
+
+**Failure:** run `--source` against a directory without the NOAA outputs, or
+without one of the `*_tct_*` secondary files. The build then quietly
+unpublishes every NOAA station or every secondary for that year. It prints
+only a `- removed` line, and the manifest is rebuilt without them. Before
+`dd276d7` the old files would have survived.
+
+**Fix:** only remove stale files for kinds that are legitimately optional,
+which today means just `tidal_secondary_direct`. For every other kind,
+missing input should be an error, as it already is for the primaries. One way
+is an `optional: bool` on `Kind`. Add a test, or at least a scratch-copy
+check, that a run missing a NOAA source fails and leaves `data/{year}/`
+untouched.
+
+#### F2. The weak-dominated decision can flip between years
+
+`buildCurrentRefScale` runs once per primary *per year*, on that year's
+events only. The 2026 file is now a two-month tail (Oct 31 – Dec 31), so its
+share is computed from about 110 maxes per direction.
+
+An approximate count shows how close one reference is. It assigns each weak
+max to the opposite direction of the previous max, so it is close to the
+classifier but not identical. Recompute with `classifyCurrentEvents` to
+confirm.
+
+| Reference, flood direction | 2026 tail | 2027 |
+|---|---|---|
+| Juan de Fuca-East | ~26 % weak → flat | ~19.9 % weak → scaled |
+| Johnstone Strait Central | ~86 % | ~83 % |
+| Race Passage | ~8 % | ~7 % |
+| Blackney Passage | ~3 % | ~7 % |
+
+Every ebb direction is at or near 0 %.
+
+No absolute-knots row references Juan de Fuca-East today (the knots rows'
+references are Active Pass, Seymour Narrows, Gillard Passage and JSC), so
+nothing renders differently yet. The design is still fragile:
+- a row that later referenced it would change rule at midnight on Jan 1;
+- a re-fetch that moves its share by a fraction of a percent would flip it.
+
+**Fix:** decide `scaleFlood`/`scaleEbb` once per primary across all loaded
+years, by pooling the counts. Alternatively, pin the decision per primary
+(only JSC floods are weak-dominated) and have a data invariant test fail if
+the computed share for any primary moves across the threshold. Either way,
+add a test that the decision is the same in every loaded year.
+
+#### F3. The chart bound only considers the last year
+
+`current_max_knots: currentChartBound(bound, ext)` is computed inside the
+per-year loop, and `stationsById.set` is "latest year wins". The bound
+therefore reflects only the last year's emitted extremes (2027). A larger
+scaled peak in the 2026 tail would still flat-top on the chart, which is the
+problem finding 3 was meant to fix.
+
+**Fix:** keep a running maximum per station id across years, for example
+`max(existing?.current_max_knots ?? 0, currentChartBound(bound, ext))`. Or
+compute the bound once after `flattenPerYear` from the merged extremes. Apply
+the same reasoning to the observed-bounds branch for direct ports without a
+reference (finding 6), which has the same per-year shape.
+
+#### F4. An unmatched reference max still falls back to flat
+
+When `pickRefMax` returns null (no same-kind reference max between the two
+reference slacks, or none within 4 h on the footnote (a) path),
+`knotsRuleMagnitude` returns the full printed value. This is the same
+over-statement pattern as finding 1. It should be rare: at the edges of the
+data window, or after a classifier anomaly.
+
+**Fix:** decide the intended behaviour explicitly. Weak/0 is more consistent
+with the scaled rule, and flat is the historical default. Then add a
+one-line test for it. Low priority.
+
+### Verified in `dd276d7`, no action needed
+
+- **Finding 2:** a 0 kn reference max gives a weak 0 secondary max.
+- **Findings 6, 8, 10:** direct-before-reference lookup, `trimOverlaps`, and
+  the tide-row turn-reference guard all behave as described.
+  - `trimOverlaps` keeps the earlier year's event at a seam tie, where
+    `dedupeEqualT` alone kept the later one. This is harmless.
+  - The within-year duplicate (Port Renfrew) is still handled by
+    `dedupeEqualT`.
+- **Findings 9, 12, 13:** `pickRefMax` bracketing, the single `synthPeak`
+  helper, and the shared per-primary flood/ebb arrays are correct.
+- **Findings 4, 5, 11:** the requested tests and doc comment are present and
+  meaningful.
+- **Order before deploy:** F1, then F2 and F3, which are cheap and can go in
+  the same commit. F4 and the symmetry improvement can wait.
+
+
+---
+
+## Resolution of the follow-up (2026-11-01)
+
+| # | Outcome |
+|---|---|
+| F1 | Fixed. `Kind` gained `optional`; only `tidal_secondary_direct` is optional and has its stale files removed. Every other missing source now stops the run with a hint naming the pipeline to run. Scratch check: a 2027 run without the NOAA current source exits 1 and leaves `data/2027/` byte-for-byte unchanged. |
+| F2 | Fixed two ways. The decision is now pooled across all loaded years per primary (`decideScaling` in the loader's pre-pass, handed to `buildCurrentRefScale`), and the threshold moved from 20 % to a majority (`WEAK_DOMINATED_SHARE = 0.5`): "dominated" should mean the direction carries no usable magnitude, which is JSC's floods at 83 % and nothing else; Juan de Fuca-East at ~20 % has real floods with a few genuinely faded ones. `dataInvariants.test.ts` now asserts every reference's pooled share is at least 15 points from the threshold, that each year's decision matches the pooled one, and that the weak-dominated set is exactly JSC. A unit test shows a 4-of-6-weak tail pooled with a clean year scaling consistently. |
+| F3 | Fixed. The current-secondary bound carries the running maximum across years; the observed-bounds branch for direct ports without a reference widens by any earlier year's bound. |
+| F4 | Decided: on a scaled direction, a half-cycle with no matching reference max yields a weak (0) secondary max, consistent with weak and zero reference maxes; flat only when the direction is not scaled. Test added with explicitly built classified events. |
+
+Flood/ebb symmetry on the JSC rows (scaling a weak-dominated direction by the
+cycle's opposite-direction max) is left for the owner; there is no IWLS
+current series on a JSC-referenced row to validate it against.
+
+Tests: 117 passed, 2 skipped (119 total). `tsc -b` clean.

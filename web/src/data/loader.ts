@@ -38,8 +38,10 @@ import {
   type ClassifiedCurrentEvent,
   type CurrentRefScale,
   type RefScale,
+  type ScaleDecision,
   buildCurrentRefScale,
   classifyCurrentEvents,
+  decideScaling,
   classifyLowerLows,
   classifyTideAsCurrent,
   hasMagnitudeData,
@@ -171,6 +173,26 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
     Promise.all(yearEntries.map((y) => fetchSlot<NoaaCurrentPrimaryFile>(y.noaa_current_primary, "noaa current primary"))),
   ]);
 
+  // Classify every current primary once per year, and decide the
+  // proportional rule's weak-dominated exemption per primary across ALL
+  // loaded years pooled, so a two-month tail cannot reach a different
+  // verdict from the full year next to it.
+  const classifiedByYear = currentPrimaryFiles.map((f) =>
+    new Map((f?.stations ?? []).map((c) => [c.index_no, classifyCurrentEvents(c)] as const)),
+  );
+  const scaleDecisionByIndex = new Map<number, ScaleDecision>();
+  {
+    const pooled = new Map<number, ClassifiedCurrentEvent[][]>();
+    for (const m of classifiedByYear) {
+      for (const [idx, cls] of m) {
+        const list = pooled.get(idx);
+        if (list) list.push(cls);
+        else pooled.set(idx, [cls]);
+      }
+    }
+    for (const [idx, lists] of pooled) scaleDecisionByIndex.set(idx, decideScaling(lists));
+  }
+
   const stationsById = new Map<string, StationMeta>();
   const tideExtremesByStation = new Map<string, Extreme[][]>();
   const currentExtremesByStation = new Map<string, Extreme[][]>();
@@ -259,12 +281,14 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
           lllw = ref.station.lower_low_water_large_tide + sec.lower_low_water_large_tide_diff;
         } else if (ext.length > 0) {
           // Direct predictions but no reference port this year: bound the
-          // chart from the port's own extremes, as the NOAA branch does.
+          // chart from the port's own extremes, as the NOAA branch does,
+          // widened by any bound an earlier year already set.
           console.warn(
             `secondary station ${sec.index_no} ${sec.name}: reference "${sec.reference_port}" missing; using direct predictions with observed bounds`,
           );
-          let lo = Infinity;
-          let hi = -Infinity;
+          const prev = stationsById.get(chsId(sec.index_no));
+          let lo = prev?.tide_lllw !== undefined ? prev.tide_lllw - NOAA_TIDE_BOUND_PAD_M : Infinity;
+          let hi = prev?.tide_lhhw !== undefined ? prev.tide_lhhw + NOAA_TIDE_BOUND_PAD_M : -Infinity;
           for (const e of ext) {
             if (e.v < lo) lo = e.v;
             if (e.v > hi) hi = e.v;
@@ -323,8 +347,12 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
           current_max_knots: maxMag,
         });
         pushTo(currentExtremesByStation, id, ext);
-        const classified = classifyCurrentEvents(c);
-        curRefByName.set(c.name, { station: c, classified, scale: buildCurrentRefScale(c, classified) });
+        const classified = classifiedByYear[i].get(c.index_no) ?? classifyCurrentEvents(c);
+        curRefByName.set(c.name, {
+          station: c,
+          classified,
+          scale: buildCurrentRefScale(c, classified, scaleDecisionByIndex.get(c.index_no)),
+        });
       }
     }
 
@@ -434,7 +462,10 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
 
         const ext = secondaryCurrentExtremes(sec, refClassified, turnRefClassified, refScale);
 
+        // Metadata is latest-year-wins, but the chart bound must cover
+        // every loaded year's peaks, so carry the running maximum.
         const id = chsId(sec.index_no);
+        const prevBound = stationsById.get(id)?.current_max_knots;
         stationsById.set(id, {
           station_id: id,
           source: "chs",
@@ -444,7 +475,7 @@ export async function loadAllYears(manifest: Manifest): Promise<LoadedData> {
           longitude: sec.longitude,
           flood_dir: sec.flood_direction_true,
           ebb_dir: ebbDir,
-          current_max_knots: currentChartBound(bound, ext),
+          current_max_knots: currentChartBound(prevBound ?? bound, ext) ?? (bound !== undefined ? currentChartBound(bound, ext) : undefined),
         });
 
         if (ext.length > 0) pushTo(currentExtremesByStation, id, ext);

@@ -37,6 +37,10 @@ from pathlib import Path
 class Kind:
     stem: str
     source_template: str
+    # An optional kind may legitimately be absent from a run (its stale
+    # published files are then removed); every other kind's source must
+    # exist, or the run stops rather than quietly unpublishing a feed.
+    optional: bool = False
 
 # {primaries} is "iwls" (fetch_iwls.py, the API — the source from 2027 on)
 # or "tct" (read_tct.py, the printed tables); see --primaries. Secondaries
@@ -47,7 +51,7 @@ KINDS: list[Kind] = [
     # Direct IWLS hi/lo predictions for the Table 3 ports that have them
     # (fetch_iwls.py --secondaries). The loader prefers these over the
     # Table 3 derivation per port; ports absent here are still derived.
-    Kind("tidal_secondary_direct", "{year}_iwls_tidal_secondary_predictions.json"),
+    Kind("tidal_secondary_direct", "{year}_iwls_tidal_secondary_predictions.json", optional=True),
     Kind("current_primary",      "{year}_{primaries}_current_primary_stations.json"),
     Kind("current_secondary",    "{year}_tct_current_secondary_stations.json"),
     Kind("noaa_tidal_primary",   "{year}_noaa_tidal_primary_stations.json"),
@@ -230,10 +234,13 @@ def ingest(source: Path, data_dir: Path, year: int,
     for kind in KINDS:
         src = source / kind.source_template.format(year=year, primaries=primaries)
         if not src.exists():
-            if kind.stem in ("tidal_primary", "current_primary"):
-                raise SystemExit(f"{src} not found. Run canada_data/fetch_iwls.py --year {year} "
-                                 f"(or pass --primaries tct to publish the printed tables).")
-            # A kind that is legitimately absent this run must not leave a
+            if not kind.optional:
+                hint = (f"Run canada_data/fetch_iwls.py --year {year} (or pass --primaries tct)"
+                        if kind.stem in ("tidal_primary", "current_primary")
+                        else f"Run us_data/process_us.sh --year {year}" if kind.stem.startswith("noaa_")
+                        else f"Run canada_data/process_canadian.sh --year {year} or copy the previous year's file")
+                raise SystemExit(f"{src} not found; refusing to publish {year} without {kind.stem}. {hint}.")
+            # An optional kind that is absent this run must not leave a
             # stale published file behind: scan_data_dir would list it in the
             # manifest and the loader would serve it (e.g. an old
             # tidal_secondary_direct overriding the Table 3 derivation).
